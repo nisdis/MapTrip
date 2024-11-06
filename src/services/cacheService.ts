@@ -1,6 +1,6 @@
 import type { SearchResult } from './searchService';
 
-const CACHE_KEY_PREFIX = 'map_search_';
+const CACHE_NAME = 'map-search-cache';
 const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 
 interface CacheEntry {
@@ -8,66 +8,74 @@ interface CacheEntry {
   results: SearchResult[];
 }
 
-export function getCachedResults(query: string): SearchResult[] | null {
-  const cacheKey = CACHE_KEY_PREFIX + query.toLowerCase();
-  const cached = localStorage.getItem(cacheKey);
-  
-  if (!cached) return null;
-  
+export async function getCachedResults(query: string): Promise<SearchResult[] | null> {
   try {
-    const { timestamp, results } = JSON.parse(cached) as CacheEntry;
+    const cache = await caches.open(CACHE_NAME);
+    const response = await cache.match(query);
+    
+    if (!response) return null;
+    
+    const data: CacheEntry = await response.json();
     
     // Check if cache is expired
-    if (Date.now() - timestamp > CACHE_EXPIRY) {
-      localStorage.removeItem(cacheKey);
+    if (Date.now() - data.timestamp > CACHE_EXPIRY) {
+      await cache.delete(query);
       return null;
     }
     
-    return results;
+    return data.results;
   } catch (error) {
-    localStorage.removeItem(cacheKey);
+    console.error('Failed to get cached results:', error);
     return null;
   }
 }
 
-export function cacheResults(query: string, results: SearchResult[]): void {
-  const cacheKey = CACHE_KEY_PREFIX + query.toLowerCase();
-  const cacheEntry: CacheEntry = {
-    timestamp: Date.now(),
-    results,
-  };
-  
+export async function cacheResults(query: string, results: SearchResult[]): Promise<void> {
   try {
-    localStorage.setItem(cacheKey, JSON.stringify(cacheEntry));
+    const cache = await caches.open(CACHE_NAME);
+    const cacheEntry: CacheEntry = {
+      timestamp: Date.now(),
+      results,
+    };
+    
+    const response = new Response(JSON.stringify(cacheEntry), {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    await cache.put(query, response);
   } catch (error) {
-    // If localStorage is full, clear old cache entries
-    clearOldCache();
-    try {
-      localStorage.setItem(cacheKey, JSON.stringify(cacheEntry));
-    } catch {
-      console.error('Failed to cache search results');
-    }
+    console.error('Failed to cache search results:', error);
   }
 }
 
-function clearOldCache(): void {
-  const keys = Object.keys(localStorage);
-  const searchCacheKeys = keys.filter(key => key.startsWith(CACHE_KEY_PREFIX));
-  
-  // Sort by timestamp and remove oldest entries
-  const sortedEntries = searchCacheKeys
-    .map(key => {
-      try {
-        const entry = JSON.parse(localStorage.getItem(key) || '');
-        return { key, timestamp: entry.timestamp };
-      } catch {
-        return { key, timestamp: 0 };
-      }
-    })
-    .sort((a, b) => a.timestamp - b.timestamp);
-  
-  // Remove the oldest 50% of entries
-  sortedEntries
-    .slice(0, Math.floor(sortedEntries.length / 2))
-    .forEach(entry => localStorage.removeItem(entry.key));
+export async function clearOldCache(): Promise<void> {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const keys = await cache.keys();
+    const maxEntries = 50; // Maximum number of entries to keep
+    
+    if (keys.length > maxEntries) {
+      // Get all cache entries with their timestamps
+      const entries = await Promise.all(
+        keys.map(async (key) => {
+          const response = await cache.match(key);
+          const data: CacheEntry = await response!.json();
+          return { key, timestamp: data.timestamp };
+        })
+      );
+      
+      // Sort by timestamp and get the oldest entries
+      const sortedEntries = entries.sort((a, b) => a.timestamp - b.timestamp);
+      const entriesToDelete = sortedEntries.slice(0, sortedEntries.length - maxEntries);
+      
+      // Delete the oldest entries
+      await Promise.all(
+        entriesToDelete.map((entry) => cache.delete(entry.key))
+      );
+    }
+  } catch (error) {
+    console.error('Failed to clear old cache:', error);
+  }
 }

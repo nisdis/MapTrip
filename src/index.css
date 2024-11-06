@@ -80,7 +80,10 @@ body {
   background: transparent;
   border: none;
 }
+.on-top {
 
+  z-index: 9999;
+}
 /* Mobile optimizations */
 @media (max-width: 640px) {
   .leaflet-routing-container {

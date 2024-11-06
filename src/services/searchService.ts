@@ -22,7 +22,7 @@ interface NominatimResponse {
 
 export async function searchPlaces(query: string): Promise<SearchResult[]> {
   // Check cache first
-  const cachedResults = getCachedResults(query);
+  const cachedResults = await getCachedResults(query);
   if (cachedResults) {
     return cachedResults;
   }
@@ -55,7 +55,7 @@ export async function searchPlaces(query: string): Promise<SearchResult[]> {
     }));
 
     // Cache the results
-    cacheResults(query, results);
+    await cacheResults(query, results);
 
     return results;
   } catch (error) {

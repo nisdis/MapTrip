@@ -20,6 +20,7 @@ import { RouteHistoryPanel } from "./components/RouteHistoryPanel";
 import { useLocationTracking } from "./hooks/useLocationTracking";
 import { setupLeaflet } from "./utils/leaflet-setup";
 import { getRouteHistory } from "./services/routeHistoryService";
+// import { createOfflineTileLayer } from "./services/tileService";
 import type { SearchResult } from "./services/searchService";
 import type { RouteHistoryItem } from "./services/routeHistoryService";
 import "leaflet/dist/leaflet.css";
@@ -120,7 +121,6 @@ function App() {
 
   const handleSelectHistoryRoute = useCallback(
     (historyItem: RouteHistoryItem) => {
-      console.log(historyItem.origin);
       setOrigin(historyItem.origin);
       setDestination(historyItem.destination);
       setShowHistory(false);
@@ -178,15 +178,6 @@ function App() {
                 >
                   <X className="w-5 h-5" />
                 </button>
-                <button
-                  onClick={() => {
-                    setIsVisible((v) => !v);
-                  }}
-                  className="p-2 rounded-lg bg-sky-100 to-blue-400 hover:bg-sky-200  transition-colors"
-                  aria-label="show/hide steps"
-                >
-                  <Car className="w-5 h-5" />
-                </button>
               </>
             )}
             <div className="ml-auto flex items-center gap-2">
@@ -234,6 +225,15 @@ function App() {
                 To: {destination.name}
               </div>
             </div>
+            <button
+              onClick={() => {
+                setIsVisible((v) => !v);
+              }}
+              className="p-2 rounded-lg  hover:bg-sky-200 "
+              aria-label="show/hide steps"
+            >
+              <Car className="w-5 h-5" />
+            </button>
             {!showDirections && (
               <button
                 onClick={handleToggleDirections}
@@ -255,8 +255,8 @@ function App() {
       >
         <MapController onZoomChange={setZoom} center={center} zoom={zoom} />
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
         {locationData && <CurrentLocationMarker locationData={locationData} />}
         {selectedLocation && !origin && !destination && (
@@ -278,15 +278,14 @@ function App() {
             isVisible={isVisible}
           />
         )}
+        <MapControls
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+          onResetView={handleResetView}
+        />
       </MapContainer>
 
       <LocationDashboard locationData={locationData} />
-
-      <MapControls
-        onZoomIn={handleZoomIn}
-        onZoomOut={handleZoomOut}
-        onResetView={handleResetView}
-      />
     </div>
   );
 }
