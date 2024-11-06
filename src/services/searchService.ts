@@ -22,11 +22,7 @@ interface NominatimResponse {
 
 export async function searchPlaces(query: string): Promise<SearchResult[]> {
   // Check cache first
-<<<<<<< HEAD
   const cachedResults = await getCachedResults(query);
-=======
-  const cachedResults = getCachedResults(query);
->>>>>>> upstream/main
   if (cachedResults) {
     return cachedResults;
   }
@@ -48,7 +44,7 @@ export async function searchPlaces(query: string): Promise<SearchResult[]> {
     }
 
     const data: NominatimResponse[] = await response.json();
-    
+
     const results = data.map((item) => ({
       id: item.place_id,
       name: item.name || item.display_name.split(',')[0],
@@ -59,22 +55,18 @@ export async function searchPlaces(query: string): Promise<SearchResult[]> {
     }));
 
     // Cache the results
-<<<<<<< HEAD
     await cacheResults(query, results);
-=======
-    cacheResults(query, results);
->>>>>>> upstream/main
 
     return results;
   } catch (error) {
     console.error('Search failed:', error);
-    
+
     // If offline and no cached results, return empty array
     if (!navigator.onLine) {
       console.log('Device is offline, returning empty results');
       return [];
     }
-    
+
     throw error;
   }
 }
