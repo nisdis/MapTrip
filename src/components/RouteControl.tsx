@@ -29,7 +29,7 @@ export function RouteControl({
         serviceUrl:
           window.location.hostname === "localhost"
             ? "http://localhost:5000/route/v1"
-            : "http://router.project-osrm.org/route/v1",
+            : "https://router.project-osrm.org/route/v1",
       }),
       waypoints: [
         L.latLng(origin.location[0], origin.location[1]),
