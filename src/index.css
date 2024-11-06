@@ -46,16 +46,10 @@ body {
 }
 
 .leaflet-routing-alt {
-<<<<<<< HEAD
   max-height: 100vh;
   overflow-y: auto;
   border-bottom: none !important;
   z-index: 10000;
-=======
-  max-height: 300px;
-  overflow-y: auto;
-  border-bottom: none !important;
->>>>>>> upstream/main
 }
 
 .leaflet-routing-alt h2 {
