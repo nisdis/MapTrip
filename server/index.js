@@ -11,7 +11,7 @@ app.use(cors());
 app.options("*", cors());
 const osrm = new OSRM({
   algorithm: "MLD",
-  path: "/Users/nissimdsilva/Downloads/sb1-q8fu52(1)/data/india-western-southern.osrm",
+  path: "../data/india-latest.osrm",
 });
 
 function route(req, res) {
