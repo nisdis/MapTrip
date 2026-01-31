@@ -45,5 +45,13 @@ export function MapController({
       });
     }
   }, [map, zoom]);
+  useEffect(() => {
+    if (center) {
+      map.setView(center, 18, {
+        animate: true,
+        duration: 1,
+      });
+    }
+  }, [map, center]);
   return null;
 }
