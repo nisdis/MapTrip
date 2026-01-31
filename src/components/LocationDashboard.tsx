@@ -1,6 +1,6 @@
-import React from 'react';
-import { Compass, Navigation2, Mountain } from 'lucide-react';
-import type { LocationData } from '../hooks/useLocationTracking';
+import React from "react";
+import { Compass, Navigation2, Mountain } from "lucide-react";
+import type { LocationData } from "../hooks/useLocationTracking";
 
 interface LocationDashboardProps {
   locationData: LocationData | null;
@@ -17,20 +17,24 @@ export function LocationDashboard({ locationData }: LocationDashboardProps) {
           <div>
             <div className="text-sm font-medium text-gray-600">Speed</div>
             <div className="text-lg font-semibold">
-              {locationData.speed ? `${Math.round(locationData.speed * 3.6)} km/h` : 'N/A'}
+              {locationData.speed
+                ? `${Math.round(locationData.speed * 3.6)} km/h`
+                : "0 km/h"}
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Compass 
+          <Compass
             className="w-5 h-5 text-blue-600"
             style={{ transform: `rotate(${locationData.heading || 0}deg)` }}
           />
           <div>
             <div className="text-sm font-medium text-gray-600">Heading</div>
             <div className="text-lg font-semibold">
-              {locationData.heading ? `${Math.round(locationData.heading)}°` : 'N/A'}
+              {locationData.heading
+                ? `${Math.round(locationData.heading)}°`
+                : "-"}
             </div>
           </div>
         </div>
@@ -40,7 +44,9 @@ export function LocationDashboard({ locationData }: LocationDashboardProps) {
           <div>
             <div className="text-sm font-medium text-gray-600">Altitude</div>
             <div className="text-lg font-semibold">
-              {locationData.altitude ? `${Math.round(locationData.altitude)}m` : 'N/A'}
+              {locationData.altitude
+                ? `${Math.round(locationData.altitude)}m`
+                : "-"}
             </div>
           </div>
         </div>

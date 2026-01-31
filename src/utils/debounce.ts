@@ -1,16 +1,21 @@
-export function debounce<T extends (...args: any[]) => any>(
+
+let timeout: number | undefined;
+
+export function debounce<T extends (...args: never[]) => unknown>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout | null = null;
 
   return (...args: Parameters<T>) => {
     if (timeout) {
+      console.log('clear')
       clearTimeout(timeout);
     }
 
     timeout = setTimeout(() => {
+      console.log("run")
       func(...args);
-    }, wait);
+      clearTimeout(timeout);
+    }, wait + 500);
   };
 }

@@ -1,10 +1,12 @@
 // index.js
-process.env.UV_THREADPOOL_SIZE = Math.ceil(require("os").cpus().length * 1.5);
-const express = require("express");
-const cors = require("cors");
-const OSRM = require("@project-osrm/osrm");
+import express from "express";
+import cors from "cors";
+import OSRM from "@project-osrm/osrm";
+import { cpus } from "node:os";
+const cpu = cpus();
+process.env.UV_THREADPOOL_SIZE = Math.ceil(cpu.length * 1.5);
 
-port = process.env.PORT || 5000;
+const port = process.env.PORT || 5000;
 
 const app = express();
 app.use(cors());
@@ -20,7 +22,8 @@ function route(req, res) {
   const steps = Boolean(req.query?.steps);
   const overview = req.query?.overview;
 
-  coordinates = req.params.coordinates.split(";");
+  let { coordinates } = req.params;
+  coordinates = coordinates.split(";");
   for (var i = 0; i < coordinates.length; i++) {
     coordinates[i] = coordinates[i].split(",").map(Number);
   }

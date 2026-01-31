@@ -3,10 +3,12 @@ import { Navigation, X, Loader2, Crosshair } from "lucide-react";
 import type { SearchResult } from "../services/searchService";
 import { searchPlaces } from "../services/searchService";
 import { debounce } from "../utils/debounce";
+import { LocationData } from "../hooks/useLocationTracking";
 
 interface DirectionsPanelProps {
   origin: SearchResult | null;
   destination: SearchResult | null;
+  locationData: LocationData | null;
   onSelectOrigin: (result: SearchResult) => void;
   onSelectDestination: (result: SearchResult) => void;
   onClearDirections: () => void;
@@ -22,16 +24,17 @@ export function DirectionsPanel({
   onClearDirections,
   isVisible,
   handleToggleDirections,
+  locationData,
 }: DirectionsPanelProps) {
   const [originInput, setOriginInput] = useState<string>(
-    (origin?.name || "").toString()
+    (origin?.name || "").toString(),
   );
   const [destinationInput, setDestinationInput] = useState<string>(
-    (destination?.name || "").toString()
+    (destination?.name || "").toString(),
   );
   const [originResults, setOriginResults] = useState<SearchResult[]>([]);
   const [destinationResults, setDestinationResults] = useState<SearchResult[]>(
-    []
+    [],
   );
   const [isLoadingOrigin, setIsLoadingOrigin] = useState(false);
   const [isLoadingDestination, setIsLoadingDestination] = useState(false);
@@ -93,6 +96,7 @@ export function DirectionsPanel({
   };
 
   const handleSelectOriginResult = (result: SearchResult) => {
+    console.log(result);
     onSelectOrigin(result);
     setOriginInput(result.name);
     setShowOriginResults(false);
@@ -116,6 +120,26 @@ export function DirectionsPanel({
     onClearDirections();
   };
 
+  const handleCurrentLocation = async (position: GeolocationPosition) => {
+    try {
+      console.log(position);
+      const results = await searchPlaces(
+        `${position.coords.latitude},${position.coords.longitude}`,
+      );
+      if (results.length > 0) {
+        const currentLocation: SearchResult = {
+          ...results[0],
+          location: [position.coords.latitude, position.coords.longitude],
+        };
+        handleSelectOriginResult(currentLocation);
+      }
+    } catch (error) {
+      console.error("Failed to get location details:", error);
+      alert("Failed to get your current location");
+    } finally {
+      setIsGettingLocation(false);
+    }
+  };
   const handleUseCurrentLocation = () => {
     setIsGettingLocation(true);
     if (!navigator.geolocation) {
@@ -123,27 +147,30 @@ export function DirectionsPanel({
       setIsGettingLocation(false);
       return;
     }
+    if (locationData) {
+      const positionData: GeolocationPosition = {
+        timestamp: locationData.timestamp,
+        coords: {
+          ...locationData,
+          latitude: locationData.position[0],
+          longitude: locationData.position[1],
+          toJSON: function () {
+            throw new Error("Function not implemented.");
+          },
+          altitudeAccuracy: null,
+        },
+        toJSON: function () {
+          throw new Error("Function not implemented.");
+        },
+      };
 
+      handleCurrentLocation(positionData);
+
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        try {
-          const results = await searchPlaces(
-            `${position.coords.latitude},${position.coords.longitude}`
-          );
-          if (results.length > 0) {
-            const currentLocation: SearchResult = {
-              ...results[0],
-              name: "Current Location",
-              location: [position.coords.latitude, position.coords.longitude],
-            };
-            handleSelectOriginResult(currentLocation);
-          }
-        } catch (error) {
-          console.error("Failed to get location details:", error);
-          alert("Failed to get your current location");
-        } finally {
-          setIsGettingLocation(false);
-        }
+        handleCurrentLocation(position);
       },
       (error) => {
         console.error("Geolocation error:", error);
@@ -154,7 +181,7 @@ export function DirectionsPanel({
         enableHighAccuracy: true,
         timeout: 5000,
         maximumAge: 0,
-      }
+      },
     );
   };
 

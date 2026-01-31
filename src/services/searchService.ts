@@ -29,7 +29,7 @@ export async function searchPlaces(query: string): Promise<SearchResult[]> {
 
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+      `https://nominatim.openstreetmap.org/search?countrycodes=in&format=json&q=${encodeURIComponent(
         query
       )}&limit=5`,
       {

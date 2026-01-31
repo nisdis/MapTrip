@@ -1,45 +1,58 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { SearchResults } from "./SearchResults";
 import { searchPlaces, type SearchResult } from "../services/searchService";
-import { debounce } from "../utils/debounce";
 
 interface SearchBarProps {
   onSearch: (location: SearchResult) => void;
 }
 
 export function SearchBar({ onSearch }: SearchBarProps) {
+  const debounceTimeoutRef = useRef<number | null>(null);
+
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isWaiting, setIsWaiting] = useState(false);
 
-  const debouncedSearch = debounce(async (searchQuery: string) => {
-    if (!searchQuery.trim()) {
-      setResults([]);
-      return;
-    }
-
+  const searchIt = async () => {
     try {
       setIsLoading(true);
-      const searchResults = await searchPlaces(searchQuery);
+      const searchResults = await searchPlaces(query);
       setResults(searchResults);
     } catch (error) {
       console.error("Search failed:", error);
     } finally {
       setIsLoading(false);
     }
-  }, 300);
+  };
+  const searchLocation = (searchQuery: string) => {
+    if (debounceTimeoutRef.current) {
+      setIsWaiting(false);
+      clearTimeout(debounceTimeoutRef.current);
+    }
+    debounceTimeoutRef.current = setTimeout(async () => {
+      if (!searchQuery.trim()) {
+        setResults([]);
+        return;
+      }
+
+      setIsWaiting(true);
+      setIsLoading(true);
+      console.log("Debounced query:", searchQuery);
+    }, 1300);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
-    debouncedSearch(query);
+    searchLocation(query);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setQuery(value);
-    debouncedSearch(value);
+    searchLocation(value);
   };
 
   const handleSelectResult = (result: SearchResult) => {
@@ -47,6 +60,16 @@ export function SearchBar({ onSearch }: SearchBarProps) {
     setQuery(result.name);
     setResults([]);
   };
+  useEffect(() => {
+    if (isWaiting) {
+      console.log("first");
+      searchIt();
+    }
+    return () => {
+      console.log("fisecondrst");
+      searchIt();
+    };
+  }, [isWaiting]);
 
   return (
     <form onSubmit={handleSubmit} className="flex-1 max-w-sm relative">

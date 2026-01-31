@@ -29,10 +29,10 @@ import { LatLngTuple } from "leaflet";
 
 function App() {
   const [center, setCenter] = useState<LatLngTuple>([51.505, -0.09]);
-  const [zoom, setZoom] = useState(13);
+  const [zoom, setZoom] = useState(15);
   const [isMapReady, setIsMapReady] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<SearchResult | null>(
-    null
+    null,
   );
   const [showDirections, setShowDirections] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
@@ -89,7 +89,7 @@ function App() {
     } else {
       setCenter([51.505, -0.09]);
     }
-    setZoom(13);
+    setZoom(15);
     setSelectedLocation(null);
   }, [locationData]);
 
@@ -126,7 +126,7 @@ function App() {
       setShowHistory(false);
       setShowDirections(true);
     },
-    []
+    [],
   );
 
   if (!isMapReady) {
@@ -205,6 +205,7 @@ function App() {
         onClearDirections={handleClearDirections}
         isVisible={showDirections}
         handleToggleDirections={handleToggleDirections}
+        locationData={locationData}
       />
 
       <RouteHistoryPanel
