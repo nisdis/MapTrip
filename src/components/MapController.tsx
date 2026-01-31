@@ -14,7 +14,7 @@ export function MapController({
   onZoomChange,
   center,
   zoom,
-  reset,
+  reset = 0,
 }: MapControllerProps) {
   const map = useMap();
 
@@ -28,13 +28,13 @@ export function MapController({
     };
   }, [map, onZoomChange]);
   useEffect(() => {
-    if (reset && center) {
+    if (center) {
       map.setView(center, 15, {
         animate: true,
         duration: 1,
       });
     }
-  }, [reset, map, center]);
+  }, [map, center]);
 
   useEffect(() => {
     if (zoom) {
