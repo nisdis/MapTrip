@@ -1,19 +1,23 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import { SearchResults } from "./SearchResults";
 import { searchPlaces, type SearchResult } from "../services/searchService";
 
-interface SearchBarProps {
+interface SearchSheetProps {
   onSearch: (location: SearchResult) => void;
 }
 
-export function SearchBar({ onSearch }: SearchBarProps) {
+export function SearchSheet({ onSearch }: SearchSheetProps) {
   const debounceTimeoutRef = useRef<number | null>(null);
-
+  const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isWaiting, setIsWaiting] = useState(false);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   const searchIt = async () => {
     try {
@@ -26,20 +30,19 @@ export function SearchBar({ onSearch }: SearchBarProps) {
       setIsLoading(false);
     }
   };
+
   const searchLocation = (searchQuery: string) => {
     if (debounceTimeoutRef.current) {
       setIsWaiting(false);
       clearTimeout(debounceTimeoutRef.current);
     }
-    debounceTimeoutRef.current = setTimeout(async () => {
+    debounceTimeoutRef.current = setTimeout(() => {
       if (!searchQuery.trim()) {
         setResults([]);
         return;
       }
-
       setIsWaiting(true);
       setIsLoading(true);
-      console.log("Debounced query:", searchQuery);
     }, 1300);
   };
 
@@ -53,6 +56,7 @@ export function SearchBar({ onSearch }: SearchBarProps) {
     const value = e.target.value;
     setQuery(value);
     searchLocation(value);
+    console.log(value);
   };
 
   const handleSelectResult = (result: SearchResult) => {
@@ -60,40 +64,37 @@ export function SearchBar({ onSearch }: SearchBarProps) {
     setQuery(result.name);
     setResults([]);
   };
+
   useEffect(() => {
     if (isWaiting) {
       console.log("first");
       searchIt();
     }
-    return () => {
-      console.log("fisecondrst");
-      searchIt();
-    };
   }, [isWaiting]);
 
   return (
-    <form onSubmit={handleSubmit} className="flex-1 max-w-sm relative">
-      <div className="relative">
-        <input
-          type="text"
-          value={query}
-          onChange={handleInputChange}
-          placeholder="Search location..."
-          className=" px-4 py-2 pl-10 pr-12 bg-white border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-        <button
-          type="submit"
-          className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1.5 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-        >
-          <Search className="w-4 h-4" />
-        </button>
-      </div>
+    <div className="flex flex-col h-full">
+      <form onSubmit={handleSubmit} className="mt-2 mb-4">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2  text-gray-400 w-5 h-5" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={handleInputChange}
+            placeholder="Search location..."
+            className="w-full px-4 py-3 pl-12 pr-12 bg-gray-100 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+          />
+          {isLoading && (
+            <Loader2 className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 animate-spin" />
+          )}
+        </div>
+      </form>
       <SearchResults
         results={results}
         onSelectResult={handleSelectResult}
         isLoading={isLoading}
       />
-    </form>
+    </div>
   );
 }

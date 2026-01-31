@@ -26,6 +26,7 @@ export async function searchPlaces(query: string): Promise<SearchResult[]> {
   if (cachedResults) {
     return cachedResults;
   }
+  console.log("query: " + query)
 
   try {
     const response = await fetch(

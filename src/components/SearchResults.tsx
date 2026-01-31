@@ -1,6 +1,6 @@
-import React from 'react';
-import { MapPin } from 'lucide-react';
-import type { SearchResult } from '../services/searchService';
+import React from "react";
+import { MapPin } from "lucide-react";
+import type { SearchResult } from "../services/searchService";
 
 interface SearchResultsProps {
   results: SearchResult[];
@@ -8,7 +8,11 @@ interface SearchResultsProps {
   isLoading: boolean;
 }
 
-export function SearchResults({ results, onSelectResult, isLoading }: SearchResultsProps) {
+export function SearchResults({
+  results,
+  onSelectResult,
+  isLoading,
+}: SearchResultsProps) {
   if (isLoading) {
     return (
       <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-lg">
@@ -22,7 +26,7 @@ export function SearchResults({ results, onSelectResult, isLoading }: SearchResu
   }
 
   return (
-    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-lg max-h-96 overflow-y-auto">
+    <div className="right-0 mt-2 bg-white rounded-lg shadow-lg max-h-96 overflow-y-auto">
       {results.map((result) => (
         <button
           key={result.id}
@@ -32,7 +36,9 @@ export function SearchResults({ results, onSelectResult, isLoading }: SearchResu
           <MapPin className="w-5 h-5 text-gray-400 mt-1 flex-shrink-0" />
           <div>
             <div className="font-medium text-gray-900">{result.name}</div>
-            <div className="text-sm text-gray-500 line-clamp-2">{result.displayName}</div>
+            <div className="text-sm text-gray-500 line-clamp-2">
+              {result.displayName}
+            </div>
           </div>
         </button>
       ))}

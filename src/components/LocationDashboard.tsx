@@ -1,4 +1,3 @@
-import React from "react";
 import { Compass, Navigation2, Mountain } from "lucide-react";
 import type { LocationData } from "../hooks/useLocationTracking";
 
@@ -10,7 +9,7 @@ export function LocationDashboard({ locationData }: LocationDashboardProps) {
   if (!locationData) return null;
 
   return (
-    <div className="absolute bottom-4 left-4 right-4 md:left-1/2 md:right-auto md:transform md:-translate-x-1/2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-4 z-10">
+    <div className="absolute bottom-20 left-4 right-4 md:left-1/2 md:right-auto md:transform md:-translate-x-1/2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-4 z-10">
       <div className="flex items-center justify-between md:justify-center md:gap-6">
         <div className="flex items-center gap-2">
           <Navigation2 className="w-5 h-5 text-blue-600" />

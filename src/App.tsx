@@ -1,28 +1,23 @@
-import React, { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import {
-  Map as MapIcon,
-  Navigation,
-  Wifi,
-  WifiOff,
-  X,
-  History,
-  Car,
-} from "lucide-react";
-import { SearchBar } from "./components/SearchBar";
+import { Map as MapIcon, Wifi, WifiOff, Car } from "lucide-react";
 import { MapControls } from "./components/MapControls";
 import { MapController } from "./components/MapController";
-import { DirectionsPanel } from "./components/DirectionsPanel";
 import { RouteControl } from "./components/RouteControl";
-import { LocationDashboard } from "./components/LocationDashboard";
 import { CurrentLocationMarker } from "./components/CurrentLocationMarker";
-import { RouteHistoryPanel } from "./components/RouteHistoryPanel";
+import { LocationDashboard } from "./components/LocationDashboard";
 import { useLocationTracking } from "./hooks/useLocationTracking";
 import { setupLeaflet } from "./utils/leaflet-setup";
 import { getRouteHistory } from "./services/routeHistoryService";
-// import { createOfflineTileLayer } from "./services/tileService";
+import { clearTileCache } from "./services/tileService";
 import type { SearchResult } from "./services/searchService";
 import type { RouteHistoryItem } from "./services/routeHistoryService";
+import { BottomSheet } from "./components/BottomSheet";
+import { BottomNav } from "./components/BottomNav";
+import { MoreMenu } from "./components/MoreMenu";
+import { SearchSheet } from "./components/SearchSheet";
+import { DirectionsSheet } from "./components/DirectionsSheet";
+import { HistorySheet } from "./components/HistorySheet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 import { LatLngTuple } from "leaflet";
@@ -34,13 +29,16 @@ function App() {
   const [selectedLocation, setSelectedLocation] = useState<SearchResult | null>(
     null,
   );
-  const [showDirections, setShowDirections] = useState(false);
+  const [resetMap, setResetMap] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [origin, setOrigin] = useState<SearchResult | null>(null);
-  const [destination, setDestination] = useState<SearchResult | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [routeHistory, setRouteHistory] = useState<RouteHistoryItem[]>([]);
+  const [activeTab, setActiveTab] = useState("search");
+  const [showSheet, setShowSheet] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [origin, setOrigin] = useState<SearchResult | null>(null);
+  const [destination, setDestination] = useState<SearchResult | null>(null);
+  const [isClearing, setIsClearing] = useState(false);
   const { locationData, error } = useLocationTracking();
 
   useEffect(() => {
@@ -73,6 +71,7 @@ function App() {
     setSelectedLocation(result);
     setCenter(result.location);
     setZoom(15);
+    setShowSheet(false);
   }, []);
 
   const handleZoomIn = useCallback(() => {
@@ -91,6 +90,7 @@ function App() {
     }
     setZoom(15);
     setSelectedLocation(null);
+    setResetMap(Math.random());
   }, [locationData]);
 
   const handleSelectOrigin = useCallback((result: SearchResult) => {
@@ -106,28 +106,60 @@ function App() {
   }, []);
 
   const handleClearDirections = useCallback(() => {
-    setShowDirections(false);
     setOrigin(null);
     setDestination(null);
-  }, []);
-
-  const handleToggleDirections = useCallback(() => {
-    setShowDirections((prev) => !prev);
-  }, []);
-
-  const handleToggleHistory = useCallback(() => {
-    setShowHistory((prev) => !prev);
   }, []);
 
   const handleSelectHistoryRoute = useCallback(
     (historyItem: RouteHistoryItem) => {
       setOrigin(historyItem.origin);
       setDestination(historyItem.destination);
-      setShowHistory(false);
-      setShowDirections(true);
+      setActiveTab("directions");
+      setShowSheet(true);
     },
     [],
   );
+
+  const handleTabChange = useCallback((tab: string) => {
+    setActiveTab(tab);
+    setShowSheet(true);
+  }, []);
+
+  const handleCloseSheet = useCallback(() => {
+    setShowSheet(false);
+  }, []);
+
+  const handleToggleMore = useCallback(() => {
+    setShowMoreMenu((prev) => !prev);
+  }, []);
+
+  const handleCloseMore = useCallback(() => {
+    setShowMoreMenu(false);
+  }, []);
+
+  const handleCacheClick = useCallback(() => {
+    alert(
+      "Use the download button on the map controls to cache the current area",
+    );
+  }, []);
+
+  const handleShoeRouteItems = useCallback(() => {
+    setIsVisible((visible) => !visible);
+  }, []);
+  const handleClearClick = useCallback(() => {
+    if (
+      window.confirm("Are you sure you want to clear the offline map cache?")
+    ) {
+      setIsClearing(true);
+      clearTileCache()
+        .then(() => alert("Map cache cleared successfully"))
+        .catch((error: unknown) => {
+          console.error("Failed to clear map cache:", error);
+          alert("Failed to clear map cache");
+        })
+        .finally(() => setIsClearing(false));
+    }
+  }, []);
 
   if (!isMapReady) {
     return null;
@@ -138,57 +170,23 @@ function App() {
   }
 
   return (
-    <div className="h-screen w-screen relative">
-      <div className="absolute top-0 left-0 w-full z-10 bg-gradient-to-b from-white/90 to-transparent p-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center gap-4 mb-4">
+    <div className="h-screen w-screen relative bg-gray-100">
+      <div className="absolute top-0 left-0 w-full z-10 bg-gradient-to-b from-white/90 to-transparent p-4 pointer-events-none">
+        <div className="max-w-7xl mx-auto pointer-events-auto">
+          <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <MapIcon className="w-8 h-8 text-blue-600" />
               <h1 className="text-2xl font-bold text-gray-800">Map Trip</h1>
             </div>
-            <SearchBar onSearch={handleSearch} />
-            <button
-              onClick={handleToggleDirections}
-              className={`p-2 rounded-lg transition-colors ${
-                showDirections
-                  ? "bg-blue-100 text-blue-600"
-                  : "bg-white hover:bg-gray-100 text-gray-700"
-              }`}
-              aria-label="Toggle directions"
-            >
-              <Navigation className="w-5 h-5" />
-            </button>
-            <button
-              onClick={handleToggleHistory}
-              className={`p-2 rounded-lg transition-colors ${
-                showHistory
-                  ? "bg-blue-100 text-blue-600"
-                  : "bg-white hover:bg-gray-100 text-gray-700"
-              }`}
-              aria-label="Show route history"
-            >
-              <History className="w-5 h-5" />
-            </button>
-            {origin && destination && !showDirections && (
-              <>
-                <button
-                  onClick={handleClearDirections}
-                  className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                  aria-label="Clear directions"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </>
-            )}
             <div className="ml-auto flex items-center gap-2">
               {isOnline ? (
-                <div className="flex items-center gap-1 text-green-600">
-                  <Wifi className="w-5 h-5" />
+                <div className="flex items-center gap-1 text-green-600 bg-white/80 px-2 py-1 rounded-full">
+                  <Wifi className="w-4 h-4" />
                   <span className="text-sm font-medium">Online</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1 text-amber-600">
-                  <WifiOff className="w-5 h-5" />
+                <div className="flex items-center gap-1 text-amber-600 bg-white/80 px-2 py-1 rounded-full">
+                  <WifiOff className="w-4 h-4" />
                   <span className="text-sm font-medium">Offline</span>
                 </div>
               )}
@@ -197,28 +195,10 @@ function App() {
         </div>
       </div>
 
-      <DirectionsPanel
-        origin={origin}
-        destination={destination}
-        onSelectOrigin={handleSelectOrigin}
-        onSelectDestination={handleSelectDestination}
-        onClearDirections={handleClearDirections}
-        isVisible={showDirections}
-        handleToggleDirections={handleToggleDirections}
-        locationData={locationData}
-      />
-
-      <RouteHistoryPanel
-        isVisible={showHistory}
-        onClose={handleToggleHistory}
-        history={routeHistory}
-        onSelectRoute={handleSelectHistoryRoute}
-      />
-
       {origin && destination && (
-        <div className="absolute top-24 left-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-3 max-w-sm">
+        <div className="absolute bottom-48 left-4 right-4 md:left-auto md:right-4 md:w-80 z-10 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-3 w-16">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 hidden md:visible">
               <div className="truncate text-sm font-medium text-gray-900">
                 From: {origin.name}
               </div>
@@ -227,23 +207,12 @@ function App() {
               </div>
             </div>
             <button
-              onClick={() => {
-                setIsVisible((v) => !v);
-              }}
-              className="p-2 rounded-lg  hover:bg-sky-200 "
-              aria-label="show/hide steps"
+              onClick={handleShoeRouteItems}
+              className="p-2 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors"
+              aria-label="Show route details"
             >
-              <Car className="w-5 h-5" />
+              <Car className="w-5 h-5 text-blue-600" />
             </button>
-            {!showDirections && (
-              <button
-                onClick={handleToggleDirections}
-                className="flex-shrink-0 p-1 hover:bg-gray-100 rounded transition-colors"
-                aria-label="Show directions"
-              >
-                <Navigation className="w-5 h-5 text-blue-600" />
-              </button>
-            )}
           </div>
         </div>
       )}
@@ -254,7 +223,12 @@ function App() {
         className="h-full w-full"
         zoomControl={false}
       >
-        <MapController onZoomChange={setZoom} center={center} zoom={zoom} />
+        <MapController
+          onZoomChange={setZoom}
+          center={center}
+          zoom={zoom}
+          reset={resetMap}
+        />
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -283,10 +257,51 @@ function App() {
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
           onResetView={handleResetView}
+          showDownload={false}
         />
       </MapContainer>
 
       <LocationDashboard locationData={locationData} />
+
+      <BottomNav
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        onMoreClick={handleToggleMore}
+      />
+
+      <MoreMenu
+        isOpen={showMoreMenu}
+        onClose={handleCloseMore}
+        isOnline={isOnline}
+        onCacheClick={handleCacheClick}
+        onClearClick={handleClearClick}
+        isClearing={isClearing}
+        handleShoeRouteItems={handleShoeRouteItems}
+      />
+
+      <BottomSheet
+        isOpen={showSheet}
+        onClose={handleCloseSheet}
+        snapPoints={[0.4, 0.7, 0.9]}
+      >
+        {activeTab === "search" && <SearchSheet onSearch={handleSearch} />}
+        {activeTab === "directions" && (
+          <DirectionsSheet
+            origin={origin}
+            destination={destination}
+            onSelectOrigin={handleSelectOrigin}
+            onSelectDestination={handleSelectDestination}
+            onClearDirections={handleClearDirections}
+            locationData={locationData}
+          />
+        )}
+        {activeTab === "history" && (
+          <HistorySheet
+            history={routeHistory}
+            onSelectRoute={handleSelectHistoryRoute}
+          />
+        )}
+      </BottomSheet>
     </div>
   );
 }

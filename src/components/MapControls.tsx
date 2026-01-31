@@ -1,111 +1,48 @@
-import React, { useState } from "react";
-import { ZoomIn, ZoomOut, Maximize2, Download, Trash2 } from "lucide-react";
-import { cacheTileRegion, clearTileCache } from "../services/tileService";
-import { useMap } from "react-leaflet";
+import { ZoomIn, ZoomOut, LocateIcon } from "lucide-react";
+import { MapCacheControls } from "./MapCacheControls";
 
 interface MapControlsProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetView: () => void;
+  showDownload: boolean;
 }
 
 export function MapControls({
   onZoomIn,
   onZoomOut,
   onResetView,
+  showDownload,
 }: MapControlsProps) {
-  const [isCaching, setIsCaching] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
-  const map = useMap();
-
-  const handleCacheTiles = async () => {
-    if (!map || isCaching) return;
-
-    setIsCaching(true);
-    try {
-      const bounds = map.getBounds();
-      await cacheTileRegion(bounds);
-      alert("Map area cached successfully for offline use");
-    } catch (error) {
-      console.error("Failed to cache map area:", error);
-      alert("Failed to cache map area");
-    } finally {
-      setIsCaching(false);
-    }
-  };
-
-  const handleClearCache = async () => {
-    if (isClearing) return;
-
-    if (
-      window.confirm("Are you sure you want to clear the offline map cache?")
-    ) {
-      setIsClearing(true);
-      try {
-        await clearTileCache();
-        alert("Map cache cleared successfully");
-      } catch (error) {
-        console.error("Failed to clear map cache:", error);
-        alert("Failed to clear map cache");
-      } finally {
-        setIsClearing(false);
-      }
-    }
-  };
-
   return (
-    <div className="absolute right-4 top-1/2 transform -translate-y-1/2 z-100 on-top">
-      <div className="flex flex-col gap-2 bg-white rounded-lg shadow-lg p-2">
+    <div className="fixed right-4 top-24 md:bottom-4 z-[1000] flex flex-col gap-2">
+      <div className="flex flex-col bg-white rounded-xl shadow-lg overflow-hidden">
         <button
           onClick={onZoomIn}
-          className="p-2 hover:bg-gray-100 rounded transition-colors"
+          className="p-3 hover:bg-gray-100 transition-colors active:bg-gray-200"
           aria-label="Zoom in"
         >
-          <ZoomIn className="w-5 h-5 text-gray-700" />
+          <ZoomIn className="w-6 h-6 text-gray-700" />
         </button>
+        <div className="w-full h-px bg-gray-200" />
         <button
           onClick={onZoomOut}
-          className="p-2 hover:bg-gray-100 rounded transition-colors"
+          className="p-3 hover:bg-gray-100 transition-colors active:bg-gray-200"
           aria-label="Zoom out"
         >
-          <ZoomOut className="w-5 h-5 text-gray-700" />
+          <ZoomOut className="w-6 h-6 text-gray-700" />
         </button>
+        <div className="w-full h-px bg-gray-200" />
         <button
           onClick={onResetView}
-          className="p-2 hover:bg-gray-100 rounded transition-colors"
+          className="p-3 hover:bg-gray-100 transition-colors active:bg-gray-200"
           aria-label="Reset view"
         >
-          <Maximize2 className="w-5 h-5 text-gray-700" />
+          <LocateIcon className="w-6 h-6 text-gray-700" />
         </button>
-        <div className="w-full h-px bg-gray-200 my-1" />
-        <button
-          onClick={handleCacheTiles}
-          disabled={isCaching}
-          className={`p-2 hover:bg-gray-100 rounded transition-colors ${
-            isCaching ? "opacity-50 cursor-not-allowed" : ""
-          }`}
-          aria-label="Cache current map area"
-        >
-          <Download
-            className={`w-5 h-5 text-blue-600 ${
-              isCaching ? "animate-pulse" : ""
-            }`}
-          />
-        </button>
-        <button
-          onClick={handleClearCache}
-          disabled={isClearing}
-          className={`p-2 hover:bg-gray-100 rounded transition-colors ${
-            isClearing ? "opacity-50 cursor-not-allowed" : ""
-          }`}
-          aria-label="Clear map cache"
-        >
-          <Trash2
-            className={`w-5 h-5 text-red-600 ${
-              isClearing ? "animate-pulse" : ""
-            }`}
-          />
-        </button>
+      </div>
+      <div className="flex flex-col bg-white rounded-xl shadow-lg overflow-hidden">
+        {showDownload && <MapCacheControls />}
       </div>
     </div>
   );
