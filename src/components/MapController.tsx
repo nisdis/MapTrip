@@ -29,13 +29,12 @@ export function MapController({
   }, [map, onZoomChange]);
   useEffect(() => {
     if (reset && center) {
-      map.locate();
       map.setView(center, 15, {
         animate: true,
         duration: 1,
       });
     }
-  }, [reset, map]);
+  }, [reset, map, center]);
 
   useEffect(() => {
     if (zoom) {
@@ -45,13 +44,5 @@ export function MapController({
       });
     }
   }, [map, zoom]);
-  useEffect(() => {
-    if (center) {
-      map.setView(center, 18, {
-        animate: true,
-        duration: 1,
-      });
-    }
-  }, [map, center]);
   return null;
 }
