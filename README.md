@@ -1,3 +1,20 @@
 # MapTrip
 
 [Edit in StackBlitz next generation editor ⚡️](https://stackblitz.com/~/github.com/nisdis/MapTrip)
+
+## Trips
+
+- **Local (free, no account):** record a GPS trip or save a planned route from
+  Directions. Trips are stored in the browser (IndexedDB) and listed in the
+  **Trips** tab.
+- **Cloud (optional, needs sign-in):** "Save to cloud" asks for an email
+  (magic link) only at that moment. Powered by Supabase.
+
+### Enabling cloud save
+1. Create a Supabase project and run `supabase/schema.sql` in the SQL editor.
+2. In Supabase → Authentication → URL configuration, add your Vercel URL(s) as
+   Site URL / Redirect URLs.
+3. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (see `.env.example`) in
+   Vercel → Project → Settings → Environment Variables, then redeploy.
+
+Without these variables the app works fully, local-only.

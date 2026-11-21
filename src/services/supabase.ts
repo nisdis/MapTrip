@@ -1,0 +1,11 @@
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+
+/** Cloud save is optional: without these env vars the app is local-only. */
+export const isCloudConfigured = Boolean(url && anonKey);
+
+export const supabase: SupabaseClient | null = isCloudConfigured
+  ? createClient(url!, anonKey!)
+  : null;

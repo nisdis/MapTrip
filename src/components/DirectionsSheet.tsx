@@ -12,6 +12,7 @@ interface DirectionsSheetProps {
   onSelectOrigin: (result: SearchResult) => void;
   onSelectDestination: (result: SearchResult) => void;
   onClearDirections: () => void;
+  onSaveTrip?: () => void;
 }
 
 export function DirectionsSheet({
@@ -21,6 +22,7 @@ export function DirectionsSheet({
   onSelectDestination,
   onClearDirections,
   locationData,
+  onSaveTrip,
 }: DirectionsSheetProps) {
   const [originInput, setOriginInput] = useState(origin?.name || "");
   const [destinationInput, setDestinationInput] = useState(destination?.name || "");
@@ -253,6 +255,14 @@ export function DirectionsSheet({
               <Loader2 className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 animate-spin" />
             )}
           </div>
+          {origin && destination && onSaveTrip && (
+            <button
+              onClick={onSaveTrip}
+              className="mt-4 w-full py-3 rounded-xl bg-blue-600 text-white font-medium"
+            >
+              Save as trip
+            </button>
+          )}
           {showDestinationResults && destinationResults.length > 0 && (
             <div className="absolute z-10 w-full mt-1 bg-white rounded-xl shadow-lg max-h-48 overflow-y-auto">
               {destinationResults.map((result) => (

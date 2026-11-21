@@ -18,6 +18,18 @@ import { MoreMenu } from "./components/MoreMenu";
 import { SearchSheet } from "./components/SearchSheet";
 import { DirectionsSheet } from "./components/DirectionsSheet";
 import { HistorySheet } from "./components/HistorySheet";
+import { TripsSheet } from "./components/TripsSheet";
+import { TripLayer } from "./components/TripLayer";
+import { useTripRecorder } from "./hooks/useTripRecorder";
+import { useAuth } from "./hooks/useAuth";
+import {
+  deleteLocalTrip,
+  listLocalTrips,
+  newTripId,
+  saveTripLocally,
+} from "./services/tripStore";
+import { saveTripToCloud } from "./services/cloudTrips";
+import type { Trip } from "./types/trip";
 import "leaflet/dist/leaflet.css";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 import { LatLngTuple } from "leaflet";
@@ -41,6 +53,106 @@ function App() {
   const [isClearing, setIsClearing] = useState(false);
   const { locationData, error } = useLocationTracking();
   const hasCenteredOnUser = useRef(false);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [viewTrip, setViewTrip] = useState<Trip | null>(null);
+  const recorder = useTripRecorder(locationData);
+  const auth = useAuth();
+
+  const refreshTrips = useCallback(async () => {
+    try {
+      setTrips(await listLocalTrips());
+    } catch (e) {
+      console.error("Failed to load trips:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshTrips();
+  }, [refreshTrips]);
+
+  const persistTrip = useCallback(
+    async (trip: Trip) => {
+      try {
+        await saveTripLocally(trip);
+        await refreshTrips();
+      } catch (e) {
+        console.error("Failed to save trip:", e);
+        alert("Couldn't save the trip in this browser (storage may be full).");
+      }
+    },
+    [refreshTrips],
+  );
+
+  const handleStartRecording = useCallback(() => {
+    setViewTrip(null);
+    recorder.start();
+  }, [recorder]);
+
+  const handleStopRecording = useCallback(async () => {
+    const { track, distanceM, durationS, startedAt } = recorder.stop();
+    if (track.length < 2) {
+      recorder.discard();
+      alert("Trip was too short to save.");
+      return;
+    }
+    const trip: Trip = {
+      id: newTripId(),
+      name: `Trip ${new Date(startedAt).toLocaleString()}`,
+      kind: "recorded",
+      createdAt: startedAt,
+      track,
+      distanceM,
+      durationS,
+    };
+    await persistTrip(trip);
+    recorder.discard();
+    setViewTrip(trip);
+    setShowSheet(false); // reveal the saved track on the map
+  }, [recorder, persistTrip]);
+
+  const handleSavePlannedTrip = useCallback(async () => {
+    if (!origin || !destination) return;
+    await persistTrip({
+      id: newTripId(),
+      name: `${origin.name} → ${destination.name}`,
+      kind: "planned",
+      createdAt: Date.now(),
+      origin,
+      destination,
+      distanceM: 0,
+      durationS: 0,
+    });
+    setActiveTab("trips");
+  }, [origin, destination, persistTrip]);
+
+  const handleViewTrip = useCallback((trip: Trip) => {
+    if (trip.kind === "planned" && trip.origin && trip.destination) {
+      setViewTrip(null);
+      setOrigin(trip.origin);
+      setDestination(trip.destination);
+      setActiveTab("directions");
+    } else {
+      setViewTrip(trip);
+      setShowSheet(false);
+    }
+  }, []);
+
+  const handleDeleteTrip = useCallback(
+    async (trip: Trip) => {
+      await deleteLocalTrip(trip.id);
+      setViewTrip((v) => (v?.id === trip.id ? null : v));
+      await refreshTrips();
+    },
+    [refreshTrips],
+  );
+
+  const handleSaveToCloud = useCallback(
+    async (trip: Trip) => {
+      const syncedAt = await saveTripToCloud(trip);
+      await persistTrip({ ...trip, cloudSyncedAt: syncedAt });
+    },
+    [persistTrip],
+  );
 
   useEffect(() => {
     if (error) console.error("Location error:", error);
@@ -259,6 +371,7 @@ function App() {
             </Popup>
           </Marker>
         )}
+        <TripLayer liveTrack={recorder.track} viewTrip={viewTrip} />
         {origin && destination && (
           <RouteControl
             origin={origin}
@@ -305,7 +418,25 @@ function App() {
             onSelectOrigin={handleSelectOrigin}
             onSelectDestination={handleSelectDestination}
             onClearDirections={handleClearDirections}
+            onSaveTrip={handleSavePlannedTrip}
             locationData={locationData}
+          />
+        )}
+        {activeTab === "trips" && (
+          <TripsSheet
+            trips={trips}
+            isRecording={recorder.isRecording}
+            liveDistanceM={recorder.distanceM}
+            liveElapsedS={recorder.elapsedS}
+            hasLocation={Boolean(locationData)}
+            userEmail={auth.user?.email ?? null}
+            onStart={handleStartRecording}
+            onStop={handleStopRecording}
+            onView={handleViewTrip}
+            onDelete={handleDeleteTrip}
+            onSaveToCloud={handleSaveToCloud}
+            onSignIn={auth.signInWithEmail}
+            onSignOut={auth.signOut}
           />
         )}
         {activeTab === "history" && (

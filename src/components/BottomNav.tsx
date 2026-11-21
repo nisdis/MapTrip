@@ -1,4 +1,4 @@
-import { Search, Navigation, History, Menu } from "lucide-react";
+import { Search, Navigation, History, Menu, Route } from "lucide-react";
 
 interface BottomNavProps {
   activeTab: string;
@@ -10,6 +10,7 @@ export function BottomNav({ activeTab, onTabChange, onMoreClick }: BottomNavProp
   const navItems = [
     { id: "search", icon: Search, label: "Search" },
     { id: "directions", icon: Navigation, label: "Directions" },
+    { id: "trips", icon: Route, label: "Trips" },
     { id: "history", icon: History, label: "History" },
     { id: "more", icon: Menu, label: "More", onClick: onMoreClick },
   ];
