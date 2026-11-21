@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  server: {
+    // Local dev: forward /api to `vercel dev` (or any server running the api/ functions).
+    proxy: { '/api': process.env.API_PROXY_TARGET || 'http://localhost:3000' },
+  },
   plugins: [
     react(),
     VitePWA({

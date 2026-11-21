@@ -4,7 +4,6 @@ import {
   Square,
   Trash2,
   Cloud,
-  CloudOff,
   Check,
   Route,
   MapPinned,
@@ -13,7 +12,7 @@ import {
 } from "lucide-react";
 import type { Trip } from "../types/trip";
 import { formatDistance, formatDuration } from "../utils/geo";
-import { isCloudConfigured } from "../services/supabase";
+import type { AuthMode } from "../hooks/useAuth";
 
 interface TripsSheetProps {
   trips: Trip[];
@@ -27,7 +26,7 @@ interface TripsSheetProps {
   onView: (trip: Trip) => void;
   onDelete: (trip: Trip) => void;
   onSaveToCloud: (trip: Trip) => Promise<void>;
-  onSignIn: (email: string) => Promise<void>;
+  onAuthenticate: (mode: AuthMode, email: string, password: string) => Promise<void>;
   onSignOut: () => void;
 }
 
@@ -43,7 +42,7 @@ export function TripsSheet({
   onView,
   onDelete,
   onSaveToCloud,
-  onSignIn,
+  onAuthenticate,
   onSignOut,
 }: TripsSheetProps) {
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -51,16 +50,13 @@ export function TripsSheet({
   // Trip waiting for the user to sign in before it is saved to the cloud.
   const [needsLoginFor, setNeedsLoginFor] = useState<Trip | null>(null);
   const [email, setEmail] = useState("");
-  const [linkSent, setLinkSent] = useState(false);
+  const [password, setPassword] = useState("");
+  const [authMode, setAuthMode] = useState<AuthMode>("signin");
+  const [authBusy, setAuthBusy] = useState(false);
 
   const saveToCloud = async (trip: Trip) => {
-    if (!isCloudConfigured) {
-      setMessage("Cloud save isn't set up for this app yet.");
-      return;
-    }
     if (!userEmail) {
       setNeedsLoginFor(trip);
-      setLinkSent(false);
       return;
     }
     setBusyId(trip.id);
@@ -74,14 +70,24 @@ export function TripsSheet({
     }
   };
 
-  const submitEmail = async (e: React.FormEvent) => {
+  const submitAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!needsLoginFor) return;
     setMessage(null);
+    setAuthBusy(true);
     try {
-      await onSignIn(email.trim());
-      setLinkSent(true);
+      await onAuthenticate(authMode, email.trim(), password);
+      // Signed in: finish the save the user originally asked for.
+      const trip = needsLoginFor;
+      setNeedsLoginFor(null);
+      setPassword("");
+      setBusyId(trip.id);
+      await onSaveToCloud(trip);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Sign-in failed");
+    } finally {
+      setAuthBusy(false);
+      setBusyId(null);
     }
   };
 
@@ -143,40 +149,58 @@ export function TripsSheet({
 
       {needsLoginFor && (
         <form
-          onSubmit={submitEmail}
+          onSubmit={submitAuth}
           className="bg-blue-50 rounded-xl p-4 space-y-2"
         >
           <p className="text-sm text-gray-800">
-            Sign in to save “{needsLoginFor.name}” to the cloud. Saving on this
-            device never needs an account.
+            {authMode === "signin" ? "Sign in" : "Create an account"} to save
+            “{needsLoginFor.name}” to the cloud. Saving on this device never
+            needs an account.
           </p>
-          {linkSent ? (
-            <p className="text-sm text-green-700">
-              Check your email for the sign-in link, then come back and tap
-              “Save to cloud” again.
-            </p>
-          ) : (
-            <div className="flex gap-2">
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="flex-1 px-3 py-2 rounded-lg bg-white border border-gray-200 text-base"
-              />
-              <button className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm">
-                Email link
-              </button>
-            </div>
-          )}
+          <input
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-base"
+          />
+          <input
+            type="password"
+            required
+            minLength={8}
+            autoComplete={authMode === "signin" ? "current-password" : "new-password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password (8+ characters)"
+            className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-base"
+          />
           <button
-            type="button"
-            onClick={() => setNeedsLoginFor(null)}
-            className="text-xs text-gray-500"
+            disabled={authBusy}
+            className="w-full py-2 rounded-lg bg-blue-600 text-white text-sm disabled:opacity-50"
           >
-            Not now
+            {authBusy
+              ? "Please wait…"
+              : authMode === "signin"
+                ? "Sign in & save"
+                : "Create account & save"}
           </button>
+          <div className="flex justify-between text-xs text-gray-500">
+            <button
+              type="button"
+              onClick={() =>
+                setAuthMode(authMode === "signin" ? "signup" : "signin")
+              }
+            >
+              {authMode === "signin"
+                ? "New here? Create an account"
+                : "Have an account? Sign in"}
+            </button>
+            <button type="button" onClick={() => setNeedsLoginFor(null)}>
+              Not now
+            </button>
+          </div>
         </form>
       )}
 
@@ -223,10 +247,8 @@ export function TripsSheet({
                   >
                     {busyId === trip.id ? (
                       <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : isCloudConfigured ? (
-                      <Cloud className="w-3 h-3" />
                     ) : (
-                      <CloudOff className="w-3 h-3" />
+                      <Cloud className="w-3 h-3" />
                     )}
                     Save to cloud
                   </button>

@@ -31,7 +31,7 @@ export function SearchBar({ onSearch }: SearchBarProps) {
       setIsWaiting(false);
       clearTimeout(debounceTimeoutRef.current);
     }
-    debounceTimeoutRef.current = setTimeout(async () => {
+    debounceTimeoutRef.current = window.setTimeout(async () => {
       if (!searchQuery.trim()) {
         setResults([]);
         return;

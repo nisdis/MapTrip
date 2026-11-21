@@ -435,7 +435,7 @@ function App() {
             onView={handleViewTrip}
             onDelete={handleDeleteTrip}
             onSaveToCloud={handleSaveToCloud}
-            onSignIn={auth.signInWithEmail}
+            onAuthenticate={auth.authenticate}
             onSignOut={auth.signOut}
           />
         )}
