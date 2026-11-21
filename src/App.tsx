@@ -22,6 +22,7 @@ import { TripsSheet } from "./components/TripsSheet";
 import { TripLayer } from "./components/TripLayer";
 import { useTripRecorder } from "./hooks/useTripRecorder";
 import { useAuth } from "./hooks/useAuth";
+import { authClient } from "./services/authClient";
 import {
   deleteLocalTrip,
   listLocalTrips,
@@ -29,6 +30,11 @@ import {
   saveTripLocally,
 } from "./services/tripStore";
 import { saveTripToCloud } from "./services/cloudTrips";
+import {
+  deletePhotoBlob,
+  prepareImage,
+  savePhotoBlob,
+} from "./services/photoStore";
 import type { Trip } from "./types/trip";
 import "leaflet/dist/leaflet.css";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
@@ -139,6 +145,7 @@ function App() {
 
   const handleDeleteTrip = useCallback(
     async (trip: Trip) => {
+      await Promise.all((trip.photos ?? []).map((p) => deletePhotoBlob(p.id)));
       await deleteLocalTrip(trip.id);
       setViewTrip((v) => (v?.id === trip.id ? null : v));
       await refreshTrips();
@@ -148,8 +155,33 @@ function App() {
 
   const handleSaveToCloud = useCallback(
     async (trip: Trip) => {
-      const syncedAt = await saveTripToCloud(trip);
-      await persistTrip({ ...trip, cloudSyncedAt: syncedAt });
+      // Sign-in just completed? The session hook may lag a render, so read it fresh.
+      const session = await authClient.getSession();
+      const userId = session.data?.user.id;
+      if (!userId) throw new Error("Please sign in to save to the cloud");
+      const saved = await saveTripToCloud(trip, userId);
+      await persistTrip(saved);
+    },
+    [persistTrip],
+  );
+
+  const handleAddPhoto = useCallback(
+    async (trip: Trip, file: File) => {
+      const blob = await prepareImage(file);
+      const photo = { id: newTripId(), addedAt: Date.now() };
+      await savePhotoBlob(photo.id, blob);
+      await persistTrip({ ...trip, photos: [...(trip.photos ?? []), photo] });
+    },
+    [persistTrip],
+  );
+
+  const handleRemovePhoto = useCallback(
+    async (trip: Trip, photoId: string) => {
+      await deletePhotoBlob(photoId);
+      await persistTrip({
+        ...trip,
+        photos: (trip.photos ?? []).filter((p) => p.id !== photoId),
+      });
     },
     [persistTrip],
   );
@@ -434,6 +466,8 @@ function App() {
             onStop={handleStopRecording}
             onView={handleViewTrip}
             onDelete={handleDeleteTrip}
+            onAddPhoto={handleAddPhoto}
+            onRemovePhoto={handleRemovePhoto}
             onSaveToCloud={handleSaveToCloud}
             onAuthenticate={auth.authenticate}
             onSignOut={auth.signOut}

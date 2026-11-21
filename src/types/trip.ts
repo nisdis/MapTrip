@@ -9,6 +9,13 @@ export interface TrackPoint {
   speed: number | null;
 }
 
+export interface TripPhoto {
+  id: string;
+  addedAt: number;
+  /** Set once uploaded to the private cloud store. */
+  cloudPath?: string;
+}
+
 export interface Trip {
   id: string;
   name: string;
@@ -21,6 +28,7 @@ export interface Trip {
   destination?: SearchResult;
   distanceM: number;
   durationS: number;
+  photos?: TripPhoto[];
   /** set once the trip has been saved to the cloud */
   cloudSyncedAt?: number;
 }

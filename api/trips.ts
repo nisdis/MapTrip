@@ -1,4 +1,5 @@
 import { getAuth } from "./_lib/auth.js";
+import { del } from "@vercel/blob";
 import { getPool } from "./_lib/db.js";
 
 const UUID =
@@ -44,6 +45,23 @@ async function handle(request: Request): Promise<Response> {
       const createdAt = Number(trip.createdAt);
       if (!Number.isFinite(createdAt)) return json({ message: "Invalid createdAt" }, 400);
 
+      // Only keep photo references that point at this user's own files.
+      const photos = Array.isArray((trip as { photos?: unknown }).photos)
+        ? ((trip as { photos: unknown[] }).photos.slice(0, 30) as {
+            id?: unknown;
+            addedAt?: unknown;
+            cloudPath?: unknown;
+          }[])
+            .filter(
+              (p) =>
+                typeof p?.id === "string" &&
+                UUID.test(p.id) &&
+                typeof p.cloudPath === "string" &&
+                p.cloudPath === `trips/${userId}/${p.id}.jpg`,
+            )
+            .map((p) => ({ id: p.id, addedAt: Number(p.addedAt) || 0, cloudPath: p.cloudPath }))
+        : [];
+
       const syncedAt = Date.now();
       // The WHERE clause stops one user overwriting another user's trip id.
       const result = await pool.query(
@@ -51,7 +69,7 @@ async function handle(request: Request): Promise<Response> {
          values ($1, $2, $3::jsonb, to_timestamp($4 / 1000.0))
          on conflict (id) do update set data = excluded.data
          where trips.user_id = excluded.user_id`,
-        [trip.id, userId, JSON.stringify({ ...trip, cloudSyncedAt: syncedAt }), createdAt],
+        [trip.id, userId, JSON.stringify({ ...trip, photos, cloudSyncedAt: syncedAt }), createdAt],
       );
       if (result.rowCount === 0) return json({ message: "Trip id already in use" }, 409);
       return json({ syncedAt });
@@ -60,7 +78,15 @@ async function handle(request: Request): Promise<Response> {
     if (request.method === "DELETE") {
       const id = new URL(request.url).searchParams.get("id") ?? "";
       if (!UUID.test(id)) return json({ message: "Invalid trip id" }, 400);
-      await pool.query("delete from trips where id = $1 and user_id = $2", [id, userId]);
+      const { rows } = await pool.query(
+        "delete from trips where id = $1 and user_id = $2 returning data",
+        [id, userId],
+      );
+      // Remove the trip's photos from the object store too (no orphaned files).
+      const paths: string[] = (rows[0]?.data?.photos ?? [])
+        .map((p: { cloudPath?: string }) => p.cloudPath)
+        .filter((p: unknown): p is string => typeof p === "string" && p.startsWith(`trips/${userId}/`));
+      if (paths.length) await del(paths).catch((e) => console.error("Photo cleanup failed:", e));
       return json({ ok: true });
     }
 

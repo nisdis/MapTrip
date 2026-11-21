@@ -9,7 +9,10 @@ import {
   MapPinned,
   Loader2,
   LogOut,
+  ImagePlus,
 } from "lucide-react";
+import { PhotoThumb } from "./PhotoThumb";
+import { hasUnsyncedPhotos } from "../services/cloudTrips";
 import type { Trip } from "../types/trip";
 import { formatDistance, formatDuration } from "../utils/geo";
 import type { AuthMode } from "../hooks/useAuth";
@@ -25,6 +28,8 @@ interface TripsSheetProps {
   onStop: () => void;
   onView: (trip: Trip) => void;
   onDelete: (trip: Trip) => void;
+  onAddPhoto: (trip: Trip, file: File) => Promise<void>;
+  onRemovePhoto: (trip: Trip, photoId: string) => void;
   onSaveToCloud: (trip: Trip) => Promise<void>;
   onAuthenticate: (mode: AuthMode, email: string, password: string) => Promise<void>;
   onSignOut: () => void;
@@ -41,6 +46,8 @@ export function TripsSheet({
   onStop,
   onView,
   onDelete,
+  onAddPhoto,
+  onRemovePhoto,
   onSaveToCloud,
   onAuthenticate,
   onSignOut,
@@ -234,8 +241,38 @@ export function TripsSheet({
                     ` · ${formatDistance(trip.distanceM)} · ${formatDuration(trip.durationS)}`}
                 </div>
               </button>
+              <div className="flex items-center gap-2 mt-2 overflow-x-auto">
+                {(trip.photos ?? []).map((photo) => (
+                  <PhotoThumb
+                    key={photo.id}
+                    photoId={photo.id}
+                    onRemove={() => onRemovePhoto(trip, photo.id)}
+                  />
+                ))}
+                <label className="w-16 h-16 flex-shrink-0 flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 text-gray-400 text-[10px] cursor-pointer">
+                  <ImagePlus className="w-5 h-5" />
+                  Add photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!file) return;
+                      try {
+                        await onAddPhoto(trip, file);
+                      } catch (err) {
+                        setMessage(
+                          err instanceof Error ? err.message : "Couldn't add photo",
+                        );
+                      }
+                    }}
+                  />
+                </label>
+              </div>
               <div className="flex items-center justify-between mt-2">
-                {trip.cloudSyncedAt ? (
+                {trip.cloudSyncedAt && !hasUnsyncedPhotos(trip) ? (
                   <span className="flex items-center gap-1 text-xs text-green-700">
                     <Check className="w-3 h-3" /> Saved to cloud
                   </span>
@@ -250,7 +287,7 @@ export function TripsSheet({
                     ) : (
                       <Cloud className="w-3 h-3" />
                     )}
-                    Save to cloud
+                    {trip.cloudSyncedAt ? "Update cloud copy" : "Save to cloud"}
                   </button>
                 )}
                 <button
