@@ -20,6 +20,11 @@ import { DirectionsSheet } from "./components/DirectionsSheet";
 import { HistorySheet } from "./components/HistorySheet";
 import { TripsSheet } from "./components/TripsSheet";
 import { TripLayer } from "./components/TripLayer";
+import { RecorderHud } from "./components/RecorderHud";
+import { TripSummary } from "./components/TripSummary";
+import { DraftBanner } from "./components/DraftBanner";
+import { clearDraft } from "./services/draftStore";
+import { computeStats } from "./utils/tripStats";
 import { useTripRecorder } from "./hooks/useTripRecorder";
 import { useAuth } from "./hooks/useAuth";
 import { authClient } from "./services/authClient";
@@ -89,32 +94,52 @@ function App() {
     [refreshTrips],
   );
 
+  const isRecorderActive = recorder.status !== "idle";
+  const isLive = recorder.status === "recording" || recorder.status === "paused";
+  // While recording, the map follows you until you drag it away.
+  const [follow, setFollow] = useState(true);
+  // Height of whichever recorder panel covers the bottom of the map.
+  const [panelHeight, setPanelHeight] = useState(0);
+
   const handleStartRecording = useCallback(() => {
     setViewTrip(null);
+    setShowSheet(false);
+    setShowMoreMenu(false);
+    setFollow(true);
     recorder.start();
   }, [recorder]);
 
-  const handleStopRecording = useCallback(async () => {
-    const { track, distanceM, durationS, startedAt } = recorder.stop();
-    if (track.length < 2) {
-      recorder.discard();
-      alert("Trip was too short to save.");
+  const handleSaveRecordedTrip = useCallback(
+    async (name: string) => {
+      const stats = computeStats(recorder.track, recorder.activeSeconds);
+      const trip: Trip = {
+        id: newTripId(),
+        name,
+        kind: "recorded",
+        createdAt: recorder.startedAt,
+        track: recorder.track,
+        distanceM: stats.distanceM,
+        durationS: recorder.activeSeconds,
+      };
+      await persistTrip(trip);
+      recorder.reset();
+      setViewTrip(trip);
+    },
+    [recorder, persistTrip],
+  );
+
+  const handleDiscardRecordedTrip = useCallback(() => {
+    recorder.reset();
+  }, [recorder]);
+
+  const handleFinishRecording = useCallback(() => {
+    if (recorder.track.length < 2) {
+      recorder.reset();
+      alert("That trip was too short to save. Move a little before finishing.");
       return;
     }
-    const trip: Trip = {
-      id: newTripId(),
-      name: `Trip ${new Date(startedAt).toLocaleString()}`,
-      kind: "recorded",
-      createdAt: startedAt,
-      track,
-      distanceM,
-      durationS,
-    };
-    await persistTrip(trip);
-    recorder.discard();
-    setViewTrip(trip);
-    setShowSheet(false); // reveal the saved track on the map
-  }, [recorder, persistTrip]);
+    recorder.finish();
+  }, [recorder]);
 
   const handleSavePlannedTrip = useCallback(async () => {
     if (!origin || !destination) return;
@@ -222,6 +247,14 @@ function App() {
     }
   }, [locationData, selectedLocation, origin, destination]);
 
+  useEffect(() => {
+    if (recorder.status === "recording" && follow && locationData) {
+      setCenter(locationData.position);
+    }
+  }, [recorder.status, follow, locationData]);
+
+  const handleUserPan = useCallback(() => setFollow(false), []);
+
   const handleSearch = useCallback((result: SearchResult) => {
     setSelectedLocation(result);
     setCenter(result.location);
@@ -245,6 +278,7 @@ function App() {
     }
     setZoom(15);
     setSelectedLocation(null);
+    setFollow(true);
     setResetMap((n) => n + 1);
   }, [locationData]);
 
@@ -327,6 +361,7 @@ function App() {
 
   return (
     <div className="h-screen w-screen relative bg-gray-100">
+      {!isRecorderActive && (
       <div className="absolute top-0 left-0 w-full z-10 bg-gradient-to-b from-white/90 to-transparent p-4 pointer-events-none">
         <div className="max-w-7xl mx-auto pointer-events-auto">
           <div className="flex items-center gap-4">
@@ -351,7 +386,9 @@ function App() {
         </div>
       </div>
 
-      {origin && destination && (
+      )}
+
+      {origin && destination && !isRecorderActive && (
         <div className="absolute bottom-48 left-4 right-4 md:left-auto md:right-4 md:w-80 z-10 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-3 w-16">
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1 min-w-0 hidden md:block">
@@ -384,6 +421,8 @@ function App() {
           center={center}
           zoom={zoom}
           reset={resetMap}
+          onUserPan={handleUserPan}
+          bottomInset={isRecorderActive ? panelHeight : 0}
         />
         <TileLayer
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -403,7 +442,17 @@ function App() {
             </Popup>
           </Marker>
         )}
-        <TripLayer liveTrack={recorder.track} viewTrip={viewTrip} />
+        {isRecorderActive ? (
+          <TripLayer
+            track={recorder.track}
+            fitKey={recorder.status === "review" ? "review" : null}
+            bottomInset={panelHeight}
+          />
+        ) : (
+          viewTrip?.track && (
+            <TripLayer track={viewTrip.track} fitKey={viewTrip.id} showEnds />
+          )
+        )}
         {origin && destination && (
           <RouteControl
             origin={origin}
@@ -419,13 +468,70 @@ function App() {
         />
       </MapContainer>
 
-      <LocationDashboard locationData={locationData} />
+      {!isRecorderActive && <LocationDashboard locationData={locationData} />}
 
-      <BottomNav
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        onMoreClick={handleToggleMore}
-      />
+      {!isRecorderActive && (
+        <BottomNav
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          onMoreClick={handleToggleMore}
+          onRecord={handleStartRecording}
+        />
+      )}
+
+      {isLive && (
+        <RecorderHud
+          status={recorder.status as "recording" | "paused"}
+          speedMs={recorder.speedMs}
+          maxSpeedMs={recorder.maxSpeedMs}
+          distanceM={recorder.distanceM}
+          activeSeconds={recorder.activeSeconds}
+          altitudeM={recorder.altitudeM}
+          accuracyM={recorder.accuracyM}
+          onPause={recorder.pause}
+          onResume={recorder.resume}
+          onFinish={handleFinishRecording}
+          onHeight={setPanelHeight}
+        />
+      )}
+
+      {recorder.status === "review" && (
+        <TripSummary
+          defaultName={`Trip, ${new Date(recorder.startedAt).toLocaleString([], {
+            day: "numeric",
+            month: "short",
+            hour: "numeric",
+            minute: "2-digit",
+          })}`}
+          activeSeconds={recorder.activeSeconds}
+          stats={computeStats(recorder.track, recorder.activeSeconds)}
+          onSave={handleSaveRecordedTrip}
+          onDiscard={handleDiscardRecordedTrip}
+          onHeight={setPanelHeight}
+        />
+      )}
+
+      {recorder.status === "idle" && recorder.draft && (
+        <DraftBanner
+          draft={recorder.draft}
+          onReview={recorder.restoreDraft}
+          onDiscard={() => {
+            void clearDraft();
+            recorder.reset();
+          }}
+        />
+      )}
+
+
+      {isLive && !follow && (
+        <button
+          type="button"
+          onClick={handleResetView}
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-20 rounded-full bg-asphalt px-5 py-3 font-hud text-sm font-bold text-white shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        >
+          Recenter on me
+        </button>
+      )}
 
       <MoreMenu
         isOpen={showMoreMenu}
@@ -457,13 +563,9 @@ function App() {
         {activeTab === "trips" && (
           <TripsSheet
             trips={trips}
-            isRecording={recorder.isRecording}
-            liveDistanceM={recorder.distanceM}
-            liveElapsedS={recorder.elapsedS}
             hasLocation={Boolean(locationData)}
             userEmail={auth.user?.email ?? null}
             onStart={handleStartRecording}
-            onStop={handleStopRecording}
             onView={handleViewTrip}
             onDelete={handleDeleteTrip}
             onAddPhoto={handleAddPhoto}

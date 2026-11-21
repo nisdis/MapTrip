@@ -18,3 +18,10 @@
    Vercel → Project → Settings → Environment Variables, then redeploy.
 
 Without these variables the app works fully, local-only.
+
+### Recording a trip
+Tap **Record** in the bottom bar. The map follows you and draws your path,
+coloured by speed (blue is slow, red is fast). The panel shows speed, max
+speed, distance, time and altitude. **Pause** for stops; **hold** the red button
+to finish. The screen stays awake while recording, and an unfinished trip is
+recovered if the tab closes.

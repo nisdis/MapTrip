@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   Circle,
-  Square,
   Trash2,
   Cloud,
   Check,
@@ -17,15 +16,16 @@ import type { Trip } from "../types/trip";
 import { formatDistance, formatDuration } from "../utils/geo";
 import type { AuthMode } from "../hooks/useAuth";
 
+function maxKmh(trip: Trip): number {
+  const max = (trip.track ?? []).reduce((m, p) => Math.max(m, p.speed ?? 0), 0);
+  return Math.round(max * 3.6);
+}
+
 interface TripsSheetProps {
   trips: Trip[];
-  isRecording: boolean;
-  liveDistanceM: number;
-  liveElapsedS: number;
   hasLocation: boolean;
   userEmail: string | null;
   onStart: () => void;
-  onStop: () => void;
   onView: (trip: Trip) => void;
   onDelete: (trip: Trip) => void;
   onAddPhoto: (trip: Trip, file: File) => Promise<void>;
@@ -37,13 +37,9 @@ interface TripsSheetProps {
 
 export function TripsSheet({
   trips,
-  isRecording,
-  liveDistanceM,
-  liveElapsedS,
   hasLocation,
   userEmail,
   onStart,
-  onStop,
   onView,
   onDelete,
   onAddPhoto,
@@ -100,40 +96,18 @@ export function TripsSheet({
 
   return (
     <div className="flex flex-col h-full gap-4">
-      <div className="bg-gray-50 rounded-xl p-4">
-        {isRecording ? (
-          <>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2 text-red-600 font-medium">
-                <Circle className="w-3 h-3 fill-red-600 animate-pulse" />
-                Recording
-              </div>
-              <div className="text-sm text-gray-700 tabular-nums">
-                {formatDuration(liveElapsedS)} · {formatDistance(liveDistanceM)}
-              </div>
-            </div>
-            <button
-              onClick={onStop}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-red-600 text-white font-medium"
-            >
-              <Square className="w-4 h-4" /> Stop &amp; save trip
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              onClick={onStart}
-              disabled={!hasLocation}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 text-white font-medium disabled:opacity-50"
-            >
-              <Circle className="w-4 h-4" /> Start recording a trip
-            </button>
-            {!hasLocation && (
-              <p className="text-xs text-gray-500 mt-2 text-center">
-                Waiting for your location…
-              </p>
-            )}
-          </>
+      <div>
+        <button
+          onClick={onStart}
+          disabled={!hasLocation}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-milestone text-asphalt font-bold disabled:opacity-50"
+        >
+          <Circle className="w-4 h-4 fill-signal text-signal" /> Record a trip
+        </button>
+        {!hasLocation && (
+          <p className="text-xs text-gray-500 mt-2 text-center">
+            Turn on location to record. Waiting for your position…
+          </p>
         )}
       </div>
 
@@ -238,7 +212,7 @@ export function TripsSheet({
                 <div className="text-xs text-gray-500 mt-1">
                   {new Date(trip.createdAt).toLocaleString()}
                   {trip.kind === "recorded" &&
-                    ` · ${formatDistance(trip.distanceM)} · ${formatDuration(trip.durationS)}`}
+                    ` · ${formatDistance(trip.distanceM)} · ${formatDuration(trip.durationS)} · max ${maxKmh(trip)} km/h`}
                 </div>
               </button>
               <div className="flex items-center gap-2 mt-2 overflow-x-auto">

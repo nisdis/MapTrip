@@ -45,6 +45,8 @@ export default defineConfig({
         ]
       },
       workbox: {
+        // Precache the self-hosted font so the recorder looks right offline.
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/nominatim\.openstreetmap\.org\/search/,

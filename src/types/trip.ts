@@ -5,8 +5,12 @@ export interface TrackPoint {
   lng: number;
   /** epoch ms */
   t: number;
-  /** m/s, if the device reported it */
+  /** m/s: reported by the device, or derived from distance over time */
   speed: number | null;
+  /** metres above sea level, if the device reported it */
+  alt?: number | null;
+  /** true when recording was paused before this point: don't join it to the previous one */
+  gap?: boolean;
 }
 
 export interface TripPhoto {

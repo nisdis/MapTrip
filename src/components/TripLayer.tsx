@@ -1,44 +1,67 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Polyline, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
-import type { Trip, TrackPoint } from "../types/trip";
+import type { TrackPoint } from "../types/trip";
+import { buildTrailRuns } from "../utils/tripStats";
 
 interface TripLayerProps {
-  /** Track currently being recorded (drawn live). */
-  liveTrack?: TrackPoint[];
-  /** Saved recorded trip chosen from the list. */
-  viewTrip?: Trip | null;
+  track: TrackPoint[];
+  /** When this changes, the map zooms to fit the whole trail. */
+  fitKey?: string | null;
+  showEnds?: boolean;
+  /** Height in px of a panel covering the bottom of the map. */
+  bottomInset?: number;
 }
 
-const toLatLng = (p: TrackPoint): L.LatLngTuple => [p.lat, p.lng];
-
-export function TripLayer({ liveTrack = [], viewTrip }: TripLayerProps) {
+/**
+ * The trail, coloured by speed. A pale casing under the colour keeps it
+ * readable on top of every kind of road and land-use shading.
+ */
+export function TripLayer({ track, fitKey, showEnds = false, bottomInset = 0 }: TripLayerProps) {
   const map = useMap();
-  const saved = viewTrip?.track ?? [];
+  const runs = useMemo(() => buildTrailRuns(track), [track]);
+  const all = useMemo<L.LatLngTuple[]>(
+    () => track.map((p) => [p.lat, p.lng]),
+    [track],
+  );
 
-  // Fit the map to a trip when the user picks one.
   useEffect(() => {
-    if (saved.length > 1) {
-      map.fitBounds(L.latLngBounds(saved.map(toLatLng)), { padding: [40, 40] });
+    if (fitKey && all.length > 1) {
+      map.fitBounds(L.latLngBounds(all), {
+        paddingTopLeft: [48, 48],
+        paddingBottomRight: [48, 48 + bottomInset],
+        maxZoom: 17,
+      });
     }
-  }, [map, viewTrip?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Refit when the chosen trail (or the panel covering the map) changes, not as points arrive.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, fitKey, bottomInset]);
+
+  if (all.length < 2) return null;
 
   return (
     <>
-      {liveTrack.length > 1 && (
+      {/* Casing per run (never one line through all runs): paused stretches stay unjoined. */}
+      {runs.map((run, i) => (
         <Polyline
-          positions={liveTrack.map(toLatLng)}
-          pathOptions={{ color: "#ef4444", weight: 5, opacity: 0.9 }}
+          key={`casing-${i}`}
+          positions={run.positions}
+          pathOptions={{ color: "#FFFFFF", weight: 10, opacity: 0.9, lineCap: "round", lineJoin: "round" }}
+          interactive={false}
         />
-      )}
-      {saved.length > 1 && (
+      ))}
+      {runs.map((run, i) => (
+        <Polyline
+          key={`run-${i}`}
+          positions={run.positions}
+          pathOptions={{ color: run.color, weight: 6, opacity: 1, lineCap: "round", lineJoin: "round" }}
+          interactive={false}
+        />
+      ))}
+      {showEnds && (
         <>
-          <Polyline
-            positions={saved.map(toLatLng)}
-            pathOptions={{ color: "#7c3aed", weight: 5, opacity: 0.9 }}
-          />
-          <Marker position={toLatLng(saved[0])} />
-          <Marker position={toLatLng(saved[saved.length - 1])} />
+          <Marker position={all[0]} />
+          <Marker position={all[all.length - 1]} />
         </>
       )}
     </>
