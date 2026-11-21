@@ -1,6 +1,7 @@
 import { useCallback, useState, useEffect, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import { Map as MapIcon, Wifi, WifiOff, Car } from "lucide-react";
+import { MapContainer, Marker, Popup } from "react-leaflet";
+import { VectorBasemap } from "./components/VectorBasemap";
+import { Map as MapIcon, Wifi, WifiOff, Car, UserRound } from "lucide-react";
 import { MapControls } from "./components/MapControls";
 import { MapController } from "./components/MapController";
 import { RouteControl } from "./components/RouteControl";
@@ -19,6 +20,7 @@ import { SearchSheet } from "./components/SearchSheet";
 import { DirectionsSheet } from "./components/DirectionsSheet";
 import { HistorySheet } from "./components/HistorySheet";
 import { TripsSheet } from "./components/TripsSheet";
+import { AccountSheet } from "./components/AccountSheet";
 import { TripLayer } from "./components/TripLayer";
 import { RecorderHud } from "./components/RecorderHud";
 import { TripSummary } from "./components/TripSummary";
@@ -370,6 +372,21 @@ function App() {
               <h1 className="text-2xl font-bold text-gray-800">Map Trip</h1>
             </div>
             <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleTabChange("account")}
+                aria-label={auth.user ? "Account" : "Sign in"}
+                className="flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-sm font-medium text-gray-800 shadow-sm"
+              >
+                {auth.user ? (
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-xs font-bold uppercase text-white">
+                    {auth.user.email?.[0] ?? "?"}
+                  </span>
+                ) : (
+                  <UserRound className="w-4 h-4 text-blue-600" />
+                )}
+                {auth.user ? "Account" : "Sign in"}
+              </button>
               {isOnline ? (
                 <div className="flex items-center gap-1 text-green-600 bg-white/80 px-2 py-1 rounded-full">
                   <Wifi className="w-4 h-4" />
@@ -415,6 +432,9 @@ function App() {
         zoom={zoom}
         className="h-full w-full"
         zoomControl={false}
+        minZoom={2}
+        maxBounds={[[-85, -Infinity], [85, Infinity]]}
+        maxBoundsViscosity={1}
       >
         <MapController
           onZoomChange={setZoom}
@@ -424,11 +444,7 @@ function App() {
           onUserPan={handleUserPan}
           bottomInset={isRecorderActive ? panelHeight : 0}
         />
-        <TileLayer
-          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxZoom={19}
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        />
+        <VectorBasemap />
         {locationData && <CurrentLocationMarker locationData={locationData} />}
         {selectedLocation && !origin && !destination && (
           <Marker position={selectedLocation.location}>
@@ -573,6 +589,14 @@ function App() {
             onSaveToCloud={handleSaveToCloud}
             onAuthenticate={auth.authenticate}
             onSignOut={auth.signOut}
+          />
+        )}
+        {activeTab === "account" && (
+          <AccountSheet
+            userEmail={auth.user?.email ?? null}
+            onAuthenticate={auth.authenticate}
+            onSignOut={auth.signOut}
+            onDone={handleCloseSheet}
           />
         )}
         {activeTab === "history" && (

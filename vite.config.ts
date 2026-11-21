@@ -60,6 +60,25 @@ export default defineConfig({
             }
           },
           {
+            // English vector basemap: tiles, fonts and sprites are cached for offline use.
+            urlPattern: /^https:\/\/tiles\.openfreemap\.org\/(?:planet|fonts|sprites)\/.*/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'map-tiles',
+              expiration: { maxEntries: 2000, maxAgeSeconds: 7 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [0, 200] }
+            }
+          },
+          {
+            // The style itself: serve the cached copy instantly, refresh in the background.
+            urlPattern: /^https:\/\/tiles\.openfreemap\.org\/styles\/.*/,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'map-style',
+              cacheableResponse: { statuses: [0, 200] }
+            }
+          },
+          {
             urlPattern: /^https:\/\/(?:[a-z]+\.)?tile\.openstreetmap\.org\/.*/,
             handler: 'CacheFirst',
             options: {

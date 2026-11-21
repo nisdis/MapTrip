@@ -15,6 +15,7 @@ import { hasUnsyncedPhotos } from "../services/cloudTrips";
 import type { Trip } from "../types/trip";
 import { formatDistance, formatDuration } from "../utils/geo";
 import type { AuthMode } from "../hooks/useAuth";
+import { AuthForm } from "./AuthForm";
 
 function maxKmh(trip: Trip): number {
   const max = (trip.track ?? []).reduce((m, p) => Math.max(m, p.speed ?? 0), 0);
@@ -52,16 +53,8 @@ export function TripsSheet({
   const [message, setMessage] = useState<string | null>(null);
   // Trip waiting for the user to sign in before it is saved to the cloud.
   const [needsLoginFor, setNeedsLoginFor] = useState<Trip | null>(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [authMode, setAuthMode] = useState<AuthMode>("signin");
-  const [authBusy, setAuthBusy] = useState(false);
 
-  const saveToCloud = async (trip: Trip) => {
-    if (!userEmail) {
-      setNeedsLoginFor(trip);
-      return;
-    }
+  const performSave = async (trip: Trip) => {
     setBusyId(trip.id);
     setMessage(null);
     try {
@@ -73,25 +66,12 @@ export function TripsSheet({
     }
   };
 
-  const submitAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!needsLoginFor) return;
-    setMessage(null);
-    setAuthBusy(true);
-    try {
-      await onAuthenticate(authMode, email.trim(), password);
-      // Signed in: finish the save the user originally asked for.
-      const trip = needsLoginFor;
-      setNeedsLoginFor(null);
-      setPassword("");
-      setBusyId(trip.id);
-      await onSaveToCloud(trip);
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Sign-in failed");
-    } finally {
-      setAuthBusy(false);
-      setBusyId(null);
+  const saveToCloud = async (trip: Trip) => {
+    if (!userEmail) {
+      setNeedsLoginFor(trip);
+      return;
     }
+    await performSave(trip);
   };
 
   return (
@@ -129,60 +109,17 @@ export function TripsSheet({
       {message && <p className="text-sm text-red-600">{message}</p>}
 
       {needsLoginFor && (
-        <form
-          onSubmit={submitAuth}
-          className="bg-blue-50 rounded-xl p-4 space-y-2"
-        >
-          <p className="text-sm text-gray-800">
-            {authMode === "signin" ? "Sign in" : "Create an account"} to save
-            “{needsLoginFor.name}” to the cloud. Saving on this device never
-            needs an account.
-          </p>
-          <input
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-base"
-          />
-          <input
-            type="password"
-            required
-            minLength={8}
-            autoComplete={authMode === "signin" ? "current-password" : "new-password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password (8+ characters)"
-            className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-base"
-          />
-          <button
-            disabled={authBusy}
-            className="w-full py-2 rounded-lg bg-blue-600 text-white text-sm disabled:opacity-50"
-          >
-            {authBusy
-              ? "Please wait…"
-              : authMode === "signin"
-                ? "Sign in & save"
-                : "Create account & save"}
-          </button>
-          <div className="flex justify-between text-xs text-gray-500">
-            <button
-              type="button"
-              onClick={() =>
-                setAuthMode(authMode === "signin" ? "signup" : "signin")
-              }
-            >
-              {authMode === "signin"
-                ? "New here? Create an account"
-                : "Have an account? Sign in"}
-            </button>
-            <button type="button" onClick={() => setNeedsLoginFor(null)}>
-              Not now
-            </button>
-          </div>
-        </form>
+        <AuthForm
+          reason={`to save “${needsLoginFor.name}” to the cloud. Saving on this device never needs an account.`}
+          onAuthenticate={onAuthenticate}
+          onSuccess={async () => {
+            // Signed in: finish the save the user originally asked for.
+            const trip = needsLoginFor;
+            setNeedsLoginFor(null);
+            await performSave(trip);
+          }}
+          onCancel={() => setNeedsLoginFor(null)}
+        />
       )}
 
       {trips.length === 0 ? (
