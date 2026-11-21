@@ -1,4 +1,3 @@
-import React from 'react';
 import { Marker, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import type { LocationData } from '../hooks/useLocationTracking';

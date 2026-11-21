@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { X } from "lucide-react";
 
 interface BottomSheetProps {
@@ -7,10 +7,10 @@ interface BottomSheetProps {
   children: React.ReactNode;
   snapPoints?: number[];
   initialSnap?: number;
-  maxHeight?: string;
 }
 
 const SNAP_POINTS = [0.4, 0.7, 0.95];
+const DRAG_THRESHOLD = 80;
 
 export function BottomSheet({
   isOpen,
@@ -18,96 +18,60 @@ export function BottomSheet({
   children,
   snapPoints = SNAP_POINTS,
   initialSnap = 1,
-  maxHeight = "85vh",
 }: BottomSheetProps) {
   const [currentSnap, setCurrentSnap] = useState(initialSnap);
-  const [isDragging, setIsDragging] = useState(false);
-  const [startY, setStartY] = useState(0);
-  const [currentY, setCurrentY] = useState(0);
-  const sheetRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [dragY, setDragY] = useState<number | null>(null);
+  const startYRef = useRef(0);
+  const dragYRef = useRef(0);
 
-  const getSheetTranslate = useCallback(
-    (snapIndex: number) => {
-      return snapPoints[snapIndex];
-    },
-    [snapPoints],
-  );
+  // Always reopen at the initial snap point.
+  useEffect(() => {
+    if (isOpen) setCurrentSnap(initialSnap);
+  }, [isOpen, initialSnap]);
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    setStartY(touch.clientY);
-    setIsDragging(true);
-  }, []);
+  const startDrag = (clientY: number) => {
+    startYRef.current = clientY;
+    dragYRef.current = 0;
+    setDragY(0);
+  };
 
-  const handleTouchMove = useCallback(
-    (e: React.TouchEvent) => {
-      if (!isDragging) return;
-      const touch = e.touches[0];
-      const deltaY = touch.clientY - startY;
-      setCurrentY(deltaY);
-    },
-    [isDragging, startY],
-  );
+  const moveDrag = (clientY: number) => {
+    dragYRef.current = clientY - startYRef.current;
+    setDragY(dragYRef.current);
+  };
 
-  const handleTouchEnd = useCallback(() => {
+  const endDrag = () => {
+    const delta = dragYRef.current;
+    dragYRef.current = 0;
+    setDragY(null);
+    if (delta > DRAG_THRESHOLD) {
+      // Drag down: shrink, or close from the lowest snap point.
+      if (currentSnap === 0) onClose();
+      else setCurrentSnap(currentSnap - 1);
+    } else if (delta < -DRAG_THRESHOLD) {
+      setCurrentSnap(Math.min(currentSnap + 1, snapPoints.length - 1));
+    }
+  };
+
+  const isDragging = dragY !== null;
+
+  // Mouse drags keep tracking even when the pointer leaves the handle.
+  useEffect(() => {
     if (!isDragging) return;
-    setIsDragging(false);
-    console.log(currentY);
-
-    const threshold = 80;
-    if (currentY > threshold && currentSnap < snapPoints.length - 1) {
-      setCurrentSnap((prev) => Math.min(prev + 1, snapPoints.length - 1));
-    } else if (currentY < -threshold && currentSnap > 0) {
-      setCurrentSnap((prev) => Math.max(prev - 1, 0));
-    }
-    setCurrentY(0);
-  }, [isDragging, currentY, currentSnap, snapPoints]);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    setStartY(e.clientY);
-    setIsDragging(true);
-  }, []);
-
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!isDragging) return;
-      const deltaY = e.clientY - startY;
-      setCurrentY(deltaY);
-    },
-    [isDragging, startY],
-  );
-
-  const handleMouseUp = useCallback(() => {
-    handleTouchEnd();
-  }, [handleTouchEnd]);
-
-  useEffect(() => {
-    if (!isDragging) {
-      setCurrentY(0);
-    }
-  }, [isDragging]);
-
-  useEffect(() => {
-    const handleGlobalMouseUp = () => {
-      if (isDragging) {
-        setIsDragging(false);
-        setCurrentY(0);
-      }
-    };
-
-    if (isDragging) {
-      window.addEventListener("mouseup", handleGlobalMouseUp);
-      window.addEventListener("mousemove", handleMouseMove as any);
-    }
-
+    const onMove = (e: MouseEvent) => moveDrag(e.clientY);
+    const onUp = () => endDrag();
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
     return () => {
-      window.removeEventListener("mouseup", handleGlobalMouseUp);
-      window.removeEventListener("mousemove", handleMouseMove as any);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
     };
-  }, [isDragging, handleMouseMove]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDragging, currentSnap]);
 
   if (!isOpen) return null;
+
+  const height = `${(snapPoints[currentSnap] ?? 0.7) * 100}vh`;
 
   return (
     <>
@@ -116,45 +80,37 @@ export function BottomSheet({
         onClick={onClose}
       />
       <div
-        ref={containerRef}
-        className="fixed bottom-0 left-0 right-0 z-50 transition-transform duration-300 ease-out"
+        className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl overflow-hidden flex flex-col"
         style={{
-          height: maxHeight,
-          transform: `translateY(${-getSheetTranslate(currentSnap) * 0}%)`,
-          maxHeight,
+          height,
+          transform: `translateY(${Math.max(dragY ?? 0, 0)}px)`,
+          transition: isDragging
+            ? "none"
+            : "transform 300ms ease-out, height 300ms ease-out",
         }}
       >
+        {/* Only the header is draggable, so scrolling/selecting content works. */}
         <div
-          ref={sheetRef}
-          className="bg-white rounded-t-2xl shadow-2xl overflow-hidden"
-          style={{
-            height: maxHeight,
-            transform: `translateY(${isDragging ? currentY : 0}px)`,
-            transition: isDragging ? "none" : "transform 300ms ease-out",
-          }}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
+          className="flex items-center justify-between px-4 pt-3 pb-2 bg-white border-b border-gray-100 touch-none select-none"
+          onTouchStart={(e) => startDrag(e.touches[0].clientY)}
+          onTouchMove={(e) => moveDrag(e.touches[0].clientY)}
+          onTouchEnd={endDrag}
+          onMouseDown={(e) => startDrag(e.clientY)}
         >
-          <div className="flex flex-col h-full">
-            <div className="flex items-center justify-between px-4 pt-3 pb-2 bg-white border-b border-gray-100">
-              <div className="flex flex-col items-center flex-1">
-                <div className="w-12 h-1 bg-gray-300 rounded-full cursor-grab active:cursor-grabbing" />
-              </div>
-              <button
-                onClick={onClose}
-                className="p-2 -mr-2 rounded-full hover:bg-gray-100 transition-colors"
-                aria-label="Close"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 pb-4">{children}</div>
+          <div className="flex flex-col items-center flex-1">
+            <div className="w-12 h-1 bg-gray-300 rounded-full cursor-grab active:cursor-grabbing" />
           </div>
+          <button
+            onClick={onClose}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            className="p-2 -mr-2 rounded-full hover:bg-gray-100 transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
         </div>
+        <div className="flex-1 overflow-y-auto px-4 pb-4">{children}</div>
       </div>
     </>
   );

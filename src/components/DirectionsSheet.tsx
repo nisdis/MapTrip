@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Navigation, Crosshair, Loader2 } from "lucide-react";
 import type { SearchResult } from "../services/searchService";
 import { searchPlaces } from "../services/searchService";
@@ -39,37 +39,55 @@ export function DirectionsSheet({
     }
   }, [origin, destination]);
 
-  const searchOrigin = debounce(async (query: string) => {
-    if (!query.trim()) {
-      setOriginResults([]);
-      return;
-    }
-    setIsLoadingOrigin(true);
-    try {
-      const results = await searchPlaces(query);
-      setOriginResults(results);
-    } catch (error) {
-      console.error("Failed to search origin:", error);
-    } finally {
-      setIsLoadingOrigin(false);
-    }
-  }, 300);
+  // One stable debounced function per input so their timers are independent.
+  const searchOrigin = useMemo(
+    () =>
+      debounce(async (query: string) => {
+        if (!query.trim()) {
+          setOriginResults([]);
+          setIsLoadingOrigin(false);
+          return;
+        }
+        setIsLoadingOrigin(true);
+        try {
+          const results = await searchPlaces(query);
+          setOriginResults(results);
+        } catch (error) {
+          console.error("Failed to search origin:", error);
+        } finally {
+          setIsLoadingOrigin(false);
+        }
+      }, 500),
+    [],
+  );
 
-  const searchDestination = debounce(async (query: string) => {
-    if (!query.trim()) {
-      setDestinationResults([]);
-      return;
-    }
-    setIsLoadingDestination(true);
-    try {
-      const results = await searchPlaces(query);
-      setDestinationResults(results);
-    } catch (error) {
-      console.error("Failed to search destination:", error);
-    } finally {
-      setIsLoadingDestination(false);
-    }
-  }, 300);
+  const searchDestination = useMemo(
+    () =>
+      debounce(async (query: string) => {
+        if (!query.trim()) {
+          setDestinationResults([]);
+          setIsLoadingDestination(false);
+          return;
+        }
+        setIsLoadingDestination(true);
+        try {
+          const results = await searchPlaces(query);
+          setDestinationResults(results);
+        } catch (error) {
+          console.error("Failed to search destination:", error);
+        } finally {
+          setIsLoadingDestination(false);
+        }
+      }, 500),
+    [],
+  );
+
+  useEffect(() => {
+    return () => {
+      searchOrigin.cancel();
+      searchDestination.cancel();
+    };
+  }, [searchOrigin, searchDestination]);
 
   const handleOriginChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -109,61 +127,55 @@ export function DirectionsSheet({
     onClearDirections();
   };
 
-  const handleCurrentLocation = async (position: GeolocationPosition) => {
+  const selectCurrentLocation = async (lat: number, lon: number) => {
+    const location: [number, number] = [lat, lon];
+    let currentLocation: SearchResult = {
+      id: -1,
+      name: "Current location",
+      displayName: `Current location (${lat.toFixed(5)}, ${lon.toFixed(5)})`,
+      location,
+      type: "current",
+      importance: 1,
+    };
     try {
-      const results = await searchPlaces(
-        `${position.coords.latitude},${position.coords.longitude}`,
-      );
+      const results = await searchPlaces(`${lat},${lon}`);
       if (results.length > 0) {
-        const currentLocation: SearchResult = {
-          ...results[0],
-          location: [position.coords.latitude, position.coords.longitude],
-        };
-        handleSelectOriginResult(currentLocation);
+        currentLocation = { ...results[0], location };
       }
     } catch (error) {
+      // Offline or lookup failed: still use the raw coordinates.
       console.error("Failed to get location details:", error);
-    } finally {
-      setIsGettingLocation(false);
     }
+    handleSelectOriginResult(currentLocation);
+    setIsGettingLocation(false);
   };
 
   const handleUseCurrentLocation = () => {
-    setIsGettingLocation(true);
     if (!navigator.geolocation) {
       alert("Geolocation is not supported by your browser");
-      setIsGettingLocation(false);
       return;
     }
+    setIsGettingLocation(true);
     if (locationData) {
-      const coords: GeolocationCoordinates = {
-        latitude: locationData.position[0],
-        longitude: locationData.position[1],
-        altitude: locationData.altitude || null,
-        accuracy: locationData.accuracy || 0,
-        altitudeAccuracy: null,
-        heading: locationData.heading || null,
-        speed: locationData.speed || null,
-        toJSON: () => ({}),
-      };
-      const positionData: GeolocationPosition = {
-        timestamp: locationData.timestamp,
-        coords,
-        toJSON: () => ({}),
-      };
-      handleCurrentLocation(positionData);
+      void selectCurrentLocation(
+        locationData.position[0],
+        locationData.position[1],
+      );
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        handleCurrentLocation(position);
+      (position) => {
+        void selectCurrentLocation(
+          position.coords.latitude,
+          position.coords.longitude,
+        );
       },
       (error) => {
         console.error("Geolocation error:", error);
         alert("Failed to get your current location");
         setIsGettingLocation(false);
       },
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
   };
 

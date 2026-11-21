@@ -18,14 +18,20 @@ const osrm = new OSRM({
 
 function route(req, res) {
   // overview=false&alternatives=true&steps=true&hints=;
-  const alternatives = Boolean(req.query?.alternatives);
-  const steps = Boolean(req.query?.steps);
-  const overview = req.query?.overview;
+  // Query values are strings: Boolean("false") would be true, so compare explicitly.
+  const alternatives = req.query?.alternatives === "true";
+  const steps = req.query?.steps === "true";
+  const overview = req.query?.overview || "simplified";
 
   let { coordinates } = req.params;
-  coordinates = coordinates.split(";");
-  for (var i = 0; i < coordinates.length; i++) {
-    coordinates[i] = coordinates[i].split(",").map(Number);
+  coordinates = coordinates.split(";").map((pair) => pair.split(",").map(Number));
+  if (
+    coordinates.length < 2 ||
+    coordinates.some((c) => c.length !== 2 || c.some((n) => !Number.isFinite(n)))
+  ) {
+    return res
+      .status(400)
+      .json({ code: "InvalidQuery", message: "Invalid coordinates" });
   }
   var options = {
     coordinates,
@@ -38,8 +44,9 @@ function route(req, res) {
   osrm.route(options, function (err, result) {
     if (err) {
       console.log(err);
-      return res.json({
-        error: err.message,
+      return res.status(400).json({
+        code: "NoRoute",
+        message: err.message,
       });
     } else {
       result.code = "Ok";

@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import { Map as MapIcon, Wifi, WifiOff, Car } from "lucide-react";
 import { MapControls } from "./components/MapControls";
@@ -40,6 +40,11 @@ function App() {
   const [destination, setDestination] = useState<SearchResult | null>(null);
   const [isClearing, setIsClearing] = useState(false);
   const { locationData, error } = useLocationTracking();
+  const hasCenteredOnUser = useRef(false);
+
+  useEffect(() => {
+    if (error) console.error("Location error:", error);
+  }, [error]);
 
   useEffect(() => {
     setupLeaflet();
@@ -59,11 +64,17 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (locationData && !selectedLocation && !origin && !destination) {
+    // Center on the user once, on the first GPS fix. Re-centering on every
+    // update would fight the user whenever they pan the map.
+    if (
+      locationData &&
+      !hasCenteredOnUser.current &&
+      !selectedLocation &&
+      !origin &&
+      !destination
+    ) {
+      hasCenteredOnUser.current = true;
       setCenter(locationData.position);
-    }
-    if (origin && destination) {
-      setRouteHistory(getRouteHistory());
     }
   }, [locationData, selectedLocation, origin, destination]);
 
@@ -90,7 +101,7 @@ function App() {
     }
     setZoom(15);
     setSelectedLocation(null);
-    setResetMap(Math.random());
+    setResetMap((n) => n + 1);
   }, [locationData]);
 
   const handleSelectOrigin = useCallback((result: SearchResult) => {
@@ -114,6 +125,7 @@ function App() {
     (historyItem: RouteHistoryItem) => {
       setOrigin(historyItem.origin);
       setDestination(historyItem.destination);
+      setCenter(historyItem.origin.location);
       setActiveTab("directions");
       setShowSheet(true);
     },
@@ -121,6 +133,10 @@ function App() {
   );
 
   const handleTabChange = useCallback((tab: string) => {
+    if (tab === "history") {
+      // Routes are saved asynchronously once found, so re-read when viewing.
+      setRouteHistory(getRouteHistory());
+    }
     setActiveTab(tab);
     setShowSheet(true);
   }, []);
@@ -165,10 +181,6 @@ function App() {
     return null;
   }
 
-  if (error) {
-    console.error("Location error:", error);
-  }
-
   return (
     <div className="h-screen w-screen relative bg-gray-100">
       <div className="absolute top-0 left-0 w-full z-10 bg-gradient-to-b from-white/90 to-transparent p-4 pointer-events-none">
@@ -198,7 +210,7 @@ function App() {
       {origin && destination && (
         <div className="absolute bottom-48 left-4 right-4 md:left-auto md:right-4 md:w-80 z-10 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-3 w-16">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex-1 min-w-0 hidden md:visible">
+            <div className="flex-1 min-w-0 hidden md:block">
               <div className="truncate text-sm font-medium text-gray-900">
                 From: {origin.name}
               </div>
@@ -230,7 +242,8 @@ function App() {
           reset={resetMap}
         />
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={19}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
         {locationData && <CurrentLocationMarker locationData={locationData} />}

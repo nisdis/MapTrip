@@ -7,70 +7,68 @@ interface SearchSheetProps {
   onSearch: (location: SearchResult) => void;
 }
 
+const DEBOUNCE_MS = 500;
+
 export function SearchSheet({ onSearch }: SearchSheetProps) {
-  const debounceTimeoutRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
+  // Query that should be searched right now (set by debounce or submit).
+  const [activeQuery, setActiveQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isWaiting, setIsWaiting] = useState(false);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  const searchIt = async () => {
-    try {
-      setIsLoading(true);
-      const searchResults = await searchPlaces(query);
-      setResults(searchResults);
-    } catch (error) {
-      console.error("Search failed:", error);
-    } finally {
-      setIsLoading(false);
+  // Debounce typing into activeQuery.
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setActiveQuery("");
+      return;
     }
-  };
+    const timer = setTimeout(() => setActiveQuery(trimmed), DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
 
-  const searchLocation = (searchQuery: string) => {
-    if (debounceTimeoutRef.current) {
-      setIsWaiting(false);
-      clearTimeout(debounceTimeoutRef.current);
+  // Run the search; ignore stale responses.
+  useEffect(() => {
+    if (!activeQuery) {
+      setResults([]);
+      setIsLoading(false);
+      return;
     }
-    debounceTimeoutRef.current = setTimeout(() => {
-      if (!searchQuery.trim()) {
-        setResults([]);
-        return;
-      }
-      setIsWaiting(true);
-      setIsLoading(true);
-    }, 1300);
-  };
+    let cancelled = false;
+    setIsLoading(true);
+    searchPlaces(activeQuery)
+      .then((r) => {
+        if (!cancelled) setResults(r);
+      })
+      .catch((error) => {
+        console.error("Search failed:", error);
+        if (!cancelled) setResults([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeQuery]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim()) return;
-    searchLocation(query);
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setQuery(value);
-    searchLocation(value);
-    console.log(value);
+    const trimmed = query.trim();
+    if (trimmed) setActiveQuery(trimmed);
   };
 
   const handleSelectResult = (result: SearchResult) => {
     onSearch(result);
     setQuery(result.name);
+    setActiveQuery("");
     setResults([]);
   };
-
-  useEffect(() => {
-    if (isWaiting) {
-      console.log("first");
-      searchIt();
-    }
-  }, [isWaiting]);
 
   return (
     <div className="flex flex-col h-full">
@@ -81,7 +79,7 @@ export function SearchSheet({ onSearch }: SearchSheetProps) {
             ref={inputRef}
             type="text"
             value={query}
-            onChange={handleInputChange}
+            onChange={(e) => setQuery(e.target.value)}
             placeholder="Search location..."
             className="w-full px-4 py-3 pl-12 pr-12 bg-gray-100 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
           />

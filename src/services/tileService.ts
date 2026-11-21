@@ -75,18 +75,16 @@ export async function clearTileCache(): Promise<void> {
   try {
     // await tileStore.clear();
     const cache = await caches.open('map-tiles');
-    await cache.keys().then(keys => {
-      keys.forEach(key => {
-        cache.delete(key);
-      });
-    });
+    const keys = await cache.keys();
+    await Promise.all(keys.map((key) => cache.delete(key)));
   } catch (error) {
     console.error('Failed to clear tile cache:', error);
+    throw error;
   }
 }
 
 export function createOfflineTileLayer(): L.TileLayer {
-  return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  return L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: MAX_ZOOM,
     attribution: '© OpenStreetMap contributors',
     crossOrigin: true,

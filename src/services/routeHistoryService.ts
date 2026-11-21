@@ -13,29 +13,36 @@ const ROUTE_CACHE_KEY = 'map_route_cache';
 const MAX_HISTORY_ITEMS = 20;
 
 export function saveRouteToHistory(origin: SearchResult, destination: SearchResult, route?: any): void {
-  const history = getRouteHistory();
+  // Same origin/destination replaces the older entry instead of duplicating it.
+  const history = getRouteHistory().filter(
+    (item) =>
+      generateRouteCacheKey(item.origin, item.destination) !==
+      generateRouteCacheKey(origin, destination),
+  );
   const newRoute: RouteHistoryItem = {
-    id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
     origin,
     destination,
-    timestamp: Date.now(),
-    route
+    timestamp: Date.now()
   };
 
   // Add to beginning of array and limit size
   history.unshift(newRoute);
-  if (history.length > MAX_HISTORY_ITEMS) {
-    history.pop();
-  }
+  history.length = Math.min(history.length, MAX_HISTORY_ITEMS);
 
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-  
-  if (route) {
-    const cacheKey = generateRouteCacheKey(origin, destination);
-    localStorage.setItem(`${ROUTE_CACHE_KEY}_${cacheKey}`, JSON.stringify({
-      route,
-      timestamp: Date.now()
-    }));
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+
+    if (route) {
+      const cacheKey = generateRouteCacheKey(origin, destination);
+      localStorage.setItem(`${ROUTE_CACHE_KEY}_${cacheKey}`, JSON.stringify({
+        route,
+        timestamp: Date.now()
+      }));
+    }
+  } catch (error) {
+    // Storage full/unavailable (e.g. private mode): history is best-effort.
+    console.error('Failed to save route history:', error);
   }
 }
 

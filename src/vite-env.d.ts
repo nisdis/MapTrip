@@ -28,7 +28,7 @@ declare module 'leaflet-routing-machine' {
     }
 
     namespace control {
-      function (options: RoutingControlOptions): Control;
+      function control(options: RoutingControlOptions): Control;
     }
   }
 

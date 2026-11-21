@@ -1,4 +1,3 @@
-import React from 'react';
 import { History, X, Clock, MapPin } from 'lucide-react';
 import type { RouteHistoryItem } from '../services/routeHistoryService';
 import { clearRouteHistory } from '../services/routeHistoryService';
