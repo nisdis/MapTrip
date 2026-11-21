@@ -4,7 +4,10 @@
 import { Pool } from "pg";
 import { getMigrations } from "better-auth/db/migration";
 
-const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+const url = (process.env.DATABASE_URL || process.env.POSTGRES_URL)
+  // Same sanitising as api/_lib/db.ts.
+  ?.replace(/([?&])channel_binding=[^&]*&?/, "$1")
+  .replace(/[?&]$/, "");
 if (!url) {
   console.warn("[migrate] DATABASE_URL not set - skipping (cloud save disabled).");
   process.exit(0);

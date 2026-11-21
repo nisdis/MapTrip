@@ -4,7 +4,9 @@ const globalForPool = globalThis as unknown as { __pgPool?: Pool };
 
 export function getConnectionString(): string | undefined {
   // The Neon integration on Vercel sets DATABASE_URL (and POSTGRES_URL).
-  return process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  // `channel_binding` isn't supported through Neon's pooler by node-postgres.
+  return url?.replace(/([?&])channel_binding=[^&]*&?/, "$1").replace(/[?&]$/, "");
 }
 
 /** One small pool per function instance (serverless-friendly). */
