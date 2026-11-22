@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect, useRef } from "react";
-import { MapContainer, Marker, Popup, CircleMarker } from "react-leaflet";
+import { MapContainer, Marker, Popup } from "react-leaflet";
+import { NearbyMarkers } from "./components/NearbyMarkers";
 import { VectorBasemap } from "./components/VectorBasemap";
 import { Map as MapIcon, Wifi, WifiOff, Car, UserRound } from "lucide-react";
 import { MapControls } from "./components/MapControls";
@@ -487,28 +488,28 @@ function App() {
                 type="button"
                 onClick={() => handleTabChange("account")}
                 aria-label={auth.user ? "Account" : "Sign in"}
-                className="flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-sm font-medium text-gray-800 shadow-sm"
+                title={auth.user ? "Account" : "Sign in"}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asphalt"
               >
                 {auth.user ? (
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-xs font-bold uppercase text-white">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-sm font-bold uppercase text-white">
                     {auth.user.email?.[0] ?? "?"}
                   </span>
                 ) : (
-                  <UserRound className="w-4 h-4 text-blue-600" />
+                  <UserRound aria-hidden className="h-5 w-5 text-blue-600" />
                 )}
-                {auth.user ? "Account" : "Sign in"}
               </button>
-              {isOnline ? (
-                <div className="flex items-center gap-1 text-green-600 bg-white/80 px-2 py-1 rounded-full">
-                  <Wifi className="w-4 h-4" />
-                  <span className="text-sm font-medium">Online</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 text-amber-600 bg-white/80 px-2 py-1 rounded-full">
-                  <WifiOff className="w-4 h-4" />
-                  <span className="text-sm font-medium">Offline</span>
-                </div>
-              )}
+              {/* Online is the normal state, so only the offline badge needs attention. */}
+              <span
+                role="status"
+                title={isOnline ? "Online" : "Offline: saved trips and cached maps still work"}
+                className={`flex h-9 w-9 items-center justify-center rounded-full bg-white/80 ${
+                  isOnline ? "text-green-600" : "text-amber-600"
+                }`}
+              >
+                {isOnline ? <Wifi aria-hidden className="h-4 w-4" /> : <WifiOff aria-hidden className="h-4 w-4" />}
+                <span className="sr-only">{isOnline ? "Online" : "Offline"}</span>
+              </span>
             </div>
           </div>
         </div>
@@ -573,18 +574,18 @@ function App() {
           </Marker>
         )}
         <MapTapHandler disabled={isRecorderActive} onTap={handleMapTap} />
-        {!isRecorderActive &&
-          nearby.state?.results.map((r) => (
-            <CircleMarker
-              key={r.place.id}
-              center={[r.place.lat, r.place.lng]}
-              radius={7}
-              bubblingMouseEvents={false}
-              pathOptions={{ color: "#FFFFFF", weight: 2, fillColor: "#1F2A30", fillOpacity: 0.9 }}
-              eventHandlers={{ click: () => handleSelectNearby(r) }}
-            />
-          ))}
-        {placeLookup.target && !isRecorderActive && (
+        {!isRecorderActive && nearby.state && (
+          <NearbyMarkers
+            categoryId={nearby.state.category.id}
+            results={nearby.state.results}
+            selectedId={placeLookup.place?.id ?? null}
+            onSelect={handleSelectNearby}
+          />
+        )}
+        {/* A list place is shown by its own (enlarged) category pin; other spots get the plain pin. */}
+        {placeLookup.target &&
+          !isRecorderActive &&
+          !nearby.state?.results.some((r) => r.place.id === placeLookup.place?.id) && (
           <Marker position={[placeLookup.target.lat, placeLookup.target.lng]} />
         )}
         {isRecorderActive ? (
