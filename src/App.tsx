@@ -7,7 +7,7 @@ import { MapControls } from "./components/MapControls";
 import { MapController } from "./components/MapController";
 import { RouteControl } from "./components/RouteControl";
 import { CurrentLocationMarker } from "./components/CurrentLocationMarker";
-import { LocationDashboard } from "./components/LocationDashboard";
+import { SpeedPill } from "./components/SpeedPill";
 import { useLocationTracking } from "./hooks/useLocationTracking";
 import { setupLeaflet } from "./utils/leaflet-setup";
 import { getRouteHistory } from "./services/routeHistoryService";
@@ -615,7 +615,7 @@ function App() {
       </MapContainer>
 
       {!isRecorderActive && !placeLookup.target && !nearby.state && (
-        <LocationDashboard locationData={locationData} />
+        <SpeedPill locationData={locationData} />
       )}
 
       {!isRecorderActive && (

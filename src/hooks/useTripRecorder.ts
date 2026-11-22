@@ -10,7 +10,6 @@ const MIN_MOVE_M = 5; // ignore GPS jitter while standing still
 const MAX_ACCURACY_M = 50; // ignore poor fixes
 const MAX_PLAUSIBLE_MS = 100; // 360 km/h: anything faster is a GPS glitch
 const DRAFT_SAVE_EVERY_MS = 4000;
-const STILL_MS = 0.6; // below ~2 km/h counts as stopped
 
 const round = (n: number, dp: number) => Math.round(n * 10 ** dp) / 10 ** dp;
 
@@ -58,10 +57,10 @@ export function useTripRecorder(locationData: LocationData | null) {
     const t = locationData.timestamp;
     const moved = prev ? haversine(prev, { lat, lng }) : 0;
     const dt = prev ? (t - prev.t) / 1000 : 0;
-    let speed = locationData.speed ?? (dt > 0 ? moved / dt : 0);
-    if (speed > MAX_PLAUSIBLE_MS) return;
-    if (prev && moved < MIN_MOVE_M) speed = 0;
-    if (speed < STILL_MS) speed = 0;
+    // Smoothed speed from the location hook. It no longer reads 0 just because this
+    // fix is close to the last trail point (that made slow travel show 0).
+    const speed = locationData.speed;
+    if (speed > MAX_PLAUSIBLE_MS || dt < 0) return;
 
     setSpeedMs(speed);
     setAltitudeM(locationData.altitude);

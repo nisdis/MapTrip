@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import type { LatLngTuple } from 'leaflet';
+import { SpeedEstimator } from '../utils/speedEstimator';
 
 export interface LocationData {
   position: LatLngTuple;
-  speed: number | null;
+  /** Smoothed speed in m/s (see SpeedEstimator); 0 when stopped. */
+  speed: number;
+  /** Direction of travel in degrees, kept from the last moving fix when the device omits it. */
   heading: number | null;
   altitude: number | null;
   accuracy: number;
@@ -20,14 +23,27 @@ export function useLocationTracking() {
       return;
     }
 
+    const estimator = new SpeedEstimator();
+    let lastHeading: number | null = null;
+
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
+        const c = position.coords;
+        const speed = estimator.update({
+          lat: c.latitude,
+          lng: c.longitude,
+          t: position.timestamp,
+          accuracy: c.accuracy,
+          speed: c.speed,
+        });
+        // Heading is only meaningful while moving; keep the last good one otherwise.
+        if (c.heading != null && !Number.isNaN(c.heading) && speed > 0) lastHeading = c.heading;
         setLocationData({
-          position: [position.coords.latitude, position.coords.longitude],
-          speed: position.coords.speed,
-          heading: position.coords.heading,
-          altitude: position.coords.altitude,
-          accuracy: position.coords.accuracy,
+          position: [c.latitude, c.longitude],
+          speed,
+          heading: speed > 0 ? lastHeading : null,
+          altitude: c.altitude,
+          accuracy: c.accuracy,
           timestamp: position.timestamp,
         });
         setError(null);
@@ -37,7 +53,7 @@ export function useLocationTracking() {
       },
       {
         enableHighAccuracy: true,
-        timeout: 5000,
+        timeout: 10000,
         maximumAge: 0,
       }
     );
