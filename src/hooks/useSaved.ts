@@ -88,13 +88,13 @@ export function useSaved() {
     [write],
   );
 
-  const toggleFavourite = useCallback(
-    (place: SavedPlaceSnapshot) => {
-      const key = favouriteKey(place.id);
-      return entriesRef.current.some((e) => e.key === key && !e.deleted)
-        ? remove(key)
-        : upsert(key, "favourite", place);
-    },
+  /**
+   * Save or unsave explicitly. The caller passes what the button showed, so a
+   * sync landing a moment before the tap can't flip "Save" into "remove".
+   */
+  const setFavourite = useCallback(
+    (place: SavedPlaceSnapshot, on: boolean) =>
+      on ? upsert(favouriteKey(place.id), "favourite", place) : remove(favouriteKey(place.id)),
     [remove, upsert],
   );
 
@@ -125,7 +125,7 @@ export function useSaved() {
     work,
     revision,
     isFavourite,
-    toggleFavourite,
+    setFavourite,
     setLabel,
     setNote,
     remove,

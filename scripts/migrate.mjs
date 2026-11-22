@@ -35,6 +35,17 @@ try {
     create index if not exists trips_user_created_idx on trips (user_id, created_at desc);
   `);
   console.log("[migrate] trips table ok");
+
+  await pool.query(`
+    create table if not exists saved_places (
+      user_id text not null references "user" (id) on delete cascade,
+      key text not null,
+      data jsonb not null,
+      updated_at bigint not null,
+      primary key (user_id, key)
+    );
+  `);
+  console.log("[migrate] saved_places table ok");
 } catch (error) {
   console.error("[migrate] FAILED - cloud save may not work:", error);
 } finally {

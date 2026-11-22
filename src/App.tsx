@@ -33,6 +33,7 @@ import type { Bounds, NearbyCategory, NearbyResult } from "./services/placeServi
 import { MapTapHandler } from "./components/MapTapHandler";
 import { usePlaceLookup } from "./hooks/usePlaceLookup";
 import { useSaved, snapshotOf } from "./hooks/useSaved";
+import { useSavedSync } from "./hooks/useSavedSync";
 import { favouriteKey } from "./types/saved";
 import type { PoiHint } from "./services/placeService";
 import { RecorderHud } from "./components/RecorderHud";
@@ -106,6 +107,7 @@ function App() {
   const boundsRef = useRef<Bounds | null>(null);
   const [areaMoved, setAreaMoved] = useState(false);
   const auth = useAuth();
+  const savedSync = useSavedSync(saved, auth.user?.id ?? null);
 
   const refreshTrips = useCallback(async () => {
     try {
@@ -746,7 +748,8 @@ function App() {
               isHome: !!p && saved.home?.place.id === p.id,
               isWork: !!p && saved.work?.place.id === p.id,
               note: fav?.note ?? null,
-              onToggleFavourite: () => p && void saved.toggleFavourite(snapshotOf(p)),
+              // Act on what the button showed (see setFavourite).
+              onToggleFavourite: () => p && void saved.setFavourite(snapshotOf(p), !fav),
               onToggleHome: () => toggleLabel("home"),
               onToggleWork: () => toggleLabel("work"),
               onSaveNote: (note: string) => p && void saved.setNote(favouriteKey(p.id), note),
@@ -876,7 +879,7 @@ function App() {
             favourites={saved.favourites}
             userPosition={locationData ? [locationData.position[0], locationData.position[1]] : null}
             showOnMap={showSavedOnMap}
-            syncStatus={{ signedIn: !!auth.user, state: "idle", error: null }}
+            syncStatus={{ signedIn: !!auth.user, state: savedSync.state, error: savedSync.error }}
             onToggleShowOnMap={toggleShowSavedOnMap}
             onOpen={handleOpenSaved}
             onRemove={(e) => void saved.remove(e.key)}
