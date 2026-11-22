@@ -181,7 +181,11 @@ export function PlaceSheet(props: PlaceSheetProps) {
   }, [status, place?.id, coords.lat, coords.lng, userPosition !== null]);
 
   const share = async () => {
-    const url = `${window.location.origin}/?place=${target.lat.toFixed(6)},${target.lng.toFixed(6)}`;
+    // Exact place when we know its OpenStreetMap id; a pin link otherwise.
+    const osm = place && /^(node|way|relation)\/\d+$/.test(place.id) ? place.id : null;
+    const path = osm ?? `pin/${target.lat.toFixed(6)},${target.lng.toFixed(6)}`;
+    const nameParam = place?.name ? `?n=${encodeURIComponent(place.name.slice(0, 80))}` : "";
+    const url = `${window.location.origin}/p/${path}${nameParam}`;
     const title = place?.name ?? "Dropped pin";
     try {
       if (navigator.share) {

@@ -29,7 +29,7 @@ import { PlaceSheet } from "./components/PlaceSheet";
 import { CategoryChips } from "./components/CategoryChips";
 import { NearbyList } from "./components/NearbyList";
 import { useNearby } from "./hooks/useNearby";
-import type { Bounds, NearbyCategory, NearbyResult } from "./services/placeService";
+import { lookupById, type Bounds, type NearbyCategory, type NearbyResult } from "./services/placeService";
 import { MapTapHandler } from "./components/MapTapHandler";
 import { usePlaceLookup } from "./hooks/usePlaceLookup";
 import { useSaved, snapshotOf } from "./hooks/useSaved";
@@ -293,11 +293,27 @@ function App() {
     }
   }, [recorder.status, follow, locationData]);
 
-  // A shared link (/?place=lat,lng) opens that spot once the app starts.
+  // Shared links open their place once the app starts:
+  //   /p/node/123 (exact place), /p/pin/lat,lng, and the older /?place=lat,lng.
   useEffect(() => {
-    const m = new URLSearchParams(window.location.search)
-      .get("place")
-      ?.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
+    const params = new URLSearchParams(window.location.search);
+    const fromPath = window.location.pathname.match(/^\/p\/((?:node|way|relation)\/\d+|pin\/-?[\d.]+,-?[\d.]+)$/)?.[1];
+    const osm = fromPath ?? params.get("osm");
+    const osmId = osm?.match(/^(node|way|relation)\/\d+$/) ? osm : null;
+    if (osmId) {
+      hasCenteredOnUser.current = true;
+      lookupById(osmId)
+        .then((details) => {
+          if (!details) return;
+          placeLookup.show(details);
+          setCenter([details.lat, details.lng]);
+          setZoom(17);
+        })
+        .catch((e) => console.error("Couldn't open shared place:", e));
+      return;
+    }
+    const pin = osm?.match(/^pin\/(-?[\d.]+),(-?[\d.]+)$/);
+    const m = pin ?? params.get("place")?.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
     if (!m) return;
     const lat = Number(m[1]);
     const lng = Number(m[2]);

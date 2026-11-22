@@ -1,4 +1,10 @@
 {
   "regions": ["sin1"],
-  "rewrites": [{ "source": "/api/auth/:path*", "destination": "/api/auth" }]
+  "rewrites": [
+    { "source": "/api/auth/:path*", "destination": "/api/auth" },
+    { "source": "/p/:type/:id", "destination": "/api/share" }
+  ],
+  "functions": {
+    "api/share.ts": { "includeFiles": "dist/index.html" }
+  }
 }
