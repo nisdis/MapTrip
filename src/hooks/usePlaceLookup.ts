@@ -37,6 +37,16 @@ export function usePlaceLookup() {
       });
   }, []);
 
+  /** Show a place whose details are already known (e.g. from a nearby list). */
+  const show = useCallback((details: PlaceDetails) => {
+    controller.current?.abort();
+    controller.current = null;
+    setTarget({ lat: details.lat, lng: details.lng });
+    setPlace(details);
+    setError(null);
+    setStatus("ready");
+  }, []);
+
   const close = useCallback(() => {
     controller.current?.abort();
     controller.current = null;
@@ -46,5 +56,5 @@ export function usePlaceLookup() {
     setStatus("idle");
   }, []);
 
-  return { target, place, status, error, open, close };
+  return { target, place, status, error, open, show, close };
 }

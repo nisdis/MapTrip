@@ -1,7 +1,7 @@
 import { haversine } from "../utils/geo";
 
-// Details for a tapped spot, from OpenStreetMap's Nominatim.
-// Opening hours, phone and website only exist where OSM volunteers have added them.
+// Place details from OpenStreetMap's Nominatim. Hours, phone, photos etc. only
+// exist where OSM volunteers have added them.
 
 export interface PoiHint {
   /** Names from the map tile, in any language (used to confirm we found the same place). */
@@ -12,7 +12,18 @@ export interface PoiHint {
   lng: number;
 }
 
+export interface InfoItem {
+  label: string;
+  value: string;
+}
+
+export interface LinkItem {
+  label: string;
+  href: string;
+}
+
 export interface PlaceDetails {
+  id: string;
   lat: number;
   lng: number;
   /** null for a plain dropped pin */
@@ -22,16 +33,30 @@ export interface PlaceDetails {
   address: string | null;
   countryCode: string | null;
   openingHours: string | null;
-  phone: string | null;
+  phones: string[];
   website: string | null;
+  email: string | null;
+  social: LinkItem[];
+  /** Accessibility, payment, diet, entry fee and so on */
+  info: InfoItem[];
   features: string[];
   osmUrl: string | null;
+  /** For a photo and description of notable places */
+  wikipedia: string | null;
+  wikidata: string | null;
+  /** Whether opening hours make sense for this kind of place (a shop yes, a monument no). */
+  expectsHours: boolean;
 }
 
-interface NominatimReverse {
+// Kinds of places that normally keep hours.
+const HOURS_CATEGORIES = new Set(["amenity", "shop", "tourism", "leisure", "office", "craft", "healthcare", "club"]);
+const NO_HOURS_TYPES = new Set(["atm", "bench", "parking", "toilets", "drinking_water", "viewpoint", "artwork", "park", "attraction"]);
+
+interface NominatimPlace {
   error?: string;
   osm_type?: string;
   osm_id?: number;
+  place_id?: number;
   lat?: string;
   lon?: string;
   name?: string;
@@ -43,7 +68,8 @@ interface NominatimReverse {
   extratags?: Record<string, string>;
 }
 
-const ENDPOINT = "https://nominatim.openstreetmap.org/reverse";
+const BASE = "https://nominatim.openstreetmap.org";
+const DETAIL_PARAMS = "format=jsonv2&addressdetails=1&extratags=1&namedetails=1";
 const MIN_GAP_MS = 1100; // Nominatim allows about one request per second
 let lastRequestAt = 0;
 
@@ -60,26 +86,25 @@ async function politeDelay(signal: AbortSignal) {
   });
 }
 
-async function reverse(
-  lat: number,
-  lng: number,
-  layer: "poi" | "address",
-  signal: AbortSignal,
-): Promise<NominatimReverse | null> {
+async function nominatim<T>(path: string, signal: AbortSignal): Promise<T> {
   await politeDelay(signal);
-  const url =
-    `${ENDPOINT}?format=jsonv2&zoom=18&addressdetails=1&extratags=1&namedetails=1` +
-    `&layer=${layer}&lat=${lat}&lon=${lng}`;
-  const response = await fetch(url, { signal, headers: { "Accept-Language": "en" } });
+  const response = await fetch(`${BASE}${path}`, { signal, headers: { "Accept-Language": "en" } });
   if (!response.ok) throw new Error(`Place lookup failed (${response.status})`);
-  const body = (await response.json()) as NominatimReverse;
+  return (await response.json()) as T;
+}
+
+async function reverse(lat: number, lng: number, layer: "poi" | "address", signal: AbortSignal) {
+  const body = await nominatim<NominatimPlace>(
+    `/reverse?${DETAIL_PARAMS}&zoom=18&layer=${layer}&lat=${lat}&lon=${lng}`,
+    signal,
+  );
   return body.error ? null : body;
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 
 /** Did Nominatim return the same place the map icon showed? */
-function sameAsHint(found: NominatimReverse, hint: PoiHint): boolean {
+function sameAsHint(found: NominatimPlace, hint: PoiHint): boolean {
   const candidates = [found.name, ...Object.values(found.namedetails ?? {})]
     .filter((v): v is string => !!v)
     .map(norm);
@@ -110,26 +135,133 @@ export function safeWebsite(raw?: string | null): string | null {
   }
 }
 
-function addressLine(found: NominatimReverse): string | null {
+function addressLine(found: NominatimPlace): string | null {
   const a = found.address;
-  if (!a) return found.display_name?.split(",").slice(0, 4).join(",").trim() ?? null;
+  const fromDisplay = () => found.display_name?.split(",").slice(0, 4).join(",").trim() ?? null;
+  if (!a) return fromDisplay();
   const street = [a.house_number, a.road].filter(Boolean).join(" ");
   const area = a.suburb ?? a.neighbourhood ?? a.quarter ?? a.city_district;
   const city = a.city ?? a.town ?? a.village ?? a.county ?? a.state_district;
   const parts = [street, area, city, a.state, a.postcode].filter(Boolean) as string[];
-  return parts.length ? parts.join(", ") : (found.display_name?.split(",").slice(0, 4).join(",").trim() ?? null);
+  return parts.length ? parts.join(", ") : fromDisplay();
 }
 
-function featureList(tags: Record<string, string>): string[] {
+const yes = (v?: string) => v === "yes" || v === "only" || v === "designated";
+
+function featureList(t: Record<string, string>): string[] {
   const out: string[] = [];
-  if (tags.takeaway === "yes" || tags.takeaway === "only") out.push("Takeaway");
-  if (tags.delivery === "yes") out.push("Delivery");
-  if (tags.outdoor_seating === "yes") out.push("Outdoor seating");
-  if (["wlan", "wifi", "yes"].includes(tags.internet_access)) out.push("Wi-Fi");
-  if (tags.air_conditioning === "yes") out.push("Air-conditioned");
-  if (tags["diet:vegetarian"] === "yes" || tags["diet:vegetarian"] === "only") out.push("Vegetarian options");
-  if (tags.wheelchair === "yes") out.push("Wheelchair accessible");
+  if (yes(t.takeaway)) out.push("Takeaway");
+  if (yes(t.delivery)) out.push("Delivery");
+  if (yes(t.outdoor_seating)) out.push("Outdoor seating");
+  if (["wlan", "wifi", "yes"].includes(t.internet_access)) out.push("Wi-Fi");
+  if (yes(t.air_conditioning)) out.push("Air-conditioned");
+  if (yes(t.reservation) || t.reservation === "recommended") out.push("Reservations");
+  if (yes(t.drive_through)) out.push("Drive-through");
   return out;
+}
+
+const PAYMENT: Record<string, string> = {
+  cash: "Cash",
+  credit_cards: "Credit cards",
+  debit_cards: "Debit cards",
+  cards: "Cards",
+  contactless: "Contactless",
+  upi: "UPI",
+  paytm: "Paytm",
+  google_pay: "Google Pay",
+  apple_pay: "Apple Pay",
+  suica: "Suica",
+  pasmo: "PASMO",
+};
+
+function infoList(t: Record<string, string>): InfoItem[] {
+  const info: InfoItem[] = [];
+  const wheelchair = { yes: "Accessible", limited: "Partly accessible", no: "Not accessible" }[t.wheelchair];
+  if (wheelchair) info.push({ label: "Wheelchair", value: wheelchair });
+
+  const payments = Object.entries(PAYMENT)
+    .filter(([k]) => yes(t[`payment:${k}`]))
+    .map(([, v]) => v);
+  if (payments.length) info.push({ label: "Payment", value: payments.join(", ") });
+
+  const diet = [
+    t["diet:vegetarian"] === "only" ? "Vegetarian only" : yes(t["diet:vegetarian"]) ? "Vegetarian options" : null,
+    t["diet:vegan"] === "only" ? "Vegan only" : yes(t["diet:vegan"]) ? "Vegan options" : null,
+    yes(t["diet:halal"]) ? "Halal" : null,
+    yes(t["diet:jain"]) ? "Jain" : null,
+  ].filter(Boolean) as string[];
+  if (diet.length) info.push({ label: "Food", value: diet.join(", ") });
+
+  const smoking = { no: "No smoking", outside: "Outside only", yes: "Allowed", separated: "Separate area" }[t.smoking];
+  if (smoking) info.push({ label: "Smoking", value: smoking });
+
+  if (t.fee === "no") info.push({ label: "Entry", value: "Free" });
+  else if (t.fee === "yes") info.push({ label: "Entry", value: t.charge ? `Paid (${t.charge})` : "Paid" });
+
+  const by = t.brand ?? t.operator;
+  if (by) info.push({ label: t.brand ? "Brand" : "Operated by", value: by });
+  if (t.level) info.push({ label: "Floor", value: t.level });
+  return info;
+}
+
+const SOCIAL: [string, string][] = [
+  ["contact:instagram", "Instagram"],
+  ["contact:facebook", "Facebook"],
+  ["contact:twitter", "X (Twitter)"],
+  ["contact:tripadvisor", "Tripadvisor"],
+  ["contact:youtube", "YouTube"],
+];
+
+function socialLinks(t: Record<string, string>): LinkItem[] {
+  return SOCIAL.map(([key, label]) => ({ label, href: safeWebsite(t[key]) }))
+    .filter((l): l is LinkItem => !!l.href);
+}
+
+function splitList(v?: string): string[] {
+  return v ? v.split(";").map((s) => s.trim()).filter(Boolean) : [];
+}
+
+/** Builds the details shown on a place sheet from a Nominatim result. */
+export function toPlaceDetails(
+  found: NominatimPlace | null,
+  opts: { matched: boolean; lat: number; lng: number; hintName?: string | null; hintKind?: string },
+): PlaceDetails {
+  const t = opts.matched ? (found?.extratags ?? {}) : {};
+  const osmType = opts.matched ? found?.osm_type : null;
+  const lat = opts.matched && found?.lat ? Number(found.lat) : opts.lat;
+  const lng = opts.matched && found?.lon ? Number(found.lon) : opts.lng;
+  return {
+    id: osmType && found?.osm_id ? `${osmType}/${found.osm_id}` : `pin/${lat.toFixed(6)},${lng.toFixed(6)}`,
+    lat,
+    lng,
+    name: opts.matched ? (found?.name || opts.hintName || null) : (opts.hintName ?? null),
+    category: opts.matched
+      ? categoryLabel(found?.category, found?.type)
+      : opts.hintKind
+        ? humanize(opts.hintKind)
+        : null,
+    cuisine: t.cuisine ? splitList(t.cuisine).map(humanize).join(", ") : null,
+    address: found ? addressLine(found) : null,
+    countryCode: found?.address?.country_code ?? null,
+    openingHours: t.opening_hours ?? null,
+    phones: [...splitList(t.phone), ...splitList(t["contact:phone"]), ...splitList(t.mobile)].filter(
+      (p, i, all) => all.indexOf(p) === i,
+    ),
+    website: safeWebsite(t.website ?? t["contact:website"]),
+    email: t.email ?? t["contact:email"] ?? null,
+    social: socialLinks(t),
+    info: infoList(t),
+    features: featureList(t),
+    osmUrl:
+      osmType && found?.osm_id && ["node", "way", "relation"].includes(osmType)
+        ? `https://www.openstreetmap.org/${osmType}/${found.osm_id}`
+        : null,
+    wikipedia: t.wikipedia ?? null,
+    wikidata: t.wikidata ?? null,
+    expectsHours: opts.matched
+      ? HOURS_CATEGORIES.has(found?.category ?? "") && !NO_HOURS_TYPES.has(found?.type ?? "")
+      : !!opts.hintKind,
+  };
 }
 
 export async function lookupPlace(
@@ -146,7 +278,7 @@ export async function lookupPlace(
   const { signal } = controller;
 
   try {
-    let found: NominatimReverse | null = null;
+    let found: NominatimPlace | null = null;
     let matched = false;
 
     if (hint) {
@@ -173,32 +305,68 @@ export async function lookupPlace(
     }
     if (!found) found = await reverse(hint?.lat ?? lat, hint?.lng ?? lng, "address", signal);
 
-    const tags = matched ? (found?.extratags ?? {}) : {};
-    const hintName = hint?.names.find(Boolean) ?? null;
-    const osmType = matched ? found?.osm_type : null;
-
-    return {
-      lat: matched && found?.lat ? Number(found.lat) : (hint?.lat ?? lat),
-      lng: matched && found?.lon ? Number(found.lon) : (hint?.lng ?? lng),
-      name: matched ? (found?.name ?? hintName) : hintName,
-      category: matched
-        ? categoryLabel(found?.category, found?.type)
-        : hint?.kind
-          ? humanize(hint.kind)
-          : null,
-      cuisine: tags.cuisine ? tags.cuisine.split(";").map((c) => humanize(c.trim())).join(", ") : null,
-      address: found ? addressLine(found) : null,
-      countryCode: found?.address?.country_code ?? null,
-      openingHours: tags.opening_hours ?? null,
-      phone: tags.phone ?? tags["contact:phone"] ?? null,
-      website: safeWebsite(tags.website ?? tags["contact:website"]),
-      features: featureList(tags),
-      osmUrl:
-        osmType && found?.osm_id && ["node", "way", "relation"].includes(osmType)
-          ? `https://www.openstreetmap.org/${osmType}/${found.osm_id}`
-          : null,
-    };
+    return toPlaceDetails(found, {
+      matched,
+      lat: hint?.lat ?? lat,
+      lng: hint?.lng ?? lng,
+      hintName: hint?.names.find(Boolean) ?? null,
+      hintKind: hint?.kind,
+    });
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// ---------- Nearby listings ----------
+
+export interface NearbyCategory {
+  id: string;
+  label: string;
+  /** Nominatim "special phrase" that finds this kind of place */
+  query: string;
+  /** OSM types to keep (drops the odd mismatch) */
+  types: string[];
+}
+
+export const NEARBY_CATEGORIES: NearbyCategory[] = [
+  { id: "restaurant", label: "Restaurants", query: "restaurant", types: ["restaurant", "fast_food", "food_court"] },
+  { id: "cafe", label: "Cafes", query: "cafe", types: ["cafe"] },
+  { id: "fuel", label: "Petrol", query: "fuel", types: ["fuel"] },
+  { id: "atm", label: "ATMs", query: "atm", types: ["atm"] },
+  { id: "hotel", label: "Hotels", query: "hotel", types: ["hotel", "hostel", "guest_house", "motel"] },
+  { id: "hospital", label: "Hospitals", query: "hospital", types: ["hospital", "clinic"] },
+  { id: "pharmacy", label: "Pharmacies", query: "pharmacy", types: ["pharmacy", "chemist"] },
+];
+
+export interface Bounds {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
+export interface NearbyResult {
+  place: PlaceDetails;
+  distanceM: number;
+}
+
+/** Up to 40 places of a kind inside the visible map, nearest first. */
+export async function searchNearby(
+  category: NearbyCategory,
+  bounds: Bounds,
+  from: { lat: number; lng: number },
+  signal: AbortSignal,
+): Promise<NearbyResult[]> {
+  const viewbox = [bounds.west, bounds.north, bounds.east, bounds.south].map((n) => n.toFixed(5)).join(",");
+  const items = await nominatim<NominatimPlace[]>(
+    `/search?${DETAIL_PARAMS}&q=${encodeURIComponent(category.query)}&viewbox=${viewbox}&bounded=1&limit=40`,
+    signal,
+  );
+  return items
+    .filter((p) => p.type && category.types.includes(p.type) && p.lat && p.lon)
+    .map((p) => {
+      const place = toPlaceDetails(p, { matched: true, lat: Number(p.lat), lng: Number(p.lon) });
+      return { place, distanceM: haversine(from, { lat: place.lat, lng: place.lng }) };
+    })
+    .sort((a, b) => a.distanceM - b.distanceM);
 }

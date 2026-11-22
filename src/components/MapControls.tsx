@@ -24,7 +24,7 @@ export function MapControls({
   }, []);
 
   return (
-    <div ref={shield} className="fixed right-4 top-24 md:bottom-4 z-[1000] flex flex-col gap-2">
+    <div ref={shield} className="fixed right-4 top-[7.5rem] md:bottom-4 z-[1000] flex flex-col gap-2">
       <div className="flex flex-col bg-white rounded-xl shadow-lg overflow-hidden">
         <button
           onClick={onZoomIn}

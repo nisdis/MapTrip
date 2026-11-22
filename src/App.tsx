@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from "react";
-import { MapContainer, Marker, Popup } from "react-leaflet";
+import { MapContainer, Marker, Popup, CircleMarker } from "react-leaflet";
 import { VectorBasemap } from "./components/VectorBasemap";
 import { Map as MapIcon, Wifi, WifiOff, Car, UserRound } from "lucide-react";
 import { MapControls } from "./components/MapControls";
@@ -22,7 +22,11 @@ import { HistorySheet } from "./components/HistorySheet";
 import { TripsSheet } from "./components/TripsSheet";
 import { AccountSheet } from "./components/AccountSheet";
 import { TripLayer } from "./components/TripLayer";
-import { PlaceCard } from "./components/PlaceCard";
+import { PlaceSheet } from "./components/PlaceSheet";
+import { CategoryChips } from "./components/CategoryChips";
+import { NearbyList } from "./components/NearbyList";
+import { useNearby } from "./hooks/useNearby";
+import type { Bounds, NearbyCategory, NearbyResult } from "./services/placeService";
 import { MapTapHandler } from "./components/MapTapHandler";
 import { usePlaceLookup } from "./hooks/usePlaceLookup";
 import type { PoiHint } from "./services/placeService";
@@ -74,6 +78,10 @@ function App() {
   const [viewTrip, setViewTrip] = useState<Trip | null>(null);
   const recorder = useTripRecorder(locationData);
   const placeLookup = usePlaceLookup();
+  const nearby = useNearby();
+  // Visible map area, for "places in this area" searches.
+  const boundsRef = useRef<Bounds | null>(null);
+  const [areaMoved, setAreaMoved] = useState(false);
   const auth = useAuth();
 
   const refreshTrips = useCallback(async () => {
@@ -260,7 +268,63 @@ function App() {
     }
   }, [recorder.status, follow, locationData]);
 
-  const handleUserPan = useCallback(() => setFollow(false), []);
+  // A shared link (/?place=lat,lng) opens that spot once the app starts.
+  useEffect(() => {
+    const m = new URLSearchParams(window.location.search)
+      .get("place")
+      ?.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
+    if (!m) return;
+    const lat = Number(m[1]);
+    const lng = Number(m[2]);
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
+    hasCenteredOnUser.current = true; // don't jump to the user's location over the shared place
+    setCenter([lat, lng]);
+    setZoom(17);
+    placeLookup.open(lat, lng, null, 15);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleUserPan = useCallback(() => {
+    setFollow(false);
+    setAreaMoved(true);
+  }, []);
+  const handleBoundsChange = useCallback((b: Bounds) => {
+    boundsRef.current = b;
+  }, []);
+
+  const runNearby = useCallback(
+    (category: NearbyCategory) => {
+      const b = boundsRef.current;
+      if (!b) return;
+      // Distances from you if you're in view, else from the middle of the map.
+      const mid = { lat: (b.north + b.south) / 2, lng: (b.east + b.west) / 2 };
+      const me = locationData ? { lat: locationData.position[0], lng: locationData.position[1] } : null;
+      const inView = me && me.lat <= b.north && me.lat >= b.south && me.lng <= b.east && me.lng >= b.west;
+      placeLookup.close();
+      setShowSheet(false);
+      setAreaMoved(false);
+      nearby.search(category, b, inView ? me : mid);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [locationData, nearby.search, placeLookup.close],
+  );
+
+  const handleSelectCategory = useCallback(
+    (category: NearbyCategory) => {
+      if (nearby.state?.category.id === category.id) nearby.clear();
+      else runNearby(category);
+    },
+    [nearby, runNearby],
+  );
+
+  const handleSelectNearby = useCallback(
+    (r: NearbyResult) => {
+      placeLookup.show(r.place);
+      setCenter([r.place.lat, r.place.lng]);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [placeLookup.show],
+  );
 
   // Tapping the map shows details for that spot (or the place icon that was tapped).
   const handleMapTap = useCallback(
@@ -489,6 +553,7 @@ function App() {
           zoom={zoom}
           reset={resetMap}
           onUserPan={handleUserPan}
+          onBoundsChange={handleBoundsChange}
           bottomInset={
             isRecorderActive ? panelHeight : placeLookup.target ? panelHeight + 96 : 0
           }
@@ -508,6 +573,17 @@ function App() {
           </Marker>
         )}
         <MapTapHandler disabled={isRecorderActive} onTap={handleMapTap} />
+        {!isRecorderActive &&
+          nearby.state?.results.map((r) => (
+            <CircleMarker
+              key={r.place.id}
+              center={[r.place.lat, r.place.lng]}
+              radius={7}
+              bubblingMouseEvents={false}
+              pathOptions={{ color: "#FFFFFF", weight: 2, fillColor: "#1F2A30", fillOpacity: 0.9 }}
+              eventHandlers={{ click: () => handleSelectNearby(r) }}
+            />
+          ))}
         {placeLookup.target && !isRecorderActive && (
           <Marker position={[placeLookup.target.lat, placeLookup.target.lng]} />
         )}
@@ -537,8 +613,31 @@ function App() {
         />
       </MapContainer>
 
-      {!isRecorderActive && !placeLookup.target && (
+      {!isRecorderActive && !placeLookup.target && !nearby.state && (
         <LocationDashboard locationData={locationData} />
+      )}
+
+      {!isRecorderActive && (
+        <CategoryChips activeId={nearby.state?.category.id ?? null} onSelect={handleSelectCategory} />
+      )}
+
+      {!isRecorderActive && nearby.state && areaMoved && !placeLookup.target && (
+        <button
+          type="button"
+          onClick={() => runNearby(nearby.state!.category)}
+          className="fixed left-1/2 top-[7.5rem] z-20 -translate-x-1/2 rounded-full bg-white px-4 py-2 text-sm font-bold text-asphalt shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-asphalt"
+        >
+          Search this area
+        </button>
+      )}
+
+      {!isRecorderActive && nearby.state && !placeLookup.target && (
+        <NearbyList
+          state={nearby.state}
+          onSelect={handleSelectNearby}
+          onClose={nearby.clear}
+          onHeight={setPanelHeight}
+        />
       )}
 
       {!isRecorderActive && (
@@ -551,11 +650,14 @@ function App() {
       )}
 
       {placeLookup.target && !isRecorderActive && placeLookup.status !== "idle" && (
-        <PlaceCard
+        <PlaceSheet
           status={placeLookup.status}
           coords={placeLookup.target}
           place={placeLookup.place}
           error={placeLookup.error}
+          userPosition={locationData ? [locationData.position[0], locationData.position[1]] : null}
+          backLabel={nearby.state ? nearby.state.category.label : undefined}
+          onBack={nearby.state ? placeLookup.close : undefined}
           onClose={placeLookup.close}
           onDirections={handleDirectionsToPlace}
           onHeight={setPanelHeight}

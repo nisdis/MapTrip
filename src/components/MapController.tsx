@@ -11,6 +11,8 @@ interface MapControllerProps {
   onUserPan?: () => void;
   /** Height in px of a panel covering the bottom of the map. */
   bottomInset?: number;
+  /** Called with the visible area after every move/zoom. */
+  onBoundsChange?: (b: { south: number; west: number; north: number; east: number }) => void;
 }
 
 export function MapController({
@@ -20,6 +22,7 @@ export function MapController({
   reset = 0,
   onUserPan,
   bottomInset = 0,
+  onBoundsChange,
 }: MapControllerProps) {
   const map = useMap();
   const zoomRef = useRef(zoom);
@@ -35,6 +38,19 @@ export function MapController({
       map.off("zoomend", handleZoom);
     };
   }, [map, onZoomChange]);
+
+  useEffect(() => {
+    if (!onBoundsChange) return;
+    const report = () => {
+      const b = map.getBounds();
+      onBoundsChange({ south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() });
+    };
+    report();
+    map.on("moveend", report);
+    return () => {
+      map.off("moveend", report);
+    };
+  }, [map, onBoundsChange]);
 
   useEffect(() => {
     if (!onUserPan) return;

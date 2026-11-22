@@ -32,3 +32,12 @@ category, address, phone, website and opening hours, with "Open · Closes 9:00 P
 judged on the place's own clock. Tap blank map for an address. **Directions**
 starts from your current location. Details come from OpenStreetMap, so hours
 appear only where contributors have added them.
+
+### Nearby and place sheets
+Chips under the header (Restaurants, Cafes, Petrol, ATMs, Hotels, Hospitals,
+Pharmacies) list those places in the visible map, nearest first, with an
+"Open now" filter. A place sheet has Directions / Call / Website / Share, drive
+time from you, and expands to full details: weekly hours, contacts, payment,
+diet, accessibility, and a photo and description for notable places (from
+Wikipedia). Share links look like `/?place=lat,lng`.
+Ratings, reviews and most photos aren't available from free map data.
