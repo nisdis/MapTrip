@@ -1,4 +1,7 @@
-import { getAuth } from "../_lib/auth.js";
+import { getAuth } from "./_lib/auth.js";
+
+// All /api/auth/* paths are rewritten here (see vercel.json): a [...all] file only
+// matches one path segment on Vercel, which broke /api/auth/sign-up/email.
 
 async function handler(request: Request): Promise<Response> {
   try {
