@@ -20,17 +20,25 @@ interface NominatimResponse {
   name?: string;
 }
 
+/**
+ * Countries that search covers (ISO 3166-1 alpha-2). Directions use a worldwide
+ * routing server, so this is the only list to extend to support a new country.
+ */
+export const SEARCH_COUNTRIES = ["in", "jp"] as const;
+
 export async function searchPlaces(query: string): Promise<SearchResult[]> {
   // Check cache first
-  const cachedResults = await getCachedResults(query);
+  // The country list is part of the cache key, so adding a country can't
+  // surface stale results from before it was supported.
+  const cacheKey = `search/${SEARCH_COUNTRIES.join("-")}/${encodeURIComponent(query)}`;
+  const cachedResults = await getCachedResults(cacheKey);
   if (cachedResults) {
     return cachedResults;
   }
-  console.log("query: " + query)
 
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?countrycodes=in&format=json&q=${encodeURIComponent(
+      `https://nominatim.openstreetmap.org/search?countrycodes=${SEARCH_COUNTRIES.join(",")}&format=json&q=${encodeURIComponent(
         query
       )}&limit=5`,
       {
@@ -56,7 +64,7 @@ export async function searchPlaces(query: string): Promise<SearchResult[]> {
     }));
 
     // Cache the results
-    await cacheResults(query, results);
+    await cacheResults(cacheKey, results);
 
     return results;
   } catch (error) {
