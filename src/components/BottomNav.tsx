@@ -1,4 +1,4 @@
-import { Search, Navigation, History, Menu, Route, Circle } from "lucide-react";
+import { Search, Navigation, Star, Menu, Route, Circle } from "lucide-react";
 
 interface BottomNavProps {
   activeTab: string;
@@ -13,7 +13,7 @@ export function BottomNav({ activeTab, onTabChange, onMoreClick, onRecord }: Bot
     { id: "directions", icon: Navigation, label: "Directions" },
     { id: "record", icon: Circle, label: "Record", onClick: onRecord },
     { id: "trips", icon: Route, label: "Trips" },
-    { id: "history", icon: History, label: "History" },
+    { id: "saved", icon: Star, label: "Saved" },
     { id: "more", icon: Menu, label: "More", onClick: onMoreClick },
   ];
 

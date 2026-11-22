@@ -317,6 +317,24 @@ export async function lookupPlace(
   }
 }
 
+/** Fresh details for a place known by its OpenStreetMap id (e.g. a saved or shared place). */
+export async function lookupById(id: string, signal?: AbortSignal): Promise<PlaceDetails | null> {
+  const m = id.match(/^(node|way|relation)\/(\d+)$/);
+  if (!m) return null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  signal?.addEventListener("abort", () => controller.abort());
+  try {
+    const prefix = { node: "N", way: "W", relation: "R" }[m[1] as "node" | "way" | "relation"];
+    const found = await nominatim<NominatimPlace[]>(`/lookup?${DETAIL_PARAMS}&osm_ids=${prefix}${m[2]}`, controller.signal);
+    const p = found[0];
+    if (!p?.lat || !p.lon) return null;
+    return toPlaceDetails(p, { matched: true, lat: Number(p.lat), lng: Number(p.lon) });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // ---------- Nearby listings ----------
 
 export interface NearbyCategory {

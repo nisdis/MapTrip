@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
-import { lookupPlace, type PlaceDetails, type PoiHint } from "../services/placeService";
+import { lookupById, lookupPlace, type PlaceDetails, type PoiHint } from "../services/placeService";
+import type { SavedPlaceSnapshot } from "../types/saved";
 
 type Status = "idle" | "loading" | "ready" | "error";
 
@@ -37,6 +38,45 @@ export function usePlaceLookup() {
       });
   }, []);
 
+  /**
+   * Open a saved or shared place: show the stored copy at once (works offline),
+   * then swap in fresh details (hours etc.) when they arrive.
+   */
+  const openKnown = useCallback((snap: SavedPlaceSnapshot) => {
+    controller.current?.abort();
+    const ctrl = new AbortController();
+    controller.current = ctrl;
+    const stored: PlaceDetails = {
+      ...snap,
+      cuisine: null,
+      openingHours: null,
+      phones: [],
+      website: null,
+      email: null,
+      social: [],
+      info: [],
+      features: [],
+      osmUrl: /^(node|way|relation)\//.test(snap.id) ? `https://www.openstreetmap.org/${snap.id}` : null,
+      wikipedia: null,
+      wikidata: null,
+      expectsHours: false, // don't claim "Hours not listed" before the fresh lookup
+    };
+    setTarget({ lat: snap.lat, lng: snap.lng });
+    setPlace(stored);
+    setError(null);
+    setStatus("ready");
+    const fresh = /^(node|way|relation)\//.test(snap.id)
+      ? lookupById(snap.id, ctrl.signal)
+      : Promise.resolve(null);
+    fresh
+      .then((details) => {
+        if (ctrl.signal.aborted || !details) return;
+        // Keep the saved id so Save/Home/Work still match this place.
+        setPlace({ ...details, id: snap.id });
+      })
+      .catch(() => undefined); // offline: the stored copy stays
+  }, []);
+
   /** Show a place whose details are already known (e.g. from a nearby list). */
   const show = useCallback((details: PlaceDetails) => {
     controller.current?.abort();
@@ -56,5 +96,5 @@ export function usePlaceLookup() {
     setStatus("idle");
   }, []);
 
-  return { target, place, status, error, open, show, close };
+  return { target, place, status, error, open, show, openKnown, close };
 }

@@ -16,6 +16,7 @@ import type { Trip } from "../types/trip";
 import { formatDistance, formatDuration } from "../utils/geo";
 import type { AuthMode } from "../hooks/useAuth";
 import { AuthForm } from "./AuthForm";
+import type { RouteHistoryItem } from "../services/routeHistoryService";
 
 function maxKmh(trip: Trip): number {
   const max = (trip.track ?? []).reduce((m, p) => Math.max(m, p.speed ?? 0), 0);
@@ -34,6 +35,8 @@ interface TripsSheetProps {
   onSaveToCloud: (trip: Trip) => Promise<void>;
   onAuthenticate: (mode: AuthMode, email: string, password: string) => Promise<void>;
   onSignOut: () => void;
+  routeHistory: RouteHistoryItem[];
+  onSelectRoute: (item: RouteHistoryItem) => void;
 }
 
 export function TripsSheet({
@@ -48,6 +51,8 @@ export function TripsSheet({
   onSaveToCloud,
   onAuthenticate,
   onSignOut,
+  routeHistory,
+  onSelectRoute,
 }: TripsSheetProps) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -215,6 +220,28 @@ export function TripsSheet({
             </li>
           ))}
         </ul>
+      )}
+
+      {routeHistory.length > 0 && (
+        <section className="pb-20">
+          <h2 className="mb-2 font-semibold text-lg text-gray-800">Recent routes</h2>
+          <ul className="space-y-2">
+            {routeHistory.slice(0, 10).map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelectRoute(item)}
+                  className="w-full rounded-xl bg-gray-50 p-3 text-left hover:bg-gray-100"
+                >
+                  <div className="truncate font-medium text-gray-900">{item.origin.name}</div>
+                  <div className="truncate text-sm text-gray-500">
+                    to {item.destination.name} · {new Date(item.timestamp).toLocaleDateString()}
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   );

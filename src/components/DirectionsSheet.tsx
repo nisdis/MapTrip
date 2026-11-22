@@ -13,6 +13,8 @@ interface DirectionsSheetProps {
   onSelectDestination: (result: SearchResult) => void;
   onClearDirections: () => void;
   onSaveTrip?: () => void;
+  /** One-tap destinations */
+  shortcuts?: { label: string; onPick: () => void }[];
 }
 
 export function DirectionsSheet({
@@ -23,6 +25,7 @@ export function DirectionsSheet({
   onClearDirections,
   locationData,
   onSaveTrip,
+  shortcuts = [],
 }: DirectionsSheetProps) {
   const [originInput, setOriginInput] = useState(origin?.name || "");
   const [destinationInput, setDestinationInput] = useState(destination?.name || "");
@@ -242,6 +245,20 @@ export function DirectionsSheet({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             To
           </label>
+          {shortcuts.length > 0 && (
+            <div className="mb-2 flex gap-2">
+              {shortcuts.map((sc) => (
+                <button
+                  key={sc.label}
+                  type="button"
+                  onClick={sc.onPick}
+                  className="rounded-full border border-gray-300 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  {sc.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="relative">
             <input
               type="text"

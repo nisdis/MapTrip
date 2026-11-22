@@ -13,6 +13,9 @@ import {
   Navigation,
   Phone,
   Share2,
+  Star,
+  Home as House,
+  Briefcase,
   X,
 } from "lucide-react";
 import type { PlaceDetails } from "../services/placeService";
@@ -22,7 +25,19 @@ import { driveEstimate, formatDriveTime, type DriveEstimate } from "../services/
 import { useReportHeight } from "../hooks/useReportHeight";
 import { haversine } from "../utils/geo";
 
+export interface PlaceSavedState {
+  isFavourite: boolean;
+  isHome: boolean;
+  isWork: boolean;
+  note: string | null;
+  onToggleFavourite: () => void;
+  onToggleHome: () => void;
+  onToggleWork: () => void;
+  onSaveNote: (note: string) => void;
+}
+
 interface PlaceSheetProps {
+  saved: PlaceSavedState;
   status: "loading" | "ready" | "error";
   coords: { lat: number; lng: number };
   place: PlaceDetails | null;
@@ -83,12 +98,15 @@ function ActionButton({
   href,
   onClick,
   primary = false,
+  pressed,
 }: {
   icon: typeof MapPin;
   label: string;
   href?: string;
   onClick?: () => void;
   primary?: boolean;
+  /** For toggle buttons like Save */
+  pressed?: boolean;
 }) {
   const cls = `flex h-10 flex-shrink-0 items-center gap-2 rounded-full px-4 text-sm font-bold ${focusRing} ${
     primary ? "bg-highway text-white" : "border border-asphalt/25 text-asphalt"
@@ -104,14 +122,16 @@ function ActionButton({
       {content}
     </a>
   ) : (
-    <button type="button" onClick={onClick} className={cls}>
+    <button type="button" onClick={onClick} aria-pressed={pressed} className={cls}>
       {content}
     </button>
   );
 }
 
 export function PlaceSheet(props: PlaceSheetProps) {
-  const { status, coords, place, error, userPosition, onClose, onDirections } = props;
+  const { status, coords, place, error, userPosition, onClose, onDirections, saved } = props;
+  const [noteDraft, setNoteDraft] = useState(saved.note ?? "");
+  useEffect(() => setNoteDraft(saved.note ?? ""), [saved.note, place?.id]);
   const ref = useReportHeight(props.onHeight);
   const [expanded, setExpanded] = useState(false);
   const [wiki, setWiki] = useState<WikiSummary | null>(null);
@@ -181,17 +201,8 @@ export function PlaceSheet(props: PlaceSheetProps) {
   const subtitle = [place?.category, place?.cuisine].filter(Boolean).join(" · ");
   const phone = place?.phones[0];
   const telHref = (p: string) => `tel:${p.replace(/[^\d+]/g, "")}`;
-  const hasMore =
-    status === "ready" &&
-    !!place &&
-    (!!wiki ||
-      !!hours.info ||
-      place.phones.length > 0 ||
-      !!place.email ||
-      place.social.length > 0 ||
-      place.info.length > 0 ||
-      place.features.length > 0 ||
-      !!place.osmUrl);
+  // Every known place has more to show (at least Home/Work and its address).
+  const hasMore = status === "ready" && !!place;
 
   const hoursLine = (() => {
     if (status !== "ready" || !place?.name) return null;
@@ -307,6 +318,18 @@ export function PlaceSheet(props: PlaceSheetProps) {
         {/* Action row */}
         <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1">
           <ActionButton icon={Navigation} label="Directions" onClick={onDirections} primary />
+          {status === "ready" && place && (
+            <ActionButton
+              icon={Star}
+              label={saved.isFavourite ? "Saved" : "Save"}
+              onClick={() => {
+                saved.onToggleFavourite();
+                setToast(saved.isFavourite ? "Removed from Favourites" : "Saved to Favourites");
+                setTimeout(() => setToast(null), 2000);
+              }}
+              pressed={saved.isFavourite}
+            />
+          )}
           {phone && <ActionButton icon={Phone} label="Call" href={telHref(phone)} />}
           {place?.website && <ActionButton icon={Globe} label="Website" href={place.website} />}
           <ActionButton icon={Share2} label="Share" onClick={share} />
@@ -369,6 +392,44 @@ export function PlaceSheet(props: PlaceSheetProps) {
                   )}
                 </figcaption>
               </figure>
+            )}
+
+            <div className="mb-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                aria-pressed={saved.isHome}
+                onClick={saved.onToggleHome}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold ${focusRing} ${
+                  saved.isHome ? "bg-highway text-white" : "border border-asphalt/25"
+                }`}
+              >
+                <House aria-hidden className="h-4 w-4" /> {saved.isHome ? "Your Home" : "Set as Home"}
+              </button>
+              <button
+                type="button"
+                aria-pressed={saved.isWork}
+                onClick={saved.onToggleWork}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold ${focusRing} ${
+                  saved.isWork ? "bg-asphalt text-white" : "border border-asphalt/25"
+                }`}
+              >
+                <Briefcase aria-hidden className="h-4 w-4" /> {saved.isWork ? "Your Work" : "Set as Work"}
+              </button>
+            </div>
+
+            {saved.isFavourite && (
+              <label className="mb-3 block text-sm">
+                <span className="text-asphalt/60">Your note</span>
+                <textarea
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  onBlur={() => noteDraft !== (saved.note ?? "") && saved.onSaveNote(noteDraft)}
+                  maxLength={500}
+                  rows={2}
+                  placeholder="e.g. Try the filter coffee"
+                  className="mt-1 w-full rounded-xl border border-asphalt/20 bg-white px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-asphalt"
+                />
+              </label>
             )}
 
             <div className="divide-y divide-asphalt/10 border-y border-asphalt/10">

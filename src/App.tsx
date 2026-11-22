@@ -19,7 +19,9 @@ import { BottomNav } from "./components/BottomNav";
 import { MoreMenu } from "./components/MoreMenu";
 import { SearchSheet } from "./components/SearchSheet";
 import { DirectionsSheet } from "./components/DirectionsSheet";
-import { HistorySheet } from "./components/HistorySheet";
+import { SavedSheet } from "./components/SavedSheet";
+import { SavedMarkers } from "./components/SavedMarkers";
+import type { SavedEntry } from "./types/saved";
 import { TripsSheet } from "./components/TripsSheet";
 import { AccountSheet } from "./components/AccountSheet";
 import { TripLayer } from "./components/TripLayer";
@@ -30,6 +32,8 @@ import { useNearby } from "./hooks/useNearby";
 import type { Bounds, NearbyCategory, NearbyResult } from "./services/placeService";
 import { MapTapHandler } from "./components/MapTapHandler";
 import { usePlaceLookup } from "./hooks/usePlaceLookup";
+import { useSaved, snapshotOf } from "./hooks/useSaved";
+import { favouriteKey } from "./types/saved";
 import type { PoiHint } from "./services/placeService";
 import { RecorderHud } from "./components/RecorderHud";
 import { TripSummary } from "./components/TripSummary";
@@ -79,6 +83,24 @@ function App() {
   const [viewTrip, setViewTrip] = useState<Trip | null>(null);
   const recorder = useTripRecorder(locationData);
   const placeLookup = usePlaceLookup();
+  const saved = useSaved();
+  const [showSavedOnMap, setShowSavedOnMap] = useState(() => {
+    try {
+      return localStorage.getItem("showSavedOnMap") !== "0";
+    } catch {
+      return true;
+    }
+  });
+  const toggleShowSavedOnMap = useCallback(() => {
+    setShowSavedOnMap((v) => {
+      try {
+        localStorage.setItem("showSavedOnMap", v ? "0" : "1");
+      } catch {
+        /* per-device preference only */
+      }
+      return !v;
+    });
+  }, []);
   const nearby = useNearby();
   // Visible map area, for "places in this area" searches.
   const boundsRef = useRef<Bounds | null>(null);
@@ -337,35 +359,77 @@ function App() {
     [placeLookup.open], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
+  /** Route to a place, starting from where you are unless a start point is set. */
+  const routeTo = useCallback(
+    (to: { lat: number; lng: number; name: string; address: string | null; category: string | null }) => {
+      const here: [number, number] = [to.lat, to.lng];
+      setDestination({
+        id: Date.now(),
+        name: to.name,
+        displayName: to.address ?? `${here[0].toFixed(5)}, ${here[1].toFixed(5)}`,
+        location: here,
+        type: to.category ?? "pin",
+        importance: 1,
+      });
+      if (!origin && locationData) {
+        setOrigin({
+          id: -1,
+          name: "Current location",
+          displayName: "Current location",
+          location: locationData.position,
+          type: "current",
+          importance: 1,
+        });
+      }
+    },
+    [origin, locationData],
+  );
+
   const handleDirectionsToPlace = useCallback(() => {
     const target = placeLookup.target;
     if (!target) return;
     const place = placeLookup.place;
-    const here: [number, number] = [target.lat, target.lng];
-    setDestination({
-      id: Date.now(),
+    routeTo({
+      lat: target.lat,
+      lng: target.lng,
       name: place?.name ?? "Dropped pin",
-      displayName: place?.address ?? `${here[0].toFixed(5)}, ${here[1].toFixed(5)}`,
-      location: here,
-      type: place?.category ?? "pin",
-      importance: 1,
+      address: place?.address ?? null,
+      category: place?.category ?? null,
     });
-    // Start from where you are, unless a start point is already chosen.
-    if (!origin && locationData) {
-      setOrigin({
-        id: -1,
-        name: "Current location",
-        displayName: "Current location",
-        location: locationData.position,
-        type: "current",
-        importance: 1,
-      });
-    }
     setSelectedLocation(null);
     placeLookup.close();
     setActiveTab("directions");
     setShowSheet(true);
-  }, [placeLookup, origin, locationData]);
+  }, [placeLookup, routeTo]);
+
+  const handleOpenSaved = useCallback(
+    (entry: SavedEntry) => {
+      setShowSheet(false);
+      nearby.clear();
+      placeLookup.openKnown(entry.place);
+      setCenter([entry.place.lat, entry.place.lng]);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [placeLookup.openKnown, nearby.clear],
+  );
+
+  const shortcutFor = useCallback(
+    (entry: SavedEntry | null, label: string) =>
+      entry
+        ? {
+            label,
+            onPick: () =>
+              routeTo({
+                lat: entry.place.lat,
+                lng: entry.place.lng,
+                name: label,
+                address: entry.place.address,
+                category: null,
+              }),
+          }
+        : null,
+    [routeTo],
+  );
 
   const handleSearch = useCallback((result: SearchResult) => {
     setSelectedLocation(result);
@@ -425,7 +489,7 @@ function App() {
   const closePlace = placeLookup.close;
   const handleTabChange = useCallback((tab: string) => {
     closePlace();
-    if (tab === "history") {
+    if (tab === "trips") {
       // Routes are saved asynchronously once found, so re-read when viewing.
       setRouteHistory(getRouteHistory());
     }
@@ -574,6 +638,13 @@ function App() {
           </Marker>
         )}
         <MapTapHandler disabled={isRecorderActive} onTap={handleMapTap} />
+        {!isRecorderActive && showSavedOnMap && (
+          <SavedMarkers
+            entries={[...(saved.home ? [saved.home] : []), ...(saved.work ? [saved.work] : []), ...saved.favourites]}
+            selectedId={placeLookup.place?.id ?? null}
+            onSelect={handleOpenSaved}
+          />
+        )}
         {!isRecorderActive && nearby.state && (
           <NearbyMarkers
             categoryId={nearby.state.category.id}
@@ -585,7 +656,12 @@ function App() {
         {/* A list place is shown by its own (enlarged) category pin; other spots get the plain pin. */}
         {placeLookup.target &&
           !isRecorderActive &&
-          !nearby.state?.results.some((r) => r.place.id === placeLookup.place?.id) && (
+          !nearby.state?.results.some((r) => r.place.id === placeLookup.place?.id) &&
+          !(
+            showSavedOnMap &&
+            placeLookup.place &&
+            [saved.home, saved.work, ...saved.favourites].some((e) => e?.place.id === placeLookup.place?.id)
+          ) && (
           <Marker position={[placeLookup.target.lat, placeLookup.target.lng]} />
         )}
         {isRecorderActive ? (
@@ -657,6 +733,25 @@ function App() {
           place={placeLookup.place}
           error={placeLookup.error}
           userPosition={locationData ? [locationData.position[0], locationData.position[1]] : null}
+          saved={(() => {
+            const p = placeLookup.place;
+            const fav = p ? saved.favourites.find((e) => e.key === favouriteKey(p.id)) : undefined;
+            const toggleLabel = (kind: "home" | "work") => {
+              if (!p) return;
+              const current = kind === "home" ? saved.home : saved.work;
+              void saved.setLabel(kind, current?.place.id === p.id ? null : snapshotOf(p));
+            };
+            return {
+              isFavourite: !!fav,
+              isHome: !!p && saved.home?.place.id === p.id,
+              isWork: !!p && saved.work?.place.id === p.id,
+              note: fav?.note ?? null,
+              onToggleFavourite: () => p && void saved.toggleFavourite(snapshotOf(p)),
+              onToggleHome: () => toggleLabel("home"),
+              onToggleWork: () => toggleLabel("work"),
+              onSaveNote: (note: string) => p && void saved.setNote(favouriteKey(p.id), note),
+            };
+          })()}
           backLabel={nearby.state ? nearby.state.category.label : undefined}
           onBack={nearby.state ? placeLookup.close : undefined}
           onClose={placeLookup.close}
@@ -743,6 +838,9 @@ function App() {
             onSelectDestination={handleSelectDestination}
             onClearDirections={handleClearDirections}
             onSaveTrip={handleSavePlannedTrip}
+            shortcuts={[shortcutFor(saved.home, "Home"), shortcutFor(saved.work, "Work")].filter(
+              (s): s is { label: string; onPick: () => void } => s !== null,
+            )}
             locationData={locationData}
           />
         )}
@@ -759,6 +857,8 @@ function App() {
             onSaveToCloud={handleSaveToCloud}
             onAuthenticate={auth.authenticate}
             onSignOut={auth.signOut}
+            routeHistory={routeHistory}
+            onSelectRoute={handleSelectHistoryRoute}
           />
         )}
         {activeTab === "account" && (
@@ -769,10 +869,17 @@ function App() {
             onDone={handleCloseSheet}
           />
         )}
-        {activeTab === "history" && (
-          <HistorySheet
-            history={routeHistory}
-            onSelectRoute={handleSelectHistoryRoute}
+        {activeTab === "saved" && (
+          <SavedSheet
+            home={saved.home}
+            work={saved.work}
+            favourites={saved.favourites}
+            userPosition={locationData ? [locationData.position[0], locationData.position[1]] : null}
+            showOnMap={showSavedOnMap}
+            syncStatus={{ signedIn: !!auth.user, state: "idle", error: null }}
+            onToggleShowOnMap={toggleShowSavedOnMap}
+            onOpen={handleOpenSaved}
+            onRemove={(e) => void saved.remove(e.key)}
           />
         )}
       </BottomSheet>
