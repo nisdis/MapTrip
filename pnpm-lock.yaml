@@ -35,6 +35,9 @@ importers:
       maplibre-gl:
         specifier: ^6.19.0
         version: 6.19.0(@types/react@18.3.27)(react@18.3.1)
+      opening_hours:
+        specifier: ^3.16.0
+        version: 3.16.0(typescript@5.9.3)
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -1923,6 +1926,14 @@ packages:
     resolution: {integrity: sha512-B4FFZ6q/T2jhhksgkbEW3HBvWIfDW85snkQgawt07S7J5QXTk6BkNV+0yAeZrM5QpMAdYlocGoljn0sJ/WQkFw==}
     engines: {node: '>=10.17.0'}
 
+  i18next@26.7.2:
+    resolution: {integrity: sha512-RsOY3BeaCDdkk52NeJSFAXELQ2rQXBO/tOub6L8ue2ICPfR/FRDWDOfEDg4xMPd1SqO5goVYQ6i72qWEUB/PPw==}
+    peerDependencies:
+      typescript: ^5 || ^6 || ^7
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   idb@7.1.1:
     resolution: {integrity: sha512-gchesWBzyvGHRO9W8tzUWFDycow5gwjvFKfyV9FF32Y7F50yZMp7mP+T2mJIWFx49zicqyC4uefHM17o6xKIVQ==}
 
@@ -2318,6 +2329,10 @@ packages:
   onetime@5.1.2:
     resolution: {integrity: sha512-kbpaSSGJTWdAY5KPVeMOKXSrPtr8C8C7wodJbcsd51jRnmD+GZu8Y0VoU6Dm5Z4vWr0Ig/1NKuWRKf7j5aaYSg==}
     engines: {node: '>=6'}
+
+  opening_hours@3.16.0:
+    resolution: {integrity: sha512-OWe77vRpe0fOr0mpKINLiJ4TRTwznXI8avC4lxDwSvhNNRG35g5jHZ5U6B/zNzc8a7Y7zE3EOlR8znAPC1YBAQ==}
+    engines: {node: '>=14'}
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -2768,6 +2783,9 @@ packages:
     resolution: {integrity: sha512-DhuTmvZWux4H1UOnWMB3sk0sbaCVOoQZjv8u1rDoTV0HTdGem9hkAZtl4JZy8P2z4Bg0nT+YMeOFyVr4zcG5Tw==}
     engines: {node: '>=16 || 14 >=14.17'}
     hasBin: true
+
+  suncalc@2.1.4:
+    resolution: {integrity: sha512-V7oSdbSezigEpbqnNWKujDlZaE/QA/0w5IbP/vXX+eIF+EtiE8e9BkSapsOFZc84jJkI3QlklYTWtMqzj9tZQg==}
 
   supports-color@7.2.0:
     resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
@@ -5053,6 +5071,10 @@ snapshots:
 
   human-signals@2.1.0: {}
 
+  i18next@26.7.2(typescript@5.9.3):
+    optionalDependencies:
+      typescript: 5.9.3
+
   idb@7.1.1: {}
 
   ignore@5.3.2: {}
@@ -5419,6 +5441,13 @@ snapshots:
   onetime@5.1.2:
     dependencies:
       mimic-fn: 2.1.0
+
+  opening_hours@3.16.0(typescript@5.9.3):
+    dependencies:
+      i18next: 26.7.2(typescript@5.9.3)
+      suncalc: 2.1.4
+    transitivePeerDependencies:
+      - typescript
 
   optionator@0.9.4:
     dependencies:
@@ -5904,6 +5933,8 @@ snapshots:
       pirates: 4.0.7
       tinyglobby: 0.2.15
       ts-interface-checker: 0.1.13
+
+  suncalc@2.1.4: {}
 
   supports-color@7.2.0:
     dependencies:

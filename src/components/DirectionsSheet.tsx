@@ -35,10 +35,9 @@ export function DirectionsSheet({
   const [isGettingLocation, setIsGettingLocation] = useState(false);
 
   useEffect(() => {
-    if (origin && destination) {
-      setOriginInput(origin.name);
-      setDestinationInput(destination.name);
-    }
+    // Fill each field as soon as its place is set (e.g. a destination tapped on the map).
+    if (origin) setOriginInput(origin.name);
+    if (destination) setDestinationInput(destination.name);
   }, [origin, destination]);
 
   // One stable debounced function per input so their timers are independent.

@@ -1,3 +1,5 @@
+import { useCallback } from "react";
+import L from "leaflet";
 import { ZoomIn, ZoomOut, LocateIcon } from "lucide-react";
 import { MapCacheControls } from "./MapCacheControls";
 
@@ -14,8 +16,15 @@ export function MapControls({
   onResetView,
   showDownload,
 }: MapControlsProps) {
+  // These controls sit inside the map's DOM: keep their clicks from reaching the map.
+  const shield = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return;
+    L.DomEvent.disableClickPropagation(el);
+    L.DomEvent.disableScrollPropagation(el);
+  }, []);
+
   return (
-    <div className="fixed right-4 top-24 md:bottom-4 z-[1000] flex flex-col gap-2">
+    <div ref={shield} className="fixed right-4 top-24 md:bottom-4 z-[1000] flex flex-col gap-2">
       <div className="flex flex-col bg-white rounded-xl shadow-lg overflow-hidden">
         <button
           onClick={onZoomIn}

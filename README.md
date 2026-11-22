@@ -25,3 +25,10 @@ coloured by speed (blue is slow, red is fast). The panel shows speed, max
 speed, distance, time and altitude. **Pause** for stops; **hold** the red button
 to finish. The screen stays awake while recording, and an unfinished trip is
 recovered if the tab closes.
+
+### Place details
+Tap the map to see what's there: a place icon (cafe, shop, ...) gives its name,
+category, address, phone, website and opening hours, with "Open · Closes 9:00 PM"
+judged on the place's own clock. Tap blank map for an address. **Directions**
+starts from your current location. Details come from OpenStreetMap, so hours
+appear only where contributors have added them.

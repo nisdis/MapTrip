@@ -22,6 +22,10 @@ import { HistorySheet } from "./components/HistorySheet";
 import { TripsSheet } from "./components/TripsSheet";
 import { AccountSheet } from "./components/AccountSheet";
 import { TripLayer } from "./components/TripLayer";
+import { PlaceCard } from "./components/PlaceCard";
+import { MapTapHandler } from "./components/MapTapHandler";
+import { usePlaceLookup } from "./hooks/usePlaceLookup";
+import type { PoiHint } from "./services/placeService";
 import { RecorderHud } from "./components/RecorderHud";
 import { TripSummary } from "./components/TripSummary";
 import { DraftBanner } from "./components/DraftBanner";
@@ -69,6 +73,7 @@ function App() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [viewTrip, setViewTrip] = useState<Trip | null>(null);
   const recorder = useTripRecorder(locationData);
+  const placeLookup = usePlaceLookup();
   const auth = useAuth();
 
   const refreshTrips = useCallback(async () => {
@@ -257,6 +262,46 @@ function App() {
 
   const handleUserPan = useCallback(() => setFollow(false), []);
 
+  // Tapping the map shows details for that spot (or the place icon that was tapped).
+  const handleMapTap = useCallback(
+    (lat: number, lng: number, hint: PoiHint | null, toleranceM: number) => {
+      setShowMoreMenu(false);
+      placeLookup.open(lat, lng, hint, toleranceM);
+      setCenter([hint?.lat ?? lat, hint?.lng ?? lng]);
+    },
+    [placeLookup.open], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  const handleDirectionsToPlace = useCallback(() => {
+    const target = placeLookup.target;
+    if (!target) return;
+    const place = placeLookup.place;
+    const here: [number, number] = [target.lat, target.lng];
+    setDestination({
+      id: Date.now(),
+      name: place?.name ?? "Dropped pin",
+      displayName: place?.address ?? `${here[0].toFixed(5)}, ${here[1].toFixed(5)}`,
+      location: here,
+      type: place?.category ?? "pin",
+      importance: 1,
+    });
+    // Start from where you are, unless a start point is already chosen.
+    if (!origin && locationData) {
+      setOrigin({
+        id: -1,
+        name: "Current location",
+        displayName: "Current location",
+        location: locationData.position,
+        type: "current",
+        importance: 1,
+      });
+    }
+    setSelectedLocation(null);
+    placeLookup.close();
+    setActiveTab("directions");
+    setShowSheet(true);
+  }, [placeLookup, origin, locationData]);
+
   const handleSearch = useCallback((result: SearchResult) => {
     setSelectedLocation(result);
     setCenter(result.location);
@@ -312,14 +357,16 @@ function App() {
     [],
   );
 
+  const closePlace = placeLookup.close;
   const handleTabChange = useCallback((tab: string) => {
+    closePlace();
     if (tab === "history") {
       // Routes are saved asynchronously once found, so re-read when viewing.
       setRouteHistory(getRouteHistory());
     }
     setActiveTab(tab);
     setShowSheet(true);
-  }, []);
+  }, [closePlace]);
 
   const handleCloseSheet = useCallback(() => {
     setShowSheet(false);
@@ -442,7 +489,9 @@ function App() {
           zoom={zoom}
           reset={resetMap}
           onUserPan={handleUserPan}
-          bottomInset={isRecorderActive ? panelHeight : 0}
+          bottomInset={
+            isRecorderActive ? panelHeight : placeLookup.target ? panelHeight + 96 : 0
+          }
         />
         <VectorBasemap />
         {locationData && <CurrentLocationMarker locationData={locationData} />}
@@ -457,6 +506,10 @@ function App() {
               </div>
             </Popup>
           </Marker>
+        )}
+        <MapTapHandler disabled={isRecorderActive} onTap={handleMapTap} />
+        {placeLookup.target && !isRecorderActive && (
+          <Marker position={[placeLookup.target.lat, placeLookup.target.lng]} />
         )}
         {isRecorderActive ? (
           <TripLayer
@@ -484,7 +537,9 @@ function App() {
         />
       </MapContainer>
 
-      {!isRecorderActive && <LocationDashboard locationData={locationData} />}
+      {!isRecorderActive && !placeLookup.target && (
+        <LocationDashboard locationData={locationData} />
+      )}
 
       {!isRecorderActive && (
         <BottomNav
@@ -492,6 +547,18 @@ function App() {
           onTabChange={handleTabChange}
           onMoreClick={handleToggleMore}
           onRecord={handleStartRecording}
+        />
+      )}
+
+      {placeLookup.target && !isRecorderActive && placeLookup.status !== "idle" && (
+        <PlaceCard
+          status={placeLookup.status}
+          coords={placeLookup.target}
+          place={placeLookup.place}
+          error={placeLookup.error}
+          onClose={placeLookup.close}
+          onDirections={handleDirectionsToPlace}
+          onHeight={setPanelHeight}
         />
       )}
 
