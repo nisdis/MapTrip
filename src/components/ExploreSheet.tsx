@@ -79,7 +79,10 @@ export function ExploreSheet({ trips, loading, error, stale, selectedId, onRefre
               onClick={() => onSelect(t)}
               className={`w-full rounded-xl border-2 p-3 text-left ${selectedId === t.id ? "border-highway bg-highway/5" : "border-transparent bg-gray-50"}`}
             >
-              <div className="truncate font-medium text-gray-900">{t.title}</div>
+              <div className="truncate font-medium text-gray-900">
+                {t.title}
+                {t.imported && <span className="ml-1.5 rounded bg-gray-200 px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase text-gray-600">Imported</span>}
+              </div>
               <div className="mt-0.5 text-xs text-gray-500">
                 {t.author ? `${t.author} · ` : ""}
                 {formatKm(t.stats.distanceM)} km · {formatClock(t.stats.durationS)} ·{" "}

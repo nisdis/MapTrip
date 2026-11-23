@@ -165,6 +165,11 @@ export default function TripViewer({ id }: { id: string }) {
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
                 <h1 className="truncate text-xl font-bold">{trip.title}</h1>
+                {trip.imported && (
+                  <span className="mt-0.5 inline-block rounded bg-asphalt/10 px-1.5 py-0.5 text-[10px] font-bold uppercase text-asphalt/70" title="Imported from a GPX file, not recorded live in the app">
+                    Imported
+                  </span>
+                )}
                 <p className="text-sm text-asphalt/65">
                   {trip.author ? `by ${trip.author} · ` : ""}
                   {new Date(`${trip.stats.date}T12:00:00Z`).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })}

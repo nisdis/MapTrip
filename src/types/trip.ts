@@ -71,4 +71,6 @@ export interface Trip {
   photos?: TripPhoto[];
   /** set once the trip has been saved to the cloud */
   cloudSyncedAt?: number;
+  /** came from a GPX file rather than being recorded in the app */
+  imported?: boolean;
 }

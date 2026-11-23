@@ -27,6 +27,8 @@ export interface PublicTrip {
   title: string;
   author: string | null;
   visibility: Visibility;
+  /** from a GPX file, not recorded live in the app */
+  imported?: boolean;
   hideM: number;
   stats: PublicStats;
   /** [lat, lng, t, speed, gap] */
@@ -41,6 +43,7 @@ export interface ExploreTrip {
   author: string | null;
   stats: PublicStats;
   views: number;
+  imported?: boolean;
   /** [lat, lng, gap] */
   line: [number, number, 0 | 1][];
 }

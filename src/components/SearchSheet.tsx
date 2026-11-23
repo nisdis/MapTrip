@@ -11,6 +11,7 @@ const DEBOUNCE_MS = 500;
 
 export function SearchSheet({ onSearch }: SearchSheetProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [failed, setFailed] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   // Query that should be searched right now (set by debounce or submit).
   const [activeQuery, setActiveQuery] = useState("");
@@ -41,13 +42,17 @@ export function SearchSheet({ onSearch }: SearchSheetProps) {
     }
     let cancelled = false;
     setIsLoading(true);
+    setFailed(null);
     searchPlaces(activeQuery)
       .then((r) => {
         if (!cancelled) setResults(r);
       })
       .catch((error) => {
         console.error("Search failed:", error);
-        if (!cancelled) setResults([]);
+        if (!cancelled) {
+          setResults([]);
+          setFailed(navigator.onLine ? "Search isn't answering. Try again in a moment." : "You're offline. Search needs a connection; searches you've made recently still work.");
+        }
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -88,6 +93,11 @@ export function SearchSheet({ onSearch }: SearchSheetProps) {
           )}
         </div>
       </form>
+      {failed && (
+        <p role="alert" className="mt-2 text-sm text-[#9a6700]">
+          {failed}
+        </p>
+      )}
       <SearchResults
         results={results}
         onSelectResult={handleSelectResult}

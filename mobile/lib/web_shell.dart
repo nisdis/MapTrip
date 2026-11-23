@@ -237,6 +237,23 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
         _live.handoff(ShareHandoff.fromJson(msg['share']));
         _saveState();
         return {'ok': true};
+      case 'saveFile':
+        // e.g. a GPX export: written to a temporary file and offered through
+        // the share sheet (save to Files / Drive, send to Strava, …).
+        final name = (msg['name'] as String? ?? 'file.txt').replaceAll(
+          RegExp(r'[/\\]'),
+          '_',
+        );
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/$name');
+        await file.writeAsString(msg['text'] as String? ?? '');
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(file.path, mimeType: msg['mime'] as String?)],
+            subject: name,
+          ),
+        );
+        return {'ok': true};
       case 'shareText':
         final text = [msg['text'], msg['url']].whereType<String>().join('\n');
         await SharePlus.instance.share(

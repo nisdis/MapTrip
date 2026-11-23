@@ -42,7 +42,8 @@ import { gapDistance } from "./types/trip";
 import { TripSummary } from "./components/TripSummary";
 import { DraftBanner } from "./components/DraftBanner";
 import { clearDraft, loadDraft } from "./services/draftStore";
-import { callApp, isInApp, type NativeFix, type NativeHello } from "./services/appBridge";
+import { callApp, isInApp, saveTextFile, type NativeFix, type NativeHello } from "./services/appBridge";
+import { gpxFileName, parseGpx, toGpx } from "./utils/gpx";
 import { computeStats } from "./utils/tripStats";
 import { useTripRecorder } from "./hooks/useTripRecorder";
 import { useLiveShare } from "./hooks/useLiveShare";
@@ -52,9 +53,11 @@ import { TripShareSheet } from "./components/TripShareSheet";
 import { ExploreSheet } from "./components/ExploreSheet";
 import { ExploreLayer } from "./components/ExploreLayer";
 import { ExploreCard } from "./components/ExploreCard";
+import { OfflineMapsSheet } from "./components/OfflineMapsSheet";
 import { ReportsSheet } from "./components/ReportsSheet";
 import { exploreArea, getMe, type ExploreTrip, type NearestTrip } from "./services/publicTrips";
 import { useAuth } from "./hooks/useAuth";
+import { useTripSync } from "./hooks/useTripSync";
 import { authClient } from "./services/authClient";
 import {
   deleteLocalTrip,
@@ -208,6 +211,9 @@ function App() {
     },
     [refreshTrips],
   );
+
+  // Signed in: trips back up to the account by themselves (Phase 4).
+  const tripSync = useTripSync(trips, auth.user?.id ?? null, persistTrip);
 
   const isRecorderActive = recorder.status !== "idle";
   const isLive = recorder.status === "recording" || recorder.status === "paused";
@@ -1106,6 +1112,21 @@ function App() {
         </button>
       )}
 
+      {!isOnline && !isRecorderActive && (
+        <div
+          role="status"
+          className="pointer-events-none fixed left-4 right-20 top-[7.75rem] z-20 flex justify-start"
+        >
+          <p className="flex max-w-md items-start gap-2 rounded-xl bg-asphalt/90 px-3 py-2 text-xs text-white shadow-lg">
+            <WifiOff aria-hidden className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+            <span>
+              <b>You're offline.</b> Recording, your trips and saved maps work. Search, directions and sharing
+              wait for a connection; trips back up when you're online.
+            </span>
+          </p>
+        </div>
+      )}
+
       <MoreMenu
         isOpen={showMoreMenu}
         onClose={handleCloseMore}
@@ -1114,6 +1135,11 @@ function App() {
         isClearing={isClearing}
         handleShoeRouteItems={handleShoeRouteItems}
         onExplore={startExplore}
+        onOfflineMaps={() => {
+          setShowMoreMenu(false);
+          setActiveTab("offline");
+          setShowSheet(true);
+        }}
       />
 
       {shareTrip && <TripShareSheet trip={shareTrip} onClose={() => setShareTrip(null)} />}
@@ -1151,10 +1177,30 @@ function App() {
             onRemovePhoto={handleRemovePhoto}
             onSaveToCloud={handleSaveToCloud}
             onShare={setShareTrip}
+            autoSync={{ ...tripSync, isOnline }}
+            onExportGpx={(trip) => void saveTextFile(gpxFileName(trip), "application/gpx+xml", toGpx(trip))}
+            onImportGpx={async (file) => {
+              if (file.size > 30_000_000) throw new Error("That file is too large to import.");
+              const trip = parseGpx(await file.text(), file.name, newTripId());
+              await persistTrip(trip);
+              setShowSheet(false);
+              setViewTrip(trip);
+            }}
             onAuthenticate={auth.authenticate}
             onSignOut={auth.signOut}
             routeHistory={routeHistory}
             onSelectRoute={handleSelectHistoryRoute}
+          />
+        )}
+        {activeTab === "offline" && (
+          <OfflineMapsSheet
+            bounds={boundsRef.current}
+            isOnline={isOnline}
+            onShowArea={(b) => {
+              setShowSheet(false);
+              setCenter([(b.north + b.south) / 2, (b.east + b.west) / 2]);
+              setZoom(13);
+            }}
           />
         )}
         {activeTab === "explore" && (

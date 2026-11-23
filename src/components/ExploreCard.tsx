@@ -18,7 +18,10 @@ export function ExploreCard({ trip, onOpen, onList, onClose }: ExploreCardProps)
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <h2 className="truncate font-semibold text-gray-900">{trip.title}</h2>
+          <h2 className="truncate font-semibold text-gray-900">
+            {trip.title}
+            {trip.imported && <span className="ml-1.5 rounded bg-gray-200 px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase text-gray-600">Imported</span>}
+          </h2>
           <p className="mt-0.5 text-xs text-gray-500">
             {trip.author ? `${trip.author} · ` : ""}
             {formatKm(trip.stats.distanceM)} km · {formatClock(trip.stats.durationS)} ·{" "}

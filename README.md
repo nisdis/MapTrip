@@ -54,6 +54,18 @@ worth less as trips age. Signed-in viewers can report a trip; reports from 3
 different accounts take it out of Explore until an admin reviews it (Account ›
 Reported trips, for emails in `ADMIN_EMAILS`).
 
+### Offline
+
+- The app itself works offline (service worker: `src/sw/sw.ts`).
+- Maps you've looked at stay available for about a week.
+- **More › Offline maps › Save** keeps the area on screen (up to 30 km across,
+  zoom 0–14) until you remove it. Saved tiles are stored without OpenFreeMap's
+  data version, so they keep working after it publishes new data.
+- Signed in, trips and their photos back up to your account by themselves
+  (private) as soon as there's a connection.
+- Trips › **GPX** exports a trip; **Import GPX** adds one (marked "Imported",
+  also when shared).
+
 ### Place details
 Tap the map to see what's there: a place icon (cafe, shop, ...) gives its name,
 category, address, phone, website and opening hours, with "Open · Closes 9:00 PM"

@@ -66,6 +66,7 @@ type AppMessage =
   | { type: "share"; share: ShareHandoff | null }
   | { type: "shareText"; title: string; text: string; url: string }
   | { type: "batteryStatus" }
+  | { type: "saveFile"; name: string; mime: string; text: string }
   | { type: "openBatterySettings" };
 
 type Incoming = { type: "fixes"; fixes: NativeFix[] } | { type: "resumed" };
@@ -128,4 +129,20 @@ export async function shareLink(title: string, text: string, url: string): Promi
   }
   await navigator.clipboard.writeText(url);
   return "copied";
+}
+
+/** Hands a file to the person: the app's share sheet (save to Files, Drive, send…), else a download. */
+export async function saveTextFile(name: string, mime: string, text: string): Promise<void> {
+  if (isInApp()) {
+    await callApp({ type: "saveFile", name, mime, text });
+    return;
+  }
+  const url = URL.createObjectURL(new Blob([text], { type: mime }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }

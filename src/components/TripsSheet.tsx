@@ -10,6 +10,8 @@ import {
   LogOut,
   ImagePlus,
   Share2,
+  Upload,
+  FileDown,
 } from "lucide-react";
 import { PhotoThumb } from "./PhotoThumb";
 import { hasUnsyncedPhotos } from "../services/cloudTrips";
@@ -36,6 +38,10 @@ interface TripsSheetProps {
   onSaveToCloud: (trip: Trip) => Promise<void>;
   /** recorded trips saved to the cloud: who can see them */
   onShare: (trip: Trip) => void;
+  onExportGpx: (trip: Trip) => void;
+  onImportGpx: (file: File) => Promise<void>;
+  /** signed in: automatic backup status */
+  autoSync?: { syncing: boolean; pendingCount: number; failed: Record<string, string>; isOnline: boolean };
   onAuthenticate: (mode: AuthMode, email: string, password: string) => Promise<void>;
   onSignOut: () => void;
   routeHistory: RouteHistoryItem[];
@@ -53,6 +59,9 @@ export function TripsSheet({
   onRemovePhoto,
   onSaveToCloud,
   onShare,
+  onExportGpx,
+  onImportGpx,
+  autoSync,
   onAuthenticate,
   onSignOut,
   routeHistory,
@@ -104,6 +113,26 @@ export function TripsSheet({
         <h2 className="font-semibold text-lg text-gray-800">
           Saved on this device
         </h2>
+        <label className="ml-auto mr-3 flex cursor-pointer items-center gap-1 text-xs font-medium text-blue-600">
+          <Upload className="w-3 h-3" /> Import GPX
+          <input
+            type="file"
+            accept=".gpx,application/gpx+xml,application/xml,text/xml"
+            aria-label="Import a GPX file"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (!file) return;
+              setMessage(null);
+              try {
+                await onImportGpx(file);
+              } catch (err) {
+                setMessage(err instanceof Error ? err.message : "Couldn't import that file");
+              }
+            }}
+          />
+        </label>
         {userEmail && (
           <button
             onClick={onSignOut}
@@ -114,6 +143,18 @@ export function TripsSheet({
           </button>
         )}
       </div>
+
+      {autoSync && userEmail && (
+        <p role="status" className="-mt-2 text-xs text-gray-500">
+          {autoSync.pendingCount === 0
+            ? "All trips are backed up to your account (private)."
+            : !autoSync.isOnline
+              ? `${autoSync.pendingCount} trip${autoSync.pendingCount === 1 ? "" : "s"} will back up when you're online.`
+              : autoSync.syncing
+                ? `Backing up ${autoSync.pendingCount} trip${autoSync.pendingCount === 1 ? "" : "s"}…`
+                : `${autoSync.pendingCount} trip${autoSync.pendingCount === 1 ? "" : "s"} waiting to back up.`}
+        </p>
+      )}
 
       {message && <p className="text-sm text-red-600">{message}</p>}
 
@@ -154,6 +195,9 @@ export function TripsSheet({
                     <MapPinned className="w-4 h-4 text-blue-600" />
                   )}
                   <span className="truncate">{trip.name}</span>
+                  {trip.imported && (
+                    <span className="flex-shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium uppercase text-gray-600">Imported</span>
+                  )}
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
                   {new Date(trip.createdAt).toLocaleString()}
@@ -210,10 +254,19 @@ export function TripsSheet({
                     {trip.cloudSyncedAt ? "Update cloud copy" : "Save to cloud"}
                   </button>
                 )}
+                {trip.kind === "recorded" && (
+                  <button
+                    onClick={() => onExportGpx(trip)}
+                    className="ml-auto flex items-center gap-1 text-xs font-medium text-gray-700"
+                    aria-label={`Export ${trip.name} as GPX`}
+                  >
+                    <FileDown className="w-3 h-3" /> GPX
+                  </button>
+                )}
                 {trip.kind === "recorded" && trip.cloudSyncedAt && (
                   <button
                     onClick={() => onShare(trip)}
-                    className="ml-auto mr-2 flex items-center gap-1 text-xs font-medium text-gray-700"
+                    className="ml-3 mr-2 flex items-center gap-1 text-xs font-medium text-gray-700"
                     aria-label={`Share ${trip.name}`}
                   >
                     <Share2 className="w-3 h-3" /> Share

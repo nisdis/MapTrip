@@ -44,54 +44,14 @@ export default defineConfig({
           }
         ]
       },
-      workbox: {
+      // Our own service worker (src/sw/sw.ts): saved map areas, offline maps, the app offline.
+      strategies: 'injectManifest',
+      srcDir: 'src/sw',
+      filename: 'sw.ts',
+      injectManifest: {
         // Precache the self-hosted font so the recorder looks right offline.
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/nominatim\.openstreetmap\.org\/search/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'search-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 24 * 60 * 60 // 24 hours
-              }
-            }
-          },
-          {
-            // English vector basemap: tiles, fonts and sprites are cached for offline use.
-            urlPattern: /^https:\/\/tiles\.openfreemap\.org\/(?:planet|fonts|sprites)\/.*/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'map-tiles',
-              expiration: { maxEntries: 2000, maxAgeSeconds: 7 * 24 * 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] }
-            }
-          },
-          {
-            // The style itself: serve the cached copy instantly, refresh in the background.
-            urlPattern: /^https:\/\/tiles\.openfreemap\.org\/styles\/.*/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'map-style',
-              cacheableResponse: { statuses: [0, 200] }
-            }
-          },
-          {
-            urlPattern: /^https:\/\/(?:[a-z]+\.)?tile\.openstreetmap\.org\/.*/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'map-tiles',
-              expiration: {
-                maxEntries: 1000,
-                maxAgeSeconds: 7 * 24 * 60 * 60 // 7 days
-              }
-            }
-          }
-        ],
-        navigateFallback: 'index.html'
-      }
+      },
     })
   ]
 });

@@ -81,6 +81,7 @@ async function publicTrip(id: string): Promise<Response> {
       title: typeof row.data.name === "string" ? row.data.name.slice(0, 120) : "Trip",
       author: row.display_name,
       visibility: row.visibility,
+      imported: row.data.imported === true,
       hideM,
       stats: statsOf(row.data, all),
       points: visible.map((p) => [p.lat, p.lng, p.t, p.speed, p.gap ? 1 : 0]),
@@ -143,6 +144,7 @@ async function explore(url: URL): Promise<Response> {
           author: r.display_name,
           stats: statsOf(r.data, all),
           views: r.views,
+          imported: r.data.imported === true,
           line: line.map((p) => [p.lat, p.lng, p.gap ? 1 : 0]),
         };
       }),
