@@ -38,7 +38,10 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
   late final GpsService _gps = GpsService(_onPosition);
   FixBuffer? _buffer;
   File? _stateFile;
-  late final BackgroundShare _live = BackgroundShare(baseUrl: Uri.parse(appUrl).origin, cookies: _cookies);
+  late final BackgroundShare _live = BackgroundShare(
+    baseUrl: Uri.parse(appUrl).origin,
+    cookies: _cookies,
+  );
 
   /// idle | recording | paused: what the page last told us
   String _recording = 'idle';
@@ -62,7 +65,8 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
     _buffer = buffer;
     _stateFile = File('${dir.path}/app_state.json');
     try {
-      final s = jsonDecode(await _stateFile!.readAsString()) as Map<String, Object?>;
+      final s =
+          jsonDecode(await _stateFile!.readAsString()) as Map<String, Object?>;
       _recording = (s['recording'] as String?) ?? 'idle';
       _startedAt = (s['startedAt'] as num?)?.toInt() ?? 0;
       _live.handoff(ShareHandoff.fromJson(s['share']));
@@ -75,21 +79,29 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
 
   void _saveState() {
     final share = _live.share;
-    _stateFile?.writeAsString(jsonEncode({
-      'recording': _recording,
-      'startedAt': _startedAt,
-      'share': share == null
-          ? null
-          : {
-              'token': share.token,
-              'expiresAt': share.expiresAt,
-              'lastT': share.lastT,
-              'status': share.status,
-              'stats': share.stats,
-              'last': share.last == null ? null : {'lat': share.last!.lat, 'lng': share.last!.lng, 't': share.last!.t},
-              'at': share.at,
-            },
-    }));
+    _stateFile?.writeAsString(
+      jsonEncode({
+        'recording': _recording,
+        'startedAt': _startedAt,
+        'share': share == null
+            ? null
+            : {
+                'token': share.token,
+                'expiresAt': share.expiresAt,
+                'lastT': share.lastT,
+                'status': share.status,
+                'stats': share.stats,
+                'last': share.last == null
+                    ? null
+                    : {
+                        'lat': share.last!.lat,
+                        'lng': share.last!.lng,
+                        't': share.last!.t,
+                      },
+                'at': share.at,
+              },
+      }),
+    );
   }
 
   Future<void> _applyGpsMode() async {
@@ -97,8 +109,8 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
     final mode = _recording != 'idle'
         ? GpsMode.recording
         : _foreground
-            ? GpsMode.foreground
-            : GpsMode.off;
+        ? GpsMode.foreground
+        : GpsMode.off;
     await _gps.setMode(mode);
   }
 
@@ -127,9 +139,14 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
     final web = _web;
     if (web == null || fixes.isEmpty) return;
     if (!isTrustedOrigin(await web.getUrl())) return;
-    final msg = jsonEncode({'type': 'fixes', 'fixes': fixes.map((f) => f.toJson()).toList()});
+    final msg = jsonEncode({
+      'type': 'fixes',
+      'fixes': fixes.map((f) => f.toJson()).toList(),
+    });
     try {
-      await web.evaluateJavascript(source: 'window.__rmtReceive && window.__rmtReceive($msg);');
+      await web.evaluateJavascript(
+        source: 'window.__rmtReceive && window.__rmtReceive($msg);',
+      );
     } catch (_) {
       // page not ready: they stay pending and go with the next "hello"
     }
@@ -152,11 +169,15 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
           'platform': Platform.operatingSystem,
           'recording': _recording,
           'pending': buffer?.pending.map((f) => f.toJson()).toList() ?? [],
-          'share': share == null ? null : {'token': share.token, 'expiresAt': share.expiresAt},
+          'share': share == null
+              ? null
+              : {'token': share.token, 'expiresAt': share.expiresAt},
         };
       case 'recording':
         final state = msg['state'];
-        final next = state == 'recording' || state == 'paused' ? state as String : 'idle';
+        final next = state == 'recording' || state == 'paused'
+            ? state as String
+            : 'idle';
         if (next == 'idle' && _recording != 'idle') {
           buffer?.clear(); // trip finished: nothing to keep
           _live.handoff(null);
@@ -176,7 +197,9 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
         return {'ok': true};
       case 'shareText':
         final text = [msg['text'], msg['url']].whereType<String>().join('\n');
-        await SharePlus.instance.share(ShareParams(text: text, subject: msg['title'] as String?));
+        await SharePlus.instance.share(
+          ShareParams(text: text, subject: msg['title'] as String?),
+        );
         return {'ok': true};
     }
     return null;
@@ -194,7 +217,8 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
       // Everything recorded while locked, in one go.
       final pending = _buffer?.pending ?? const [];
       if (pending.isNotEmpty) _sendFixes(pending);
-    } else if (state == AppLifecycleState.hidden || state == AppLifecycleState.paused) {
+    } else if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused) {
       if (!_foreground) return;
       _foreground = false;
       _applyGpsMode();
@@ -212,7 +236,9 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
   }
 
   Future<String?> _cookies() async {
-    final cookies = await CookieManager.instance().getCookies(url: WebUri(appUrl));
+    final cookies = await CookieManager.instance().getCookies(
+      url: WebUri(appUrl),
+    );
     if (cookies.isEmpty) return null;
     return cookies.map((c) => '${c.name}=${c.value}').join('; ');
   }
@@ -240,55 +266,80 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
           await SystemNavigator.pop();
         }
       },
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF4F6F5),
-        body: SafeArea(
-          bottom: false,
-          child: InAppWebView(
-            initialUrlRequest: URLRequest(url: WebUri(appUrl)),
-            initialSettings: InAppWebViewSettings(
-              javaScriptEnabled: true,
-              useShouldOverrideUrlLoading: true,
-              mediaPlaybackRequiresUserGesture: false,
-              allowsInlineMediaPlayback: true,
-              geolocationEnabled: true,
-              supportZoom: false,
-              applicationNameForUserAgent: 'RecordMyTripApp/$appVersion',
-              isInspectable: kDebugMode,
-            ),
-            // Tells the page it is inside the app, before any of its code runs.
-            initialUserScripts: UnmodifiableListView([
-              UserScript(
-                source: 'window.__RMT_APP__ = ${jsonEncode({'version': appVersion, 'platform': Platform.operatingSystem})};',
-                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-                forMainFrameOnly: true,
-                allowedOriginRules: trustedOrigins,
+      // Android 15+ draws apps behind the system bars: dark icons on our light
+      // background, and the page kept clear of both bars (SafeArea below).
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+          systemNavigationBarColor: Color(0xFFF4F6F5),
+          systemNavigationBarIconBrightness: Brightness.dark,
+          systemNavigationBarContrastEnforced: false,
+        ),
+        child: Scaffold(
+          backgroundColor: const Color(0xFFF4F6F5),
+          body: SafeArea(
+            child: InAppWebView(
+              initialUrlRequest: URLRequest(url: WebUri(appUrl)),
+              initialSettings: InAppWebViewSettings(
+                javaScriptEnabled: true,
+                useShouldOverrideUrlLoading: true,
+                mediaPlaybackRequiresUserGesture: false,
+                allowsInlineMediaPlayback: true,
+                geolocationEnabled: true,
+                supportZoom: false,
+                applicationNameForUserAgent: 'RecordMyTripApp/$appVersion',
+                isInspectable: kDebugMode,
               ),
-            ]),
-            onWebViewCreated: (controller) {
-              _web = controller;
-              controller.addJavaScriptHandler(handlerName: 'rmt', callback: _onMessage);
-            },
-            // Links away from the app (Wikipedia, websites, phone numbers) open outside it.
-            shouldOverrideUrlLoading: (controller, action) async {
-              final uri = action.request.url;
-              if (uri == null || isTrustedOrigin(uri) || uri.scheme == 'about' || uri.scheme == 'blob' || uri.scheme == 'data') {
-                return NavigationActionPolicy.ALLOW;
-              }
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-              return NavigationActionPolicy.CANCEL;
-            },
-            // Fallback for page code that asks the browser for location directly.
-            onGeolocationPermissionsShowPrompt: (controller, origin) async {
-              final ok = isTrustedOrigin(Uri.tryParse(origin));
-              return GeolocationPermissionShowPromptResponse(origin: origin, allow: ok, retain: ok);
-            },
-            onPermissionRequest: (controller, request) async {
-              return PermissionResponse(
-                resources: request.resources,
-                action: isTrustedOrigin(request.origin) ? PermissionResponseAction.GRANT : PermissionResponseAction.DENY,
-              );
-            },
+              // Tells the page it is inside the app, before any of its code runs.
+              initialUserScripts: UnmodifiableListView([
+                UserScript(
+                  source:
+                      'window.__RMT_APP__ = ${jsonEncode({'version': appVersion, 'platform': Platform.operatingSystem})};',
+                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                  forMainFrameOnly: true,
+                  allowedOriginRules: trustedOrigins,
+                ),
+              ]),
+              onWebViewCreated: (controller) {
+                _web = controller;
+                controller.addJavaScriptHandler(
+                  handlerName: 'rmt',
+                  callback: _onMessage,
+                );
+              },
+              // Links away from the app (Wikipedia, websites, phone numbers) open outside it.
+              shouldOverrideUrlLoading: (controller, action) async {
+                final uri = action.request.url;
+                if (uri == null ||
+                    isTrustedOrigin(uri) ||
+                    uri.scheme == 'about' ||
+                    uri.scheme == 'blob' ||
+                    uri.scheme == 'data') {
+                  return NavigationActionPolicy.ALLOW;
+                }
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                return NavigationActionPolicy.CANCEL;
+              },
+              // Fallback for page code that asks the browser for location directly.
+              onGeolocationPermissionsShowPrompt: (controller, origin) async {
+                final ok = isTrustedOrigin(Uri.tryParse(origin));
+                return GeolocationPermissionShowPromptResponse(
+                  origin: origin,
+                  allow: ok,
+                  retain: ok,
+                );
+              },
+              onPermissionRequest: (controller, request) async {
+                return PermissionResponse(
+                  resources: request.resources,
+                  action: isTrustedOrigin(request.origin)
+                      ? PermissionResponseAction.GRANT
+                      : PermissionResponseAction.DENY,
+                );
+              },
+            ),
           ),
         ),
       ),
