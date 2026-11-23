@@ -5,6 +5,7 @@ import '@fontsource/b612/latin-700.css';
 import App from './App.tsx';
 import LiveViewer from './live/LiveViewer.tsx';
 import TripViewer from './live/TripViewer.tsx';
+import ProfileViewer from './live/ProfileViewer.tsx';
 import { setupLeaflet } from './utils/leaflet-setup';
 import './index.css';
 import './theme';
@@ -16,11 +17,13 @@ const root = createRoot(container);
 const live = window.location.pathname.match(/^\/live\/([^/]*)\/?$/);
 // A shared finished trip (/t/<id>).
 const shared = window.location.pathname.match(/^\/t\/([^/]*)\/?$/);
+// Someone's profile (/u/<id>).
+const person = window.location.pathname.match(/^\/u\/([^/]*)\/?$/);
 if (live || shared) setupLeaflet();
 
 root.render(
   <StrictMode>
-    {live ? <LiveViewer token={live[1]} /> : shared ? <TripViewer id={shared[1]} /> : <App />}
+    {live ? <LiveViewer token={live[1]} /> : shared ? <TripViewer id={shared[1]} /> : person ? <ProfileViewer userId={person[1]} /> : <App />}
   </StrictMode>
 );
 

@@ -55,6 +55,8 @@ import { ExploreLayer } from "./components/ExploreLayer";
 import { ExploreCard } from "./components/ExploreCard";
 import { OfflineMapsSheet } from "./components/OfflineMapsSheet";
 import { ReportsSheet } from "./components/ReportsSheet";
+import { PeopleSheet } from "./components/PeopleSheet";
+import { getPeople } from "./services/social";
 import { exploreArea, getMe, type ExploreTrip, type NearestTrip } from "./services/publicTrips";
 import { useAuth } from "./hooks/useAuth";
 import { useTripSync } from "./hooks/useTripSync";
@@ -126,6 +128,22 @@ function App() {
   const [shareTrip, setShareTrip] = useState<Trip | null>(null);
   const [showReports, setShowReports] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  // Follow requests waiting (badge on More); checked on sign-in and when the app comes back.
+  const [requestCount, setRequestCount] = useState(0);
+  useEffect(() => {
+    if (!auth.user) {
+      setRequestCount(0);
+      return;
+    }
+    const check = () =>
+      getPeople()
+        .then((p) => setRequestCount(p.requests.length))
+        .catch(() => undefined);
+    void check();
+    const onVisible = () => document.visibilityState === "visible" && void check();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [auth.user]);
   useEffect(() => {
     if (!auth.user) {
       setIsAdmin(false);
@@ -931,6 +949,7 @@ function App() {
           onTabChange={handleTabChange}
           onMoreClick={handleToggleMore}
           onRecord={handleStartRecording}
+          moreBadge={requestCount > 0}
         />
       )}
 
@@ -1135,6 +1154,12 @@ function App() {
         isClearing={isClearing}
         handleShoeRouteItems={handleShoeRouteItems}
         onExplore={startExplore}
+        onPeople={() => {
+          setShowMoreMenu(false);
+          setActiveTab("people");
+          setShowSheet(true);
+        }}
+        peopleBadge={requestCount}
         onOfflineMaps={() => {
           setShowMoreMenu(false);
           setActiveTab("offline");
@@ -1192,6 +1217,7 @@ function App() {
             onSelectRoute={handleSelectHistoryRoute}
           />
         )}
+        {activeTab === "people" && <PeopleSheet signedIn={!!auth.user} onRequestsChanged={setRequestCount} />}
         {activeTab === "offline" && (
           <OfflineMapsSheet
             bounds={boundsRef.current}

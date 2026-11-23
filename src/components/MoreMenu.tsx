@@ -5,7 +5,7 @@ import {
   Info,
   X,
   Wifi,
-  WifiOff, Compass, HardDriveDownload } from "lucide-react";
+  WifiOff, Compass, HardDriveDownload, Users } from "lucide-react";
 
 interface MoreMenuProps {
   isOpen: boolean;
@@ -16,6 +16,9 @@ interface MoreMenuProps {
   isClearing?: boolean;
   onExplore: () => void;
   onOfflineMaps: () => void;
+  onPeople: () => void;
+  /** follow requests waiting */
+  peopleBadge?: number;
 }
 
 export function MoreMenu({
@@ -27,6 +30,8 @@ export function MoreMenu({
   handleShoeRouteItems = () => {},
   onExplore,
   onOfflineMaps,
+  onPeople,
+  peopleBadge = 0,
 }: MoreMenuProps) {
   if (!isOpen) return null;
 
@@ -58,6 +63,18 @@ export function MoreMenu({
             <div className="border-t border-gray-100 my-2" />
             <Appearance />
             <div className="border-t border-gray-100 my-2" />
+            <button
+              onClick={onPeople}
+              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
+            >
+              <Users className="w-5 h-5 text-emerald-700" />
+              <span className="flex-1 text-left text-sm text-gray-700">People</span>
+              {peopleBadge > 0 && (
+                <span className="rounded-full bg-signal px-2 py-0.5 text-xs font-bold text-white" aria-label={`${peopleBadge} follow requests`}>
+                  {peopleBadge}
+                </span>
+              )}
+            </button>
             <button
               onClick={onExplore}
               className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"

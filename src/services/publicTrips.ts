@@ -26,6 +26,8 @@ export interface PublicTrip {
   id: string;
   title: string;
   author: string | null;
+  /** links to their profile (/u/<id>) */
+  authorId?: string | null;
   visibility: Visibility;
   /** from a GPX file, not recorded live in the app */
   imported?: boolean;
@@ -41,6 +43,7 @@ export interface ExploreTrip {
   id: string;
   title: string;
   author: string | null;
+  authorId?: string | null;
   stats: PublicStats;
   views: number;
   imported?: boolean;

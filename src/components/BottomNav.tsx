@@ -5,9 +5,11 @@ interface BottomNavProps {
   onTabChange: (tab: string) => void;
   onMoreClick: () => void;
   onRecord: () => void;
+  /** a dot on More (follow requests waiting) */
+  moreBadge?: boolean;
 }
 
-export function BottomNav({ activeTab, onTabChange, onMoreClick, onRecord }: BottomNavProps) {
+export function BottomNav({ activeTab, onTabChange, onMoreClick, onRecord, moreBadge = false }: BottomNavProps) {
   const navItems = [
     { id: "search", icon: Search, label: "Search" },
     { id: "directions", icon: Navigation, label: "Directions" },
@@ -50,9 +52,14 @@ export function BottomNav({ activeTab, onTabChange, onMoreClick, onRecord }: Bot
               aria-label={item.label}
               aria-current={isActive ? "page" : undefined}
             >
-              <Icon
-                className={`w-6 h-6 ${isActive ? "scale-110" : "scale-100"} transition-transform`}
-              />
+              <span className="relative">
+                <Icon
+                  className={`w-6 h-6 ${isActive ? "scale-110" : "scale-100"} transition-transform`}
+                />
+                {item.id === "more" && moreBadge && (
+                  <span aria-hidden className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-signal ring-2 ring-white" />
+                )}
+              </span>
               <span className="text-xs mt-1 font-medium">{item.label}</span>
             </button>
           );

@@ -66,6 +66,16 @@ Reported trips, for emails in `ADMIN_EMAILS`).
 - Trips › **GPX** exports a trip; **Import GPX** adds one (marked "Imported",
   also when shared).
 
+### People (follows, leaderboard, achievements)
+
+More › **People**. Following is by request: the person approves, and approved
+followers also see their Unlisted trips (never Private ones). Profiles are at
+`/u/<id>`; find someone from their trips (author name) or a shared profile link
+(there's no people search). Block removes follows both ways and stops requests.
+The leaderboard (last 7/30 days, distance) is opt-in and only includes you and
+people you follow. Achievements (milestones) are computed from trips recorded in
+the app (not imports) and shown on your profile only if you switch that on.
+
 ### Deleting an account
 
 Account › **Delete my account** (password required, even when just signed in)

@@ -8,7 +8,7 @@ const ORIGIN = "http://localhost:5173";
 export async function resetDb() {
   execFileSync("node", ["scripts/migrate.mjs"], { stdio: "ignore", env: process.env });
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
-  await pool.query('truncate trip_reports, trip_views, profiles, live_shares, trips, saved_places, session, account, verification, "user" cascade');
+  await pool.query('truncate follows, blocks, trip_reports, trip_views, profiles, live_shares, trips, saved_places, session, account, verification, "user" cascade');
   await pool.end();
 }
 

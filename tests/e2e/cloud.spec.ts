@@ -9,7 +9,7 @@ test.beforeAll(() => {
     "node",
     [
       "-e",
-      `const {Pool}=require('pg');const p=new Pool({connectionString:process.env.DATABASE_URL});p.query('truncate trip_reports, trip_views, profiles, trips, saved_places, session, account, verification, "user" cascade').then(()=>p.end())`,
+      `const {Pool}=require('pg');const p=new Pool({connectionString:process.env.DATABASE_URL});p.query('truncate follows, blocks, trip_reports, trip_views, profiles, trips, saved_places, session, account, verification, "user" cascade').then(()=>p.end())`,
     ],
     { stdio: "inherit" },
   );

@@ -23,7 +23,18 @@ export function ExploreCard({ trip, onOpen, onList, onClose }: ExploreCardProps)
             {trip.imported && <span className="ml-1.5 rounded bg-gray-200 px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase text-gray-600">Imported</span>}
           </h2>
           <p className="mt-0.5 text-xs text-gray-500">
-            {trip.author ? `${trip.author} · ` : ""}
+            {trip.author && trip.authorId ? (
+              <>
+                <a href={`/u/${trip.authorId}`} className="font-medium text-highway underline">
+                  {trip.author}
+                </a>
+                {" · "}
+              </>
+            ) : trip.author ? (
+              `${trip.author} · `
+            ) : (
+              ""
+            )}
             {formatKm(trip.stats.distanceM)} km · {formatClock(trip.stats.durationS)} ·{" "}
             {new Date(`${trip.stats.date}T12:00:00Z`).toLocaleDateString([], { day: "numeric", month: "short" })}
             <span className="ml-2 inline-flex items-center gap-0.5">

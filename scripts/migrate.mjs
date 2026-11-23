@@ -105,6 +105,30 @@ try {
     );
   `);
   console.log("[migrate] trip sharing tables ok");
+
+  // Social: follow requests (approved followers also see Unlisted trips),
+  // blocks, and per-person choices for the leaderboard and achievements.
+  await pool.query(`
+    create table if not exists follows (
+      follower_id text not null references "user" (id) on delete cascade,
+      followee_id text not null references "user" (id) on delete cascade,
+      status text not null default 'pending',
+      created_at timestamptz not null default now(),
+      approved_at timestamptz,
+      primary key (follower_id, followee_id),
+      check (follower_id <> followee_id)
+    );
+    create index if not exists follows_followee_idx on follows (followee_id, status);
+    create table if not exists blocks (
+      blocker_id text not null references "user" (id) on delete cascade,
+      blocked_id text not null references "user" (id) on delete cascade,
+      created_at timestamptz not null default now(),
+      primary key (blocker_id, blocked_id)
+    );
+    alter table profiles add column if not exists leaderboard boolean not null default false;
+    alter table profiles add column if not exists show_achievements boolean not null default false;
+  `);
+  console.log("[migrate] social tables ok");
 } catch (error) {
   console.error("[migrate] FAILED - cloud save may not work:", error);
 } finally {

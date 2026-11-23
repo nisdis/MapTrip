@@ -171,7 +171,19 @@ export default function TripViewer({ id }: { id: string }) {
                   </span>
                 )}
                 <p className="text-sm text-asphalt/65">
-                  {trip.author ? `by ${trip.author} · ` : ""}
+                  {trip.author && trip.authorId ? (
+                    <>
+                      by{" "}
+                      <a href={`/u/${trip.authorId}`} className="font-bold text-highway underline">
+                        {trip.author}
+                      </a>
+                      {" · "}
+                    </>
+                  ) : trip.author ? (
+                    `by ${trip.author} · `
+                  ) : (
+                    ""
+                  )}
                   {new Date(`${trip.stats.date}T12:00:00Z`).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })}
                 </p>
               </div>
