@@ -62,3 +62,36 @@ describe("SpeedEstimator", () => {
     expect(out[13]).toBe(0);
   });
 });
+
+describe("standing still in the app (Android reports a speed anyway)", () => {
+  it("ignores the phone's speed on an indoor (Wi-Fi/cell) fix", async () => {
+    const { SpeedEstimator } = await import("../../src/utils/speedEstimator");
+    const e = new SpeedEstimator();
+    let v = 0;
+    for (let i = 0; i < 20; i++) {
+      // Wandering ±10 m around one spot, 40 m accuracy, phone says ~1.2 m/s
+      v = e.update({ lat: 35 + (i % 2) * 0.00009, lng: 135.75, t: i * 1000, accuracy: 40, speed: 1.2, speedAccuracy: null });
+    }
+    expect(v).toBe(0);
+  });
+
+  it("treats a speed within the phone's own error as stopped", async () => {
+    const { SpeedEstimator } = await import("../../src/utils/speedEstimator");
+    const e = new SpeedEstimator();
+    let v = 0;
+    for (let i = 0; i < 20; i++) {
+      v = e.update({ lat: 35, lng: 135.75, t: i * 1000, accuracy: 5, speed: 0.9 + (i % 3) * 0.2, speedAccuracy: 1.5 });
+    }
+    expect(v).toBe(0);
+  });
+
+  it("still trusts a real GPS speed that is clearly above its error", async () => {
+    const { SpeedEstimator } = await import("../../src/utils/speedEstimator");
+    const e = new SpeedEstimator();
+    let v = 0;
+    for (let i = 0; i < 10; i++) {
+      v = e.update({ lat: 35 + i * 0.0001, lng: 135.75, t: i * 1000, accuracy: 5, speed: 11, speedAccuracy: 0.5 });
+    }
+    expect(v).toBeGreaterThan(10);
+  });
+});

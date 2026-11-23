@@ -50,7 +50,8 @@ class GpsService {
         foregroundNotificationConfig: recording
             ? const ForegroundNotificationConfig(
                 notificationTitle: 'Recording your trip',
-                notificationText: 'Record My Trip keeps recording while your screen is off.',
+                notificationText:
+                    'Record My Trip keeps recording while your screen is off.',
                 notificationChannelName: 'Trip recording',
                 enableWakeLock: true,
                 setOngoing: true,
@@ -68,7 +69,10 @@ class GpsService {
         showBackgroundLocationIndicator: recording,
       );
     }
-    return const LocationSettings(accuracy: LocationAccuracy.best, distanceFilter: 0);
+    return const LocationSettings(
+      accuracy: LocationAccuracy.best,
+      distanceFilter: 0,
+    );
   }
 
   Future<void> setMode(GpsMode mode) async {
@@ -79,14 +83,15 @@ class GpsService {
     if (mode == GpsMode.off) return;
     if (!await _permission()) return;
     if (_mode != mode) return; // changed while we waited for permission
-    _sub = Geolocator.getPositionStream(locationSettings: _settings(mode)).listen(
-      onPosition,
-      onError: (Object e) {
-        if (kDebugMode) debugPrint('GPS error: $e');
-        _sub = null; // try again on the next mode change / resume
-      },
-      cancelOnError: true,
-    );
+    _sub = Geolocator.getPositionStream(locationSettings: _settings(mode))
+        .listen(
+          onPosition,
+          onError: (Object e) {
+            if (kDebugMode) debugPrint('GPS error: $e');
+            _sub = null; // try again on the next mode change / resume
+          },
+          cancelOnError: true,
+        );
   }
 
   Future<void> dispose() async {

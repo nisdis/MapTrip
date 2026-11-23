@@ -49,6 +49,7 @@ class FixBuffer {
     required int t,
     required double accuracy,
     double? speed,
+    double? speedAccuracy,
     double? altitude,
     double? heading,
     bool persist = true,
@@ -60,12 +61,17 @@ class FixBuffer {
       t: t,
       accuracy: accuracy,
       speed: speed,
+      speedAccuracy: speedAccuracy,
       altitude: altitude,
       heading: heading,
     );
     if (persist) {
       _pending.add(fix);
-      file.writeAsStringSync('${jsonEncode(fix.toJson())}\n', mode: FileMode.append, flush: false);
+      file.writeAsStringSync(
+        '${jsonEncode(fix.toJson())}\n',
+        mode: FileMode.append,
+        flush: false,
+      );
     }
     return fix;
   }
@@ -76,12 +82,16 @@ class FixBuffer {
     _acked = seq;
     final before = _pending.length;
     _pending.removeWhere((f) => f.seq <= seq);
-    if (_pending.length == before) return; // nothing kept was confirmed: no write
+    // Nothing kept was confirmed: no write.
+    if (_pending.length == before) return;
     if (_pending.isEmpty) {
       // Nothing outstanding: start the file afresh (keeps it small).
       file.writeAsStringSync('${jsonEncode({'ack': seq})}\n');
     } else {
-      file.writeAsStringSync('${jsonEncode({'ack': seq})}\n', mode: FileMode.append);
+      file.writeAsStringSync(
+        '${jsonEncode({'ack': seq})}\n',
+        mode: FileMode.append,
+      );
     }
   }
 

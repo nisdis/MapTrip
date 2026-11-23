@@ -126,6 +126,9 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
       t: p.timestamp.millisecondsSinceEpoch,
       accuracy: p.accuracy,
       speed: p.hasSpeed && p.speed >= 0 ? p.speed : null,
+      speedAccuracy: p.hasSpeedAccuracy && p.speedAccuracy > 0
+          ? p.speedAccuracy
+          : null,
       altitude: p.hasAltitude ? p.altitude : null,
       heading: p.hasHeading && p.heading >= 0 ? p.heading : null,
       // Only trip fixes are kept until the page confirms them.

@@ -22,6 +22,7 @@ interface RawFix {
   t: number;
   accuracy: number;
   speed: number | null;
+  speedAccuracy?: number | null;
   heading: number | null;
   altitude: number | null;
 }
@@ -58,7 +59,14 @@ export function useLocationTracking() {
     let lastHeading: number | null = null;
 
     const toData = (f: RawFix): LocationData => {
-      const speed = estimator.update({ lat: f.lat, lng: f.lng, t: f.t, accuracy: f.accuracy, speed: f.speed });
+      const speed = estimator.update({
+        lat: f.lat,
+        lng: f.lng,
+        t: f.t,
+        accuracy: f.accuracy,
+        speed: f.speed,
+        speedAccuracy: f.speedAccuracy,
+      });
       // Heading is only meaningful while moving; keep the last good one otherwise.
       if (f.heading != null && !Number.isNaN(f.heading) && speed > 0) lastHeading = f.heading;
       return {

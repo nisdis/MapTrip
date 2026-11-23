@@ -16,6 +16,8 @@ export interface Fix {
   accuracy: number;
   /** m/s from the device, or null if it didn't provide one */
   speed: number | null;
+  /** the device's own uncertainty of `speed` (m/s), if it says (the app does; browsers don't) */
+  speedAccuracy?: number | null;
 }
 
 const WINDOW_MS = 10000; // fit velocity over this much recent history
@@ -27,6 +29,9 @@ const HOLD_MS = 4000; // keep the last speed this long when fixes carry no infor
 const SMOOTHING = 0.6; // 0 = frozen, 1 = no smoothing
 const MAX_ACCEL = 8; // m/s² — hard braking/acceleration; bigger jumps need a second reading to confirm
 const TRUST_DEVICE_MS = 3000; // after a device speed, hold it rather than mix in weaker estimates
+// The device's speed is only Doppler-accurate on a real GPS fix. Indoors (Wi-Fi or
+// cell positions) Android still reports a small speed while you stand still.
+const DEVICE_SPEED_MAX_ACCURACY_M = 25;
 
 const M_PER_DEG = 111320;
 
@@ -87,7 +92,10 @@ export class SpeedEstimator {
 
     let measured: number | null = null;
 
-    const device = fix.speed;
+    let device = fix.speed;
+    if (device != null && fix.accuracy > DEVICE_SPEED_MAX_ACCURACY_M) device = null; // not a GPS fix
+    // Smaller than its own error bar: the phone can't tell it from standing still.
+    if (device != null && fix.speedAccuracy != null && fix.speedAccuracy > 0 && device < 2 * fix.speedAccuracy) device = 0;
     if (device != null && Number.isFinite(device) && device >= 0 && device <= MAX_PLAUSIBLE_MS) {
       measured = device;
       this.lastDeviceAt = fix.t;

@@ -15,7 +15,9 @@ class RecordMyTripApp extends StatelessWidget {
     return MaterialApp(
       title: 'Record My Trip',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0E6B4F))),
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0E6B4F)),
+      ),
       home: const WebShell(),
     );
   }

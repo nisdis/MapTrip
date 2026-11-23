@@ -9,6 +9,7 @@ class Fix {
     required this.t,
     required this.accuracy,
     this.speed,
+    this.speedAccuracy,
     this.altitude,
     this.heading,
   });
@@ -23,30 +24,35 @@ class Fix {
 
   /// m/s, if the device reported it
   final double? speed;
+
+  /// uncertainty of [speed] in m/s, if the device reports it
+  final double? speedAccuracy;
   final double? altitude;
   final double? heading;
 
   Map<String, Object?> toJson() => {
-        'seq': seq,
-        'lat': lat,
-        'lng': lng,
-        't': t,
-        'accuracy': accuracy,
-        'speed': speed,
-        'altitude': altitude,
-        'heading': heading,
-      };
+    'seq': seq,
+    'lat': lat,
+    'lng': lng,
+    't': t,
+    'accuracy': accuracy,
+    'speed': speed,
+    'speedAccuracy': speedAccuracy,
+    'altitude': altitude,
+    'heading': heading,
+  };
 
   static Fix fromJson(Map<String, Object?> j) => Fix(
-        seq: (j['seq'] as num).toInt(),
-        lat: (j['lat'] as num).toDouble(),
-        lng: (j['lng'] as num).toDouble(),
-        t: (j['t'] as num).toInt(),
-        accuracy: (j['accuracy'] as num).toDouble(),
-        speed: (j['speed'] as num?)?.toDouble(),
-        altitude: (j['altitude'] as num?)?.toDouble(),
-        heading: (j['heading'] as num?)?.toDouble(),
-      );
+    seq: (j['seq'] as num).toInt(),
+    lat: (j['lat'] as num).toDouble(),
+    lng: (j['lng'] as num).toDouble(),
+    t: (j['t'] as num).toInt(),
+    accuracy: (j['accuracy'] as num).toDouble(),
+    speed: (j['speed'] as num?)?.toDouble(),
+    speedAccuracy: (j['speedAccuracy'] as num?)?.toDouble(),
+    altitude: (j['altitude'] as num?)?.toDouble(),
+    heading: (j['heading'] as num?)?.toDouble(),
+  );
 }
 
 /// Great-circle distance in metres.
@@ -55,7 +61,10 @@ double haversineM(double lat1, double lng1, double lat2, double lng2) {
   double rad(double d) => d * math.pi / 180;
   final dLat = rad(lat2 - lat1);
   final dLng = rad(lng2 - lng1);
-  final h = math.pow(math.sin(dLat / 2), 2) +
-      math.cos(rad(lat1)) * math.cos(rad(lat2)) * math.pow(math.sin(dLng / 2), 2);
+  final h =
+      math.pow(math.sin(dLat / 2), 2) +
+      math.cos(rad(lat1)) *
+          math.cos(rad(lat2)) *
+          math.pow(math.sin(dLng / 2), 2);
   return 2 * r * math.asin(math.min(1, math.sqrt(h)));
 }

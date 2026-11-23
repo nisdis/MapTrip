@@ -100,12 +100,18 @@ class BackgroundShare {
     if (share == null || share.status != 'recording') return;
     if (share.lastT != null && f.t <= share.lastT!) return;
     if (f.accuracy > maxAccuracyM) return;
-    final speed = f.speed ?? 0;
+    // Same as the web (speedEstimator.ts): the phone's speed only counts on a
+    // real GPS fix, and not when it's within its own error of standing still.
+    var speed = f.accuracy > 25 ? 0.0 : (f.speed ?? 0);
+    final sa = f.speedAccuracy;
+    if (sa != null && sa > 0 && speed < 2 * sa) speed = 0;
     if (speed > maxPlausibleMs) return;
     _speed = speed;
     _altitude = f.altitude ?? _altitude;
     final prev = _lastPoint;
-    final moved = prev == null ? 0.0 : haversineM(prev.lat, prev.lng, f.lat, f.lng);
+    final moved = prev == null
+        ? 0.0
+        : haversineM(prev.lat, prev.lng, f.lat, f.lng);
     if (prev != null && moved < minMoveM) return; // standing still
     if (prev != null && f.t <= prev.t) return;
     _addedM += moved;
@@ -125,7 +131,9 @@ class BackgroundShare {
     final share = _share!;
     final s = share.stats;
     num n(String k) => (s[k] as num?) ?? 0;
-    final elapsed = share.status == 'recording' ? ((now() - share.at) / 1000).floor() : 0;
+    final elapsed = share.status == 'recording'
+        ? ((now() - share.at) / 1000).floor()
+        : 0;
     return {
       'distanceM': n('distanceM') + _addedM,
       'estimatedM': n('estimatedM'),

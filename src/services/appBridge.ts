@@ -17,6 +17,8 @@ export interface NativeFix {
   t: number;
   accuracy: number;
   speed: number | null;
+  /** uncertainty of `speed` in m/s, if the phone gives it */
+  speedAccuracy?: number | null;
   altitude: number | null;
   heading: number | null;
 }
