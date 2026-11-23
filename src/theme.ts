@@ -25,7 +25,7 @@ export const resolvedTheme = (): "light" | "dark" =>
 function apply() {
   const dark = resolvedTheme() === "dark";
   document.documentElement.classList.toggle("dark", dark);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#151B1F" : "#3b82f6");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#151B1F" : "#0E6B4F");
   // The app draws the status/navigation bar area around the page.
   if (isInApp()) void callApp({ type: "theme", dark });
   listeners.forEach((l) => l());

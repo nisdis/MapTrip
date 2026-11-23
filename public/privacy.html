@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy policy · Record My Trip</title>
+<meta name="description" content="How Record My Trip (map.recordmytrip.com and the Record My Trip app) handles your data." />
+<link rel="icon" type="image/svg+xml" href="/icon.svg" />
+<style>
+  :root { color-scheme: light dark; --ink: #1f2a30; --paper: #f4f6f5; --muted: #5b6670; --line: #dde3e1; --brand: #0e6b4f; }
+  @media (prefers-color-scheme: dark) { :root { --ink: #e2e8e6; --paper: #151b1f; --muted: #9aa6a2; --line: #2f3a41; --brand: #4fd18b; } }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; }
+  h1 { font-size: 1.8rem; line-height: 1.2; margin: 0 0 4px; }
+  h2 { font-size: 1.15rem; margin: 2rem 0 0.5rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+  p, li { color: var(--ink); }
+  .muted { color: var(--muted); }
+  a { color: var(--brand); }
+  ul { padding-left: 1.2rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+  td, th { text-align: left; vertical-align: top; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; text-decoration: none; color: inherit; font-weight: 700; }
+  .brand img { width: 36px; height: 36px; border-radius: 9px; }
+</style>
+</head>
+<body>
+<main>
+  <a class="brand" href="/"><img src="/pwa-64x64.png" alt="" />Record My Trip</a>
+  <h1>Privacy policy</h1>
+  <p class="muted">Last updated: 23 November 2026</p>
+
+  <p>
+    This explains what data Record My Trip (the website at map.recordmytrip.com and the Record My Trip app for
+    Android) collects, why, where it goes, and how to remove it. Short version: you can use the map and record trips
+    without an account, and then everything stays on your phone. With an account, your trips are backed up privately
+    and only become visible to others if you share them.
+  </p>
+
+  <h2>Who we are</h2>
+  <p>
+    Record My Trip, contact: <a href="mailto:privacy@recordmytrip.com">privacy@recordmytrip.com</a>.
+    Write to us about anything in this policy, or to exercise any of your rights below.
+  </p>
+
+  <h2>Without an account</h2>
+  <ul>
+    <li><b>Your location</b> is used on your device to show you on the map and to record trips. It is not sent to us.</li>
+    <li><b>Trips, photos, saved places and saved map areas</b> are stored only in your browser or the app on your phone.</li>
+    <li>When you <b>search, look up a place, get directions or view the map</b>, your device asks the map services listed
+      below directly; they receive your IP address and what you looked up (for example the area of the map you are viewing).</li>
+  </ul>
+
+  <h2>With an account</h2>
+  <table>
+    <tr><th>What</th><th>Why</th><th>Who can see it</th></tr>
+    <tr><td>Email address and password (stored only as a secure hash)</td><td>To sign you in</td><td>Only us</td></tr>
+    <tr><td>Trips you record: route (GPS points with time and speed), distance, duration, name; photos you add to them</td>
+      <td>Backed up automatically so you don't lose them and can see them on other devices</td>
+      <td>Only you, unless you share a trip (below)</td></tr>
+    <tr><td>Favourites, Home and Work</td><td>To sync them between your devices</td><td>Only you</td></tr>
+    <tr><td>Public name</td><td>Shown on trips you share; asked only when you first share</td><td>Viewers of your shared trips</td></tr>
+  </table>
+
+  <h2>Sharing</h2>
+  <ul>
+    <li><b>Shared trips.</b> Each trip is private until you choose <i>Unlisted</i> (anyone with the link) or <i>Public</i>
+      (also listed in Explore). The start and end of a shared trip are hidden (500 m unless you change it), only the
+      photos you tick are shown, with their location data removed, and only the date is shown, not the time of day.
+      You can make a trip private again at any time.</li>
+    <li><b>Live sharing.</b> While you share a trip live, anyone with the link sees your route, current position, speed
+      and stats, except within 300 m of where the trip started. The link stops working when the trip ends, after the
+      time you chose, or when you stop it, and the location data is then deleted. Ended links are removed after a day.</li>
+    <li><b>Views.</b> To rank Explore, we count one view per person per trip per day, using a one-way code made from the
+      viewer's IP address and browser. We don't store the address itself, and these codes are deleted after two days.</li>
+    <li><b>Reports.</b> If you report a trip, we keep the reason and your account so we can review it.</li>
+  </ul>
+
+  <h2>Background location (the app)</h2>
+  <p>
+    While you are recording a trip, the Android app keeps using your location with the screen off, so your route has no
+    gaps. You'll see a "Recording your trip" notification for as long as this happens. It stops when you finish the trip.
+    The app does not use your location in the background at any other time, and asks only for "while using the app" permission.
+  </p>
+
+  <h2>Services we use</h2>
+  <table>
+    <tr><th>Service</th><th>What it handles</th></tr>
+    <tr><td>Vercel (web hosting, region: Singapore)</td><td>Runs the website and its servers; stores trip photos you back up</td></tr>
+    <tr><td>Neon (database, region: Singapore)</td><td>Accounts, backed-up trips, saved places, shared and live trips</td></tr>
+    <tr><td>OpenFreeMap</td><td>Map images; receives the map area you view</td></tr>
+    <tr><td>Nominatim (OpenStreetMap Foundation)</td><td>Search and place details; receives what you search for and places you tap</td></tr>
+    <tr><td>OSRM (Project OSRM)</td><td>Directions and route estimates; receives the start and end points</td></tr>
+    <tr><td>Overpass API</td><td>Checks whether a stretch without GPS was on a railway; receives the two ends of that stretch</td></tr>
+    <tr><td>Wikipedia / Wikidata</td><td>Photos and descriptions of places you open</td></tr>
+  </table>
+  <p>We don't sell your data, show ads, or use analytics or tracking cookies. The only cookie is the one that keeps you signed in.</p>
+
+  <h2>How long we keep it</h2>
+  <ul>
+    <li>Your account and backed-up data: until you delete them.</li>
+    <li>Live share locations: deleted as soon as the share ends.</li>
+    <li>View codes: two days.</li>
+    <li>Data on your device: until you remove it (or clear the app's or browser's data).</li>
+  </ul>
+
+  <h2>Your rights and deleting your data</h2>
+  <ul>
+    <li><b>Delete your account</b> in the app or on the website: Account › <i>Delete my account</i>. This permanently removes
+      your account and everything in it: trips and photos, shared and live links, saved places, and your public name.
+      You can also email us to ask for deletion.</li>
+    <li><b>Get your data</b>: export any trip as a GPX file (Trips › GPX), or email us for a copy of everything we hold.</li>
+    <li><b>Correct or restrict</b> it: edit or make trips private yourself, or email us.</li>
+  </ul>
+  <p>Depending on where you live (for example under the GDPR or India's Digital Personal Data Protection Act), you may
+    also have the right to complain to your data protection authority.</p>
+
+  <h2>Children</h2>
+  <p>Record My Trip is not meant for children under 13, and we don't knowingly collect their data.</p>
+
+  <h2>Changes</h2>
+  <p>If this policy changes in a way that matters, we'll update the date above and say so in the app.</p>
+</main>
+</body>
+</html>

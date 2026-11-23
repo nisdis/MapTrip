@@ -18,7 +18,7 @@ self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 
 // Every page of the app (also /t/…, /live/… opened offline) is the app itself.
 registerRoute(
-  new NavigationRoute(createHandlerBoundToURL("index.html"), { denylist: [/^\/api\//, /^\/\.well-known\//] }),
+  new NavigationRoute(createHandlerBoundToURL("index.html"), { denylist: [/^\/api\//, /^\/\.well-known\//, /^\/privacy/] }),
 );
 
 const ok = new CacheableResponsePlugin({ statuses: [0, 200] });

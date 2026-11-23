@@ -92,10 +92,15 @@ export function MoreMenu({
               <Settings className="w-5 h-5 text-gray-600" />
               <span className="text-sm text-gray-700">Show detailed</span>
             </button>
-            <button className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors">
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noreferrer"
+              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
+            >
               <Info className="w-5 h-5 text-gray-600" />
-              <span className="text-sm text-gray-700">About</span>
-            </button>
+              <span className="text-sm text-gray-700">Privacy policy</span>
+            </a>
           </div>
         </div>
       </div>

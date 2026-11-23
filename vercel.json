@@ -4,7 +4,8 @@
     { "source": "/api/auth/:path*", "destination": "/api/auth" },
     { "source": "/p/:type/:id", "destination": "/api/share" },
     { "source": "/live/:token", "destination": "/api/share" },
-    { "source": "/t/:id", "destination": "/api/share" }
+    { "source": "/t/:id", "destination": "/api/share" },
+    { "source": "/privacy", "destination": "/privacy.html" }
   ],
   "functions": {
     "api/share.ts": { "includeFiles": "dist/index.html" }

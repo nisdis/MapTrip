@@ -91,6 +91,13 @@ export function AccountSheet({ userEmail, onAuthenticate, onSignOut, onDone, onS
             onAuthenticate={onAuthenticate}
             onSuccess={onDone}
           />
+          <p className="text-xs text-gray-500">
+            By creating an account you agree to the{" "}
+            <a href="/privacy" target="_blank" rel="noreferrer" className="underline">
+              privacy policy
+            </a>
+            .
+          </p>
         </>
       )}
     </div>

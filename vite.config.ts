@@ -16,7 +16,7 @@ export default defineConfig({
         name: 'Record My Trip',
         short_name: 'Record Trip',
         description: 'Track and save your journeys',
-        theme_color: '#3b82f6',
+        theme_color: '#0E6B4F',
         background_color: '#ffffff',
         display: 'standalone',
         icons: [

@@ -1,6 +1,21 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg width="512" height="512" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M3 6L9 3L15 6L21 3V18L15 21L9 18L3 21V6Z" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M9 3V18" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M15 6V21" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Record My Trip: a map pin holding the record dot, at the end of a route.
+       Full-bleed square; stores and Android masks crop it, so the artwork
+       stays inside the middle ~66%. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#138A66"/>
+      <stop offset="1" stop-color="#0B5A42"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g id="mark" transform="translate(-15 0)">
+    <!-- route into the pin's tip -->
+    <path d="M268 792 C 340 700, 430 800, 520 742" fill="none" stroke="#FFFFFF" stroke-opacity=".9" stroke-width="40" stroke-linecap="round" stroke-dasharray="2 70"/>
+    <!-- pin -->
+    <path d="M600 210 C 718 210 806 300 806 412 C 806 548 676 640 600 760 C 524 640 394 548 394 412 C 394 300 482 210 600 210 Z" fill="#FFFFFF"/>
+    <!-- record dot -->
+    <circle cx="600" cy="412" r="118" fill="#F5C518"/>
+    <circle cx="600" cy="412" r="72" fill="#D7263D"/>
+  </g>
 </svg>
