@@ -1,4 +1,4 @@
-package com.recordmytrip.app
+package com.recordmytrip.map
 
 import io.flutter.embedding.android.FlutterActivity
 

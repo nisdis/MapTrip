@@ -42,7 +42,7 @@ flutter build apk --debug           # sideloadable test build
 flutter run --dart-define=APP_URL=https://<preview>.vercel.app   # test a preview
 ```
 
-Android application id / iOS bundle id: `com.recordmytrip.app` (permanent once
+Android application id / iOS bundle id: `com.recordmytrip.map` (permanent once
 published). Release signing is not set up yet; release builds use the debug key.
 
 ## Testing background recording on a real phone
