@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { LocationData } from "./useLocationTracking";
+import type { FixListener, LocationData } from "./useLocationTracking";
 import type { TrackGap, TrackPoint } from "../types/trip";
 import { routePath } from "../services/routeService";
 import { haversine } from "../utils/geo";
 import { clearDraft, loadDraft, saveDraft, type TripDraft } from "../services/draftStore";
+import { isInApp } from "../services/appBridge";
 
 export type RecorderStatus = "idle" | "recording" | "paused" | "review";
 
@@ -18,13 +19,11 @@ const GAP_MIN_M = 50;
 
 const round = (n: number, dp: number) => Math.round(n * 10 ** dp) / 10 ** dp;
 
-export function useTripRecorder(locationData: LocationData | null) {
+export function useTripRecorder(subscribe: (listener: FixListener) => () => void) {
   const [status, setStatus] = useState<RecorderStatus>("idle");
   const [track, setTrack] = useState<TrackPoint[]>([]);
   const [gaps, setGaps] = useState<TrackGap[]>([]);
   const lastSeenFixAt = useRef(0);
-  const trackRef = useRef<TrackPoint[]>([]);
-  trackRef.current = track;
   const [distanceM, setDistanceM] = useState(0);
   const [maxSpeedMs, setMaxSpeedMs] = useState(0);
   const [speedMs, setSpeedMs] = useState(0);
@@ -34,6 +33,10 @@ export function useTripRecorder(locationData: LocationData | null) {
   const [startedAt, setStartedAt] = useState(0);
   const [draft, setDraft] = useState<TripDraft | null>(null);
 
+  const statusRef = useRef(status);
+  statusRef.current = status;
+  // Track length as of the last fix processed (ahead of the state during a batch).
+  const trackLen = useRef(0);
   const lastPoint = useRef<TrackPoint | null>(null);
   const lastFixTs = useRef(0);
   const pendingGap = useRef(false);
@@ -52,67 +55,103 @@ export function useTripRecorder(locationData: LocationData | null) {
       .catch(() => undefined);
   }, []);
 
-  // Turn each new GPS fix into a trail point.
-  useEffect(() => {
-    if (!locationData) return;
-    setAccuracyM(locationData.accuracy);
-    if (status !== "recording") return;
-    if (locationData.timestamp === lastFixTs.current) return;
-    lastFixTs.current = locationData.timestamp;
-    // Every fix counts as "still tracking" (including standing still), so only
-    // a real silence (screen off, app paused) looks like a gap.
-    const sinceLastFix = lastSeenFixAt.current ? locationData.timestamp - lastSeenFixAt.current : 0;
-    lastSeenFixAt.current = locationData.timestamp;
-    if (locationData.accuracy > MAX_ACCURACY_M) return;
+  // Turn GPS fixes into trail points. Fixes come in batches: usually one, but
+  // in the app a whole stretch recorded while the phone was locked arrives at once.
+  const lastKnown = useRef<LocationData | null>(null);
+  const ingest = useCallback((batch: LocationData[]) => {
+    lastKnown.current = batch[batch.length - 1];
+    setAccuracyM(lastKnown.current.accuracy);
+    if (statusRef.current !== "recording") return;
 
-    const [lat, lng] = locationData.position;
-    const prev = lastPoint.current;
-    const t = locationData.timestamp;
-    const moved = prev ? haversine(prev, { lat, lng }) : 0;
-    const dt = prev ? (t - prev.t) / 1000 : 0;
-    // Smoothed speed from the location hook. It no longer reads 0 just because this
-    // fix is close to the last trail point (that made slow travel show 0).
-    const speed = locationData.speed;
-    if (speed > MAX_PLAUSIBLE_MS || dt < 0) return;
+    const points: TrackPoint[] = [];
+    const newGaps: { gap: TrackGap; from: TrackPoint; to: TrackPoint }[] = [];
+    let addedM = 0;
+    let maxSpeed = 0;
+    let latest: LocationData | null = null;
 
-    setSpeedMs(speed);
-    setAltitudeM(locationData.altitude);
-    if (prev && moved < MIN_MOVE_M) return; // standing still: don't pile up points
+    for (const fix of batch) {
+      if (fix.timestamp <= lastFixTs.current) continue; // seen it (or out of order)
+      lastFixTs.current = fix.timestamp;
+      // Every fix counts as "still tracking" (including standing still), so only
+      // a real silence (screen off, app paused) looks like a gap.
+      const sinceLastFix = lastSeenFixAt.current ? fix.timestamp - lastSeenFixAt.current : 0;
+      lastSeenFixAt.current = fix.timestamp;
+      if (fix.accuracy > MAX_ACCURACY_M) continue;
 
-    // Was tracking paused? (no fixes for a while, and we've moved on since)
-    const isGap = !!prev && sinceLastFix > GAP_MS && moved > GAP_MIN_M;
+      const [lat, lng] = fix.position;
+      const prev = lastPoint.current;
+      const t = fix.timestamp;
+      const moved = prev ? haversine(prev, { lat, lng }) : 0;
+      const dt = prev ? (t - prev.t) / 1000 : 0;
+      // Smoothed speed from the location hook. It no longer reads 0 just because this
+      // fix is close to the last trail point (that made slow travel show 0).
+      const speed = fix.speed;
+      if (speed > MAX_PLAUSIBLE_MS || dt < 0) continue;
 
-    const point: TrackPoint = {
-      lat: round(lat, 6),
-      lng: round(lng, 6),
-      t,
-      speed: round(speed, 1),
-      alt: locationData.altitude != null ? round(locationData.altitude, 1) : null,
-      ...((pendingGap.current && prev === null) || isGap ? { gap: true } : {}),
-    };
-    pendingGap.current = false;
-    lastPoint.current = point;
-    if (prev && !isGap) setDistanceM((d) => d + moved);
-    if (isGap && prev) {
-      // Don't draw (or count) a straight line across the gap. Ask for the likely
-      // road route instead, and keep its distance separate as an estimate.
-      const gap: TrackGap = {
-        index: trackRef.current.length, // the point appended below
-        startedAt: prev.t,
-        endedAt: t,
-        straightM: moved,
-        routeM: null,
-        path: null,
+      latest = fix;
+      if (prev && moved < MIN_MOVE_M) continue; // standing still: don't pile up points
+
+      // Was tracking paused? (no fixes for a while, and we've moved on since)
+      const isGap = !!prev && sinceLastFix > GAP_MS && moved > GAP_MIN_M;
+
+      const point: TrackPoint = {
+        lat: round(lat, 6),
+        lng: round(lng, 6),
+        t,
+        speed: round(speed, 1),
+        alt: fix.altitude != null ? round(fix.altitude, 1) : null,
+        ...((pendingGap.current && prev === null) || isGap ? { gap: true } : {}),
       };
-      setGaps((g) => [...g, gap]);
-      void routePath(prev, point).then((r) => {
-        if (!r) return;
-        setGaps((g) => g.map((x) => (x.index === gap.index ? { ...x, routeM: r.distanceM, path: r.path } : x)));
-      });
+      pendingGap.current = false;
+      lastPoint.current = point;
+      if (prev && !isGap) addedM += moved;
+      if (isGap && prev) {
+        // Don't draw (or count) a straight line across the gap. Ask for the likely
+        // road route instead, and keep its distance separate as an estimate.
+        newGaps.push({
+          gap: {
+            index: trackLen.current, // the point appended below
+            startedAt: prev.t,
+            endedAt: t,
+            straightM: moved,
+            routeM: null,
+            path: null,
+          },
+          from: prev,
+          to: point,
+        });
+      }
+      maxSpeed = Math.max(maxSpeed, speed);
+      points.push(point);
+      trackLen.current += 1;
     }
-    setMaxSpeedMs((m) => Math.max(m, speed));
-    setTrack((pts) => [...pts, point]);
-  }, [locationData, status]);
+
+    if (latest) {
+      setSpeedMs(latest.speed);
+      setAltitudeM(latest.altitude);
+    }
+    if (!points.length) return;
+    if (addedM) setDistanceM((d) => d + addedM);
+    setMaxSpeedMs((m) => Math.max(m, maxSpeed));
+    setTrack((pts) => pts.concat(points));
+    if (newGaps.length) {
+      setGaps((g) => g.concat(newGaps.map((n) => n.gap)));
+      for (const { gap, from, to } of newGaps) {
+        void routePath(from, to).then((r) => {
+          if (!r) return;
+          setGaps((g) => g.map((x) => (x.index === gap.index ? { ...x, routeM: r.distanceM, path: r.path } : x)));
+        });
+      }
+    }
+  }, []);
+
+  useEffect(() => subscribe(ingest), [subscribe, ingest]);
+
+  // Starting (or resuming) uses where you are right now as the first point,
+  // rather than waiting for the next fix.
+  useEffect(() => {
+    if (status === "recording" && lastKnown.current) ingest([lastKnown.current]);
+  }, [status, ingest]);
 
   // Active-time clock (excludes paused time).
   useEffect(() => {
@@ -122,8 +161,9 @@ export function useTripRecorder(locationData: LocationData | null) {
   }, [status, readActiveSeconds]);
 
   // Keep the screen awake while recording, or the phone stops delivering GPS.
+  // (Not in the app: it records with the screen off.)
   useEffect(() => {
-    if (status !== "recording" || !("wakeLock" in navigator)) return;
+    if (status !== "recording" || !("wakeLock" in navigator) || isInApp()) return;
     let lock: WakeLockSentinel | null = null;
     let cancelled = false;
     const acquire = async () => {
@@ -188,6 +228,7 @@ export function useTripRecorder(locationData: LocationData | null) {
     setActiveSeconds(0);
     lastPoint.current = null;
     lastFixTs.current = 0;
+    trackLen.current = 0;
     pendingGap.current = false;
     accumulatedMs.current = 0;
   }, []);
@@ -246,6 +287,31 @@ export function useTripRecorder(locationData: LocationData | null) {
     setStatus("review");
   }, [draft]);
 
+  /**
+   * App only: the page was reloaded while the app kept recording. Pick the trip
+   * up from its draft and carry on; the app then replays the fixes since.
+   */
+  const continueDraft = useCallback((d: TripDraft, state: "recording" | "paused") => {
+    const last = d.track[d.track.length - 1] ?? null;
+    setTrack(d.track);
+    trackLen.current = d.track.length;
+    setGaps(d.gaps ?? []);
+    setDistanceM(d.distanceM);
+    setMaxSpeedMs(d.maxSpeedMs);
+    setStartedAt(d.startedAt);
+    // Recording carried on while the page was gone, so that time counts.
+    accumulatedMs.current = d.activeSeconds * 1000 + (state === "recording" ? Math.max(0, Date.now() - d.savedAt) : 0);
+    setActiveSeconds(Math.round(accumulatedMs.current / 1000));
+    segmentStart.current = Date.now();
+    lastPoint.current = last;
+    lastFixTs.current = last?.t ?? 0;
+    lastSeenFixAt.current = last?.t ?? 0;
+    pendingGap.current = false;
+    statusRef.current = state; // so fixes replayed right after this are used
+    setDraft(null);
+    setStatus(state);
+  }, []);
+
   return {
     status,
     track,
@@ -266,5 +332,6 @@ export function useTripRecorder(locationData: LocationData | null) {
     finish,
     reset,
     restoreDraft,
+    continueDraft,
   };
 }

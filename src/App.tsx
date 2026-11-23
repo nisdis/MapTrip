@@ -41,7 +41,8 @@ import { PocketMode } from "./components/PocketMode";
 import { gapDistance } from "./types/trip";
 import { TripSummary } from "./components/TripSummary";
 import { DraftBanner } from "./components/DraftBanner";
-import { clearDraft } from "./services/draftStore";
+import { clearDraft, loadDraft } from "./services/draftStore";
+import { callApp, isInApp, type NativeFix, type NativeHello } from "./services/appBridge";
 import { computeStats } from "./utils/tripStats";
 import { useTripRecorder } from "./hooks/useTripRecorder";
 import { useLiveShare } from "./hooks/useLiveShare";
@@ -82,11 +83,11 @@ function App() {
   const [origin, setOrigin] = useState<SearchResult | null>(null);
   const [destination, setDestination] = useState<SearchResult | null>(null);
   const [isClearing, setIsClearing] = useState(false);
-  const { locationData, error } = useLocationTracking();
+  const { locationData, error, subscribe, attachApp } = useLocationTracking();
   const hasCenteredOnUser = useRef(false);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [viewTrip, setViewTrip] = useState<Trip | null>(null);
-  const recorder = useTripRecorder(locationData);
+  const recorder = useTripRecorder(subscribe);
   const placeLookup = usePlaceLookup();
   const saved = useSaved();
   const [showSavedOnMap, setShowSavedOnMap] = useState(() => {
@@ -158,6 +159,50 @@ function App() {
     },
   });
   const [showLiveShare, setShowLiveShare] = useState(false);
+
+  // ---- Inside the Record My Trip app (GPS and background recording by the app) ----
+  const [appReady, setAppReady] = useState(() => !isInApp());
+  const appPending = useRef<NativeFix[] | null>(null);
+  useEffect(() => {
+    if (!isInApp()) return;
+    let cancelled = false;
+    void (async () => {
+      const hello = await callApp<NativeHello>({ type: "hello" });
+      if (cancelled) return;
+      // The page was reloaded while the app kept recording: carry the trip on.
+      if (hello && hello.recording !== "idle") {
+        const d = await loadDraft().catch(() => null);
+        if (cancelled) return;
+        if (d) {
+          recorder.continueDraft(d, hello.recording);
+          liveShare.adoptOrCleanUp(hello.share);
+          appPending.current = hello.pending; // replayed once the recorder has picked up
+          setAppReady(true);
+          return;
+        }
+      }
+      liveShare.adoptOrCleanUp(null);
+      attachApp(hello?.pending ?? []);
+      setAppReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Once, on load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (appPending.current && (recorder.status === "recording" || recorder.status === "paused")) {
+      attachApp(appPending.current);
+      appPending.current = null;
+    }
+  }, [recorder.status, attachApp]);
+  // The app records in the background only while a trip is being recorded.
+  useEffect(() => {
+    if (!appReady || !isInApp()) return;
+    const state = recorder.status === "recording" || recorder.status === "paused" ? recorder.status : "idle";
+    void callApp({ type: "recording", state, startedAt: recorder.startedAt });
+  }, [appReady, recorder.status, recorder.startedAt]);
   // Height of whichever recorder panel covers the bottom of the map.
   const [panelHeight, setPanelHeight] = useState(0);
 

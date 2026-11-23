@@ -127,8 +127,6 @@ async function start(userId: string, body: Record<string, unknown>): Promise<Res
 }
 
 async function update(userId: string, token: string, body: Record<string, unknown>): Promise<Response> {
-  const from = body.from;
-  if (!Number.isInteger(from) || (from as number) < 0) return json({ message: "Invalid position" }, 400);
   if (!Array.isArray(body.points) || body.points.length > MAX_POINTS_PER_UPDATE) {
     return json({ message: "Invalid points" }, 400);
   }
@@ -149,22 +147,25 @@ async function update(userId: string, token: string, body: Record<string, unknow
       await client.query("rollback");
       return json({ message: "This live share has ended" }, 410);
     }
-    // The client sends everything from `from` on. Points we already have are
-    // skipped, so a retried request never adds anything twice.
-    if ((from as number) > row.point_count) {
-      await client.query("rollback");
-      return json({ message: "Points missing", count: row.point_count }, 409);
-    }
+    // Only points newer than the newest stored one are added. Retries, and the
+    // app and the web page both sending (screen locked / unlocked), can never
+    // add a point twice.
     const now = Date.now();
-    const fresh = (body.points as unknown[]).slice(row.point_count - (from as number));
-    const added = fresh.map((p) => cleanPoint(p, now)).filter((p): p is LivePoint => p !== null);
+    let lastT = row.points.length ? row.points[row.points.length - 1][2] : -Infinity;
+    const added: LivePoint[] = [];
+    for (const raw of body.points as unknown[]) {
+      const p = cleanPoint(raw, now);
+      if (!p || p[2] <= lastT) continue;
+      added.push(p);
+      lastT = p[2];
+    }
     let points = row.points.concat(added);
     let rev = row.trail_rev;
     while (points.length > MAX_STORED_POINTS) {
       points = thin(points);
       rev += 1;
     }
-    const count = row.point_count + fresh.length;
+    const count = row.point_count + added.length;
     await client.query(
       `update live_shares
        set points = $3::jsonb, point_count = $4, trail_rev = $5, status = $6, stats = $7::jsonb, updated_at = now()
@@ -172,7 +173,7 @@ async function update(userId: string, token: string, body: Record<string, unknow
       [token, userId, JSON.stringify(points), count, rev, status, JSON.stringify(stats)],
     );
     await client.query("commit");
-    return json({ count, expiresAt: row.expires_at.getTime() });
+    return json({ count, lastT: Number.isFinite(lastT) ? lastT : null, expiresAt: row.expires_at.getTime() });
   } catch (error) {
     await client.query("rollback").catch(() => undefined);
     throw error;

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TrackPoint } from "../types/trip";
 import type { RecorderStatus } from "./useTripRecorder";
+import { callApp, isInApp } from "../services/appBridge";
 import {
   LiveShareError,
   MAX_POINTS_PER_UPDATE,
   extendLiveShare,
+  firstAfter,
   liveUrl,
   sendLiveUpdate,
   startLiveShare,
@@ -58,15 +60,36 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
   // Latest values for the timer, without restarting it on every GPS fix.
   const latest = useRef({ status, track, stats });
   latest.current = { status, track, stats };
-  const sent = useRef(0); // points the server has accepted
+  const sentT = useRef(-Infinity); // time of the newest point the server has
   const inFlight = useRef(false);
   const shareRef = useRef<ActiveShare | null>(null);
   shareRef.current = share;
 
+  const handOff = useCallback(
+    (current: ActiveShare, s: RecorderStatus, st: LiveStats, t: TrackPoint[]) => {
+      if (!isInApp()) return;
+      const last = t[t.length - 1];
+      void callApp({
+        type: "share",
+        share: {
+          token: current.token,
+          expiresAt: current.expiresAt,
+          lastT: Number.isFinite(sentT.current) ? sentT.current : null,
+          status: s === "paused" ? "paused" : "recording",
+          stats: st,
+          last: last ? { lat: last.lat, lng: last.lng, t: last.t } : null,
+          at: Date.now(),
+        },
+      });
+    },
+    [],
+  );
+
   const end = useCallback((notice: string | null) => {
+    if (isInApp()) void callApp({ type: "share", share: null });
     setShare(null);
     remember(null);
-    sent.current = 0;
+    sentT.current = -Infinity;
     setProblem(null);
     setLastSyncAt(null);
     setEndedNotice(notice);
@@ -79,17 +102,21 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
     try {
       const { status: s, track: t, stats: st } = latest.current;
       // At least one request (stats/status may have changed), more if there's a backlog.
+      let from = firstAfter(t, sentT.current);
       do {
-        const batch = t.slice(sent.current, sent.current + MAX_POINTS_PER_UPDATE).map(toLivePoint);
-        const res = await sendLiveUpdate(current.token, sent.current, batch, s === "paused" ? "paused" : "recording", st);
-        sent.current = res.count;
-      } while (sent.current < t.length && shareRef.current?.token === current.token);
+        const batch = t.slice(from, from + MAX_POINTS_PER_UPDATE).map(toLivePoint);
+        const res = await sendLiveUpdate(current.token, batch, s === "paused" ? "paused" : "recording", st);
+        if (res.lastT != null) sentT.current = res.lastT;
+        const next = firstAfter(t, sentT.current);
+        if (next <= from) break; // nothing accepted (bad points): don't loop
+        from = next;
+      } while (from < t.length && shareRef.current?.token === current.token);
       setLastSyncAt(Date.now());
       setProblem(null);
+      // In the app: keep it up to date, so it can carry on while the phone is locked.
+      handOff(current, s, st, t);
     } catch (e) {
-      if (e instanceof LiveShareError && e.status === 409 && typeof e.body.count === "number") {
-        sent.current = e.body.count; // resend from what the server has
-      } else if (e instanceof LiveShareError && e.status === 410) {
+      if (e instanceof LiveShareError && e.status === 410) {
         end("Your live share has ended. The link no longer works.");
       } else {
         setProblem(e instanceof Error ? e.message : "Live update failed");
@@ -97,7 +124,7 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
     } finally {
       inFlight.current = false;
     }
-  }, [end]);
+  }, [end, handOff]);
 
   // Upload on a timer while sharing.
   useEffect(() => {
@@ -105,6 +132,14 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
     void sync();
     const id = setInterval(() => void sync(), LIVE_UPDATE_MS);
     return () => clearInterval(id);
+  }, [share, sync]);
+
+  // Back from the background (phone unlocked): catch up straight away.
+  useEffect(() => {
+    if (!share) return;
+    const onVisible = () => document.visibilityState === "visible" && void sync();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [share, sync]);
 
   // Viewers should see "Paused" (or recording again) without waiting for the timer.
@@ -125,6 +160,7 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
   // This tab was reloaded mid-share (the recording is gone): stop that share.
   // Per tab (sessionStorage), so another open tab can never stop this one.
   useEffect(() => {
+    if (isInApp()) return; // the app may still be sharing it: see adoptOrCleanUp
     let leftover: string | null = null;
     try {
       leftover = sessionStorage.getItem(STORAGE_KEY);
@@ -141,7 +177,7 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
     async (duration: ShareDuration) => {
       setEndedNotice(null);
       const res = await startLiveShare(duration, startedAt);
-      sent.current = 0;
+      sentT.current = -Infinity;
       remember(res.token);
       setShare({ token: res.token, url: liveUrl(res.token), expiresAt: res.expiresAt, atLimit: false });
     },
@@ -175,8 +211,32 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
     return () => clearTimeout(id);
   }, [share, end]);
 
+  /**
+   * App only, after a reload mid-trip: carry on with the share the app kept
+   * going, or stop the one this tab had started if the app no longer has it.
+   */
+  const adoptOrCleanUp = useCallback((fromApp: { token: string; expiresAt: number } | null) => {
+    let leftover: string | null = null;
+    try {
+      leftover = sessionStorage.getItem(STORAGE_KEY);
+    } catch {
+      /* nothing to clean up */
+    }
+    if (fromApp && fromApp.expiresAt > Date.now()) {
+      sentT.current = -Infinity; // the server skips what it already has
+      remember(fromApp.token);
+      setShare({ token: fromApp.token, url: liveUrl(fromApp.token), expiresAt: fromApp.expiresAt, atLimit: false });
+      return;
+    }
+    if (leftover) {
+      remember(null);
+      void stopLiveShare(leftover).catch(() => undefined);
+    }
+  }, []);
+
   return {
     share,
+    adoptOrCleanUp,
     lastSyncAt,
     problem,
     endedNotice,

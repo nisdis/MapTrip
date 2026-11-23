@@ -72,17 +72,18 @@ describe.skipIf(!hasDb)("live share API", async () => {
     expect(body).toMatchObject({ state: "live", nearStart: true, current: null, total: 0, points: [] });
   });
 
-  it("never adds a point twice when an upload is retried", async () => {
+  it("never adds a point twice: retries, or the app and the page both sending", async () => {
     const { token } = await startShare(alice);
     await post({ action: "update", token, from: 0, points: trail(6), stats }, alice);
-    // The answer to that was lost; the client resends from 0 with more points.
-    const res = await post({ action: "update", token, from: 0, points: trail(8), stats }, alice);
-    expect(await res.json()).toMatchObject({ count: 8 });
-    // A gap in what was sent is refused, with what the server has.
-    const gap = await post({ action: "update", token, from: 20, points: trail(2, 20), stats }, alice);
-    expect(gap.status).toBe(409);
-    expect(await gap.json()).toMatchObject({ count: 8 });
-    expect((await (await view(token)).json()).total).toBe(5);
+    // The answer to that was lost; the client resends with more points.
+    const res = await post({ action: "update", token, points: trail(8), stats }, alice);
+    expect(await res.json()).toMatchObject({ count: 8, lastT: pt(7)[2] });
+    // Another sender with an overlapping, partly older batch.
+    await post({ action: "update", token, points: [pt(3), pt(7), pt(8), pt(9)], stats }, alice);
+    const body = await (await view(token)).json();
+    expect(body.total).toBe(7); // points 3..9
+    const ts = body.points.map((p: number[]) => p[2]);
+    expect(new Set(ts).size).toBe(ts.length);
   });
 
   it("lets viewers fetch only what's new", async () => {

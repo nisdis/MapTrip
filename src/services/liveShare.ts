@@ -71,13 +71,21 @@ async function post<T>(body: unknown, keepalive = false): Promise<T> {
 export const startLiveShare = (duration: ShareDuration, tripStartedAt: number) =>
   post<{ token: string; expiresAt: number }>({ action: "start", duration, tripStartedAt });
 
-export const sendLiveUpdate = (
-  token: string,
-  from: number,
-  points: LivePoint[],
-  status: "recording" | "paused",
-  stats: LiveStats,
-) => post<{ count: number; expiresAt: number }>({ action: "update", token, from, points, status, stats });
+/** The server keeps only points newer than its newest one, and says which that is (lastT). */
+export const sendLiveUpdate = (token: string, points: LivePoint[], status: "recording" | "paused", stats: LiveStats) =>
+  post<{ count: number; lastT: number | null; expiresAt: number }>({ action: "update", token, points, status, stats });
+
+/** Index of the first point after time t (the track is in time order). */
+export function firstAfter(track: { t: number }[], t: number): number {
+  let lo = 0;
+  let hi = track.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (track[mid].t > t) hi = mid;
+    else lo = mid + 1;
+  }
+  return lo;
+}
 
 export const extendLiveShare = (token: string) =>
   post<{ expiresAt: number; atLimit: boolean }>({ action: "extend", token });

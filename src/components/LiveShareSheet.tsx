@@ -4,6 +4,7 @@ import { AuthForm } from "./AuthForm";
 import type { AuthMode } from "../hooks/useAuth";
 import type { ActiveShare } from "../hooks/useLiveShare";
 import type { ShareDuration } from "../services/liveShare";
+import { isInApp, shareLink } from "../services/appBridge";
 
 interface LiveShareSheetProps {
   signedIn: boolean;
@@ -60,21 +61,14 @@ export function LiveShareSheet(props: LiveShareSheetProps) {
 
   const sendLink = async () => {
     if (!share) return;
-    const text = "Follow my trip live";
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "Live trip", text, url: share.url });
-        return;
-      } catch (e) {
-        if (e instanceof DOMException && e.name === "AbortError") return;
-      }
-    }
     try {
-      await navigator.clipboard.writeText(share.url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      const result = await shareLink("Live trip", "Follow my trip live", share.url);
+      if (result === "copied") {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
     } catch {
-      setError("Couldn't copy. Press and hold the link to copy it.");
+      setError("Couldn't share. Press and hold the link to copy it.");
     }
   };
 
@@ -135,7 +129,7 @@ export function LiveShareSheet(props: LiveShareSheetProps) {
                 It always stops when you finish the trip, and after 24 hours at most.
               </p>
             </fieldset>
-            <p className="mt-3 rounded-lg bg-milestone/25 px-3 py-2 text-xs">
+            <p className={`mt-3 rounded-lg bg-milestone/25 px-3 py-2 text-xs ${isInApp() ? "hidden" : ""}`}>
               Keep this page open with the screen on. Phones pause web pages when locked, so viewers stop getting
               updates until you unlock.
             </p>

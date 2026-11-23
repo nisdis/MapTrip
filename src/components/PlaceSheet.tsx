@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { shareLink } from "../services/appBridge";
 import {
   Accessibility,
   Car,
@@ -197,14 +198,10 @@ export function PlaceSheet(props: PlaceSheetProps) {
     const url = `${window.location.origin}/p/${path}${nameParam}`;
     const title = place?.name ?? "Dropped pin";
     try {
-      if (navigator.share) {
-        await navigator.share({ title, text: [title, place?.address].filter(Boolean).join(", "), url });
-        return;
-      }
-      await navigator.clipboard.writeText(url);
+      const result = await shareLink(title, [title, place?.address].filter(Boolean).join(", "), url);
+      if (result !== "copied") return; // shared, or the user cancelled the share sheet
       setToast("Link copied");
-    } catch (e) {
-      if (e instanceof DOMException && e.name === "AbortError") return; // user cancelled the share sheet
+    } catch {
       setToast("Couldn't share this place");
     }
     setTimeout(() => setToast(null), 2000);

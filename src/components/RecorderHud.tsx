@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Moon, Pause, Play, Radio, Square } from "lucide-react";
 import type { TrackGap } from "../types/trip";
 import { useReportHeight } from "../hooks/useReportHeight";
+import { isInApp } from "../services/appBridge";
 import {
   SPEED_BANDS,
   SPEED_SCALE_MAX_KMH,
@@ -134,6 +135,7 @@ function TrackingNote({ lastGap }: { lastGap: TrackGap | null }) {
       </p>
     );
   }
+  if (isInApp()) return <p className="mt-1 text-xs text-asphalt/55">Keeps recording with the screen off.</p>;
   return <p className="mt-1 text-xs text-asphalt/55">Keep the screen on. Locking the phone pauses tracking.</p>;
 }
 
