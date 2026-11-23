@@ -74,7 +74,7 @@ export function BatteryGuide({ manufacturer, onClose }: BatteryGuideProps) {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end bg-asphalt/40" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-end bg-black/50" onClick={onClose}>
       <section
         role="dialog"
         aria-modal="true"

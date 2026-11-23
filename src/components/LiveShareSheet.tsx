@@ -75,7 +75,7 @@ export function LiveShareSheet(props: LiveShareSheetProps) {
   const syncAge = props.lastSyncAt ? Math.max(0, Math.round((now - props.lastSyncAt) / 1000)) : null;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end bg-asphalt/40" onClick={props.onClose}>
+    <div className="fixed inset-0 z-40 flex items-end bg-black/50" onClick={props.onClose}>
       <section
         role="dialog"
         aria-modal="true"
@@ -118,7 +118,7 @@ export function LiveShareSheet(props: LiveShareSheetProps) {
                     aria-pressed={duration === d.id}
                     onClick={() => setDuration(d.id)}
                     className={`rounded-xl border-2 px-2 py-3 text-sm font-bold ${
-                      duration === d.id ? "border-asphalt bg-asphalt text-white" : "border-asphalt/20"
+                      duration === d.id ? "border-asphalt bg-asphalt text-paper" : "border-asphalt/20"
                     }`}
                   >
                     {d.label}

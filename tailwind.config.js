@@ -1,5 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  // Dark mode follows a class on <html> (set from System / Light / Dark, see src/theme.ts).
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
@@ -8,8 +10,9 @@ export default {
         hud: ['B612', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       colors: {
-        asphalt: '#1F2A30',
-        paper: '#F4F6F5',
+        // Ink and paper swap in dark mode (CSS variables in index.css).
+        asphalt: 'rgb(var(--c-asphalt) / <alpha-value>)',
+        paper: 'rgb(var(--c-paper) / <alpha-value>)',
         milestone: '#F5C518',
         signal: '#D7263D',
         highway: '#0E6B4F',

@@ -2,6 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme. Ink (asphalt) and paper swap in dark mode; the brand colours stay. */
+:root {
+  --c-asphalt: 31 42 48;
+  --c-paper: 244 246 245;
+  color-scheme: light;
+}
+.dark {
+  --c-asphalt: 226 232 230;
+  --c-paper: 21 27 31;
+  color-scheme: dark;
+}
+body {
+  background: rgb(var(--c-paper));
+}
+
+/* Older screens use Tailwind's white and greys: their dark equivalents. */
+.dark .bg-white { background-color: #1c2429; }
+.dark .bg-white\/90 { background-color: rgb(28 36 41 / 0.9); }
+.dark .bg-gray-50, .dark .hover\:bg-gray-50:hover { background-color: #232c32; }
+.dark .bg-gray-100, .dark .hover\:bg-gray-100:hover { background-color: #2a343b; }
+.dark .bg-gray-200, .dark .hover\:bg-blue-200:hover { background-color: #34404a; }
+.dark .bg-blue-50 { background-color: #17283a; }
+.dark .bg-blue-100 { background-color: #1d3247; }
+.dark .text-gray-900, .dark .text-gray-800 { color: #e6ecea; }
+.dark .text-gray-700 { color: #cfd8d5; }
+.dark .text-gray-600 { color: #b4bfbb; }
+.dark .text-gray-500 { color: #9aa6a2; }
+.dark .text-gray-400 { color: #7d8985; }
+.dark .text-blue-600 { color: #6aa8ff; }
+.dark .text-green-700, .dark .text-green-600 { color: #4fd18b; }
+.dark .text-red-600 { color: #ff7a7a; }
+.dark .border-gray-100, .dark .border-gray-200 { border-color: #2f3a41; }
+.dark .border-gray-300 { border-color: #3d4952; }
+.dark .border-red-200 { border-color: #5a2a2a; }
+.dark .text-\[\#9a6700\] { color: #e5b443; }
+.dark input, .dark textarea, .dark select { color: #e6ecea; }
+.dark ::placeholder { color: #7d8985; }
+
+/* Map furniture */
+.dark .leaflet-container { background: #1a1f22; }
+.dark .leaflet-control-attribution { background: rgb(20 26 30 / 0.7) !important; color: #9aa6a2; }
+.dark .leaflet-control-attribution a { color: #8fb8ff; }
+.dark .leaflet-popup-content-wrapper, .dark .leaflet-popup-tip { background: #1c2429; color: #e6ecea; }
+.dark .leaflet-routing-container { background-color: #1c2429 !important; color: #e6ecea; }
+/* Plain raster fallback tiles, when the vector map can't load */
+.dark .leaflet-tile-pane img.leaflet-tile { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9); }
+
 html {
   overscroll-behavior: none;
   height: 100%;

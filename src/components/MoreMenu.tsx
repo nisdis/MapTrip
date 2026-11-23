@@ -1,3 +1,4 @@
+import { useTheme, type ThemePref } from "../theme";
 import {
   Trash2,
   Settings,
@@ -55,6 +56,8 @@ export function MoreMenu({
               </span>
             </div>
             <div className="border-t border-gray-100 my-2" />
+            <Appearance />
+            <div className="border-t border-gray-100 my-2" />
             <button
               onClick={onExplore}
               className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
@@ -97,5 +100,35 @@ export function MoreMenu({
         </div>
       </div>
     </>
+  );
+}
+
+const OPTIONS: { id: ThemePref; label: string }[] = [
+  { id: "system", label: "System" },
+  { id: "light", label: "Light" },
+  { id: "dark", label: "Dark" },
+];
+
+/** System (follows the phone), Light or Dark. Remembered on this device. */
+function Appearance() {
+  const { pref, setPref } = useTheme();
+  return (
+    <div className="px-4 py-2">
+      <div className="mb-1.5 text-xs font-medium text-gray-500">Appearance</div>
+      <div role="radiogroup" aria-label="Appearance" className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
+        {OPTIONS.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            role="radio"
+            aria-checked={pref === o.id}
+            onClick={() => setPref(o.id)}
+            className={`rounded-md py-1.5 text-xs font-medium ${pref === o.id ? "bg-white text-gray-900 shadow" : "text-gray-600"}`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

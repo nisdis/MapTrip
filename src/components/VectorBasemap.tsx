@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import L from "leaflet";
 import { useMap } from "react-leaflet";
 import { setActiveMap } from "../services/basemapRegistry";
+import { useTheme } from "../theme";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
   BASEMAP_ATTRIBUTION,
@@ -19,6 +20,7 @@ const FALLBACK_ATTRIBUTION =
  */
 export function VectorBasemap() {
   const map = useMap();
+  const { theme } = useTheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -38,7 +40,7 @@ export function VectorBasemap() {
           import("maplibre-gl"),
           // MapLibre v6 needs its worker bundled and pointed to explicitly.
           import("maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"),
-          loadEnglishStyle(controller.signal),
+          loadEnglishStyle(controller.signal, theme),
         ]);
         if (cancelled) return;
         maplibre.setWorkerUrl(worker.default);
@@ -61,7 +63,7 @@ export function VectorBasemap() {
       map.attributionControl.removeAttribution(FALLBACK_ATTRIBUTION);
       if (layer) map.removeLayer(layer);
     };
-  }, [map]);
+  }, [map, theme]);
 
   return null;
 }

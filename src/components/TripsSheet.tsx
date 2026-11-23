@@ -98,7 +98,7 @@ export function TripsSheet({
         <button
           onClick={onStart}
           disabled={!hasLocation}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-milestone text-asphalt font-bold disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-milestone text-[#1F2A30] font-bold disabled:opacity-50"
         >
           <Circle className="w-4 h-4 fill-signal text-signal" /> Record a trip
         </button>

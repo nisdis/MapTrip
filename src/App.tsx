@@ -1024,7 +1024,7 @@ function App() {
       {liveShare.endedNotice && (
         <div
           role="alert"
-          className="fixed top-4 inset-x-4 z-40 mx-auto flex max-w-md items-start gap-3 rounded-xl bg-asphalt px-4 py-3 font-hud text-sm text-white shadow-lg"
+          className="fixed top-4 inset-x-4 z-40 mx-auto flex max-w-md items-start gap-3 rounded-xl bg-asphalt px-4 py-3 font-hud text-sm text-paper shadow-lg"
         >
           <span className="flex-1">{liveShare.endedNotice}</span>
           <button type="button" onClick={liveShare.dismissNotice} className="font-bold underline">
@@ -1081,7 +1081,7 @@ function App() {
         <button
           type="button"
           onClick={handleResetView}
-          className="fixed top-4 left-1/2 -translate-x-1/2 z-20 rounded-full bg-asphalt px-5 py-3 font-hud text-sm font-bold text-white shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-20 rounded-full bg-asphalt px-5 py-3 font-hud text-sm font-bold text-paper shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
         >
           Recenter on me
         </button>
@@ -1117,7 +1117,7 @@ function App() {
           role="status"
           className="pointer-events-none fixed left-4 right-20 top-[7.75rem] z-20 flex justify-start"
         >
-          <p className="flex max-w-md items-start gap-2 rounded-xl bg-asphalt/90 px-3 py-2 text-xs text-white shadow-lg">
+          <p className="flex max-w-md items-start gap-2 rounded-xl bg-asphalt/90 px-3 py-2 text-xs text-paper shadow-lg">
             <WifiOff aria-hidden className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
             <span>
               <b>You're offline.</b> Recording, your trips and saved maps work. Search, directions and sharing

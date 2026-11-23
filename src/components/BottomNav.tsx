@@ -32,7 +32,7 @@ export function BottomNav({ activeTab, onTabChange, onMoreClick, onRecord }: Bot
                 className="flex flex-col items-center justify-center flex-1 h-full -mt-5 focus-visible:outline-none group"
                 aria-label="Record a trip"
               >
-                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-milestone text-asphalt shadow-lg ring-4 ring-white group-focus-visible:ring-asphalt">
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-milestone text-[#1F2A30] shadow-lg ring-4 ring-white dark:ring-[#1c2429] group-focus-visible:ring-asphalt">
                   <Circle className="w-6 h-6 fill-signal text-signal" />
                 </span>
                 <span className="text-xs mt-1 font-medium text-gray-700">Record</span>

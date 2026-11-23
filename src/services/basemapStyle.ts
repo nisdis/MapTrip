@@ -2,6 +2,8 @@ import type { StyleSpecification } from "maplibre-gl";
 
 // OpenFreeMap: free vector tiles built from OpenStreetMap, no API key.
 export const BASEMAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+/** Same map data, dark colours (dark mode). */
+export const BASEMAP_DARK_STYLE_URL = "https://tiles.openfreemap.org/styles/dark";
 export const BASEMAP_ATTRIBUTION =
   '<a href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a> ' +
   '&copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noreferrer">OpenMapTiles</a> ' +
@@ -25,8 +27,8 @@ export function makeEnglish(style: StyleSpecification): StyleSpecification {
   return { ...style, layers };
 }
 
-export async function loadEnglishStyle(signal?: AbortSignal): Promise<StyleSpecification> {
-  const response = await fetch(BASEMAP_STYLE_URL, { signal });
+export async function loadEnglishStyle(signal?: AbortSignal, theme: "light" | "dark" = "light"): Promise<StyleSpecification> {
+  const response = await fetch(theme === "dark" ? BASEMAP_DARK_STYLE_URL : BASEMAP_STYLE_URL, { signal });
   if (!response.ok) throw new Error(`Basemap style failed: ${response.status}`);
   return makeEnglish((await response.json()) as StyleSpecification);
 }

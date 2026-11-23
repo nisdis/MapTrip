@@ -148,7 +148,7 @@ export function TripShareSheet({ trip, onClose }: TripShareSheetProps) {
   const savedSharing = loaded && loaded.visibility !== "private" && !changed;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end bg-asphalt/40" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end bg-black/50" onClick={onClose}>
       <section
         role="dialog"
         aria-modal="true"
@@ -177,12 +177,12 @@ export function TripShareSheet({ trip, onClose }: TripShareSheetProps) {
                     aria-pressed={visibility === id}
                     onClick={() => setVisibility(id)}
                     className={`rounded-xl border-2 px-2 py-2 text-left ${
-                      visibility === id ? "border-asphalt bg-asphalt text-white" : "border-asphalt/20"
+                      visibility === id ? "border-asphalt bg-asphalt text-paper" : "border-asphalt/20"
                     }`}
                   >
                     <Icon aria-hidden className="h-4 w-4" />
                     <div className="mt-1 text-sm font-bold">{label}</div>
-                    <div className={`text-[11px] ${visibility === id ? "text-white/80" : "text-asphalt/60"}`}>{note}</div>
+                    <div className={`text-[11px] ${visibility === id ? "text-paper/80" : "text-asphalt/60"}`}>{note}</div>
                   </button>
                 ))}
               </div>
@@ -205,7 +205,7 @@ export function TripShareSheet({ trip, onClose }: TripShareSheetProps) {
                         aria-pressed={hideM === m}
                         onClick={() => setHideM(m)}
                         className={`rounded-xl border-2 py-2 text-sm font-bold ${
-                          hideM === m ? "border-asphalt bg-asphalt text-white" : "border-asphalt/20"
+                          hideM === m ? "border-asphalt bg-asphalt text-paper" : "border-asphalt/20"
                         }`}
                       >
                         {hideLabel(m)}

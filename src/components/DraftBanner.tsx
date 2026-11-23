@@ -28,7 +28,7 @@ export function DraftBanner({ draft, onReview, onDiscard }: DraftBannerProps) {
         >
           Discard
         </button>
-        <button type="button" onClick={onReview} className="h-11 flex-1 rounded-xl bg-milestone font-bold">
+        <button type="button" onClick={onReview} className="h-11 flex-1 rounded-xl bg-milestone font-bold text-[#1F2A30]">
           Review and save
         </button>
       </div>

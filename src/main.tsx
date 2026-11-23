@@ -7,6 +7,7 @@ import LiveViewer from './live/LiveViewer.tsx';
 import TripViewer from './live/TripViewer.tsx';
 import { setupLeaflet } from './utils/leaflet-setup';
 import './index.css';
+import './theme';
 
 const container = document.getElementById('root')!;
 const root = createRoot(container);

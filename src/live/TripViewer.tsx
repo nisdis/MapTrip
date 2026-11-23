@@ -41,7 +41,7 @@ function ReportSheet({ tripId, onClose }: { tripId: string; onClose: () => void 
   };
 
   return (
-    <div className="fixed inset-0 z-[1100] flex items-end bg-asphalt/40" onClick={onClose}>
+    <div className="fixed inset-0 z-[1100] flex items-end bg-black/50" onClick={onClose}>
       <section
         role="dialog"
         aria-modal="true"
@@ -108,7 +108,7 @@ function NotShared() {
         <Route aria-hidden className="mx-auto h-10 w-10 text-asphalt/40" />
         <h1 className="mt-3 text-xl font-bold">This trip isn't shared</h1>
         <p className="mt-2 text-sm text-asphalt/70">It may be private, or the link may be wrong.</p>
-        <a href="/" className="mt-5 inline-block rounded-xl bg-asphalt px-5 py-3 text-sm font-bold text-white">
+        <a href="/" className="mt-5 inline-block rounded-xl bg-asphalt px-5 py-3 text-sm font-bold text-paper">
           Open Map Trip
         </a>
       </div>

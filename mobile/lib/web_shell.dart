@@ -52,6 +52,10 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
   Timer? _liveTimer;
   bool _ready = false;
 
+  /// The page's theme (System / Light / Dark is chosen in the page); null
+  /// until it says, then the phone's setting is used.
+  bool? _dark;
+
   /// Opened from a link (a live trip, a place): start on that page.
   String? _startUrl;
   bool _startKnown = false;
@@ -254,6 +258,9 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
           ),
         );
         return {'ok': true};
+      case 'theme':
+        if (mounted) setState(() => _dark = msg['dark'] == true);
+        return {'ok': true};
       case 'shareText':
         final text = [msg['text'], msg['url']].whereType<String>().join('\n');
         await SharePlus.instance.share(
@@ -315,6 +322,10 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final dark =
+        _dark ?? MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    // Same as the page's paper colour (index.css --c-paper).
+    final background = dark ? const Color(0xFF151B1F) : const Color(0xFFF4F6F5);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
@@ -329,16 +340,18 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
       // Android 15+ draws apps behind the system bars: dark icons on our light
       // background, and the page kept clear of both bars (SafeArea below).
       child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: const SystemUiOverlayStyle(
+        value: SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-          statusBarBrightness: Brightness.light,
-          systemNavigationBarColor: Color(0xFFF4F6F5),
-          systemNavigationBarIconBrightness: Brightness.dark,
+          statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+          statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+          systemNavigationBarColor: background,
+          systemNavigationBarIconBrightness: dark
+              ? Brightness.light
+              : Brightness.dark,
           systemNavigationBarContrastEnforced: false,
         ),
         child: Scaffold(
-          backgroundColor: const Color(0xFFF4F6F5),
+          backgroundColor: background,
           body: SafeArea(
             // Wait (a moment) to learn whether a link opened the app.
             child: !_startKnown

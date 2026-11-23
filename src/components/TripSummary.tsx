@@ -94,7 +94,7 @@ export function TripSummary(props: TripSummaryProps) {
         <button
           type="button"
           onClick={() => onSave(name.trim() || defaultName)}
-          className="h-14 flex-1 rounded-xl bg-milestone font-bold text-asphalt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asphalt"
+          className="h-14 flex-1 rounded-xl bg-milestone font-bold text-[#1F2A30] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asphalt"
         >
           Save trip
         </button>
@@ -164,7 +164,7 @@ function GapList({
                   e.stopPropagation();
                   onSetFill(g.index, "road");
                 }}
-                className={`px-2.5 py-1.5 disabled:opacity-40 ${road ? "bg-asphalt text-white" : ""}`}
+                className={`px-2.5 py-1.5 disabled:opacity-40 ${road ? "bg-asphalt text-paper" : ""}`}
               >
                 Road
               </button>
@@ -175,7 +175,7 @@ function GapList({
                   e.stopPropagation();
                   onSetFill(g.index, "straight");
                 }}
-                className={`px-2.5 py-1.5 ${!road ? "bg-asphalt text-white" : ""}`}
+                className={`px-2.5 py-1.5 ${!road ? "bg-asphalt text-paper" : ""}`}
               >
                 Straight
               </button>

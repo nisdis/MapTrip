@@ -7,6 +7,14 @@
     <meta name="theme-color" content="#3b82f6" />
     <meta name="description" content="Record My Trip - Track and save your journeys" />
     <title>Record My Trip</title>
+    <script>
+      // Dark or light before anything draws (no flash). The full logic is in src/theme.ts.
+      try {
+        var t = localStorage.getItem("theme");
+        if (t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches))
+          document.documentElement.classList.add("dark");
+      } catch (e) {}
+    </script>
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">
     <link rel="mask-icon" href="/mask-icon.svg" color="#3b82f6">
   </head>

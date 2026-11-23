@@ -82,7 +82,7 @@ function EndedCard({ state }: { state: "missing" | "ended" | "expired" }) {
         <Radio aria-hidden className="mx-auto h-10 w-10 text-asphalt/40" />
         <h1 className="mt-3 text-xl font-bold">{title}</h1>
         <p className="mt-2 text-sm text-asphalt/70">{body}</p>
-        <a href="/" className="mt-5 inline-block rounded-xl bg-asphalt px-5 py-3 text-sm font-bold text-white">
+        <a href="/" className="mt-5 inline-block rounded-xl bg-asphalt px-5 py-3 text-sm font-bold text-paper">
           Open Map Trip
         </a>
       </div>
@@ -190,7 +190,7 @@ export default function LiveViewer({ token }: { token: string }) {
         <button
           type="button"
           onClick={() => setFollow(true)}
-          className="absolute right-3 top-16 z-[1000] flex items-center gap-1.5 rounded-full bg-asphalt px-4 py-2 text-sm font-bold text-white shadow-lg"
+          className="absolute right-3 top-16 z-[1000] flex items-center gap-1.5 rounded-full bg-asphalt px-4 py-2 text-sm font-bold text-paper shadow-lg"
         >
           <Crosshair aria-hidden className="h-4 w-4" /> Follow
         </button>

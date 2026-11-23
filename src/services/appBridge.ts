@@ -66,6 +66,7 @@ type AppMessage =
   | { type: "share"; share: ShareHandoff | null }
   | { type: "shareText"; title: string; text: string; url: string }
   | { type: "batteryStatus" }
+  | { type: "theme"; dark: boolean }
   | { type: "saveFile"; name: string; mime: string; text: string }
   | { type: "openBatterySettings" };
 

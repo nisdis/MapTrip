@@ -21,7 +21,7 @@ export const MAX_AREA_KM = 30;
 /** Average size of a vector tile, for the estimate shown before downloading. */
 const AVG_TILE_BYTES = 70_000;
 const TILEJSON = "https://tiles.openfreemap.org/planet";
-const STYLE = "https://tiles.openfreemap.org/styles/liberty";
+const STYLES = ["https://tiles.openfreemap.org/styles/liberty", "https://tiles.openfreemap.org/styles/dark"];
 const FONTS = ["Noto Sans Regular", "Noto Sans Bold", "Noto Sans Italic"];
 
 const store = localforage.createInstance({ name: "record-my-trip", storeName: "offline_areas" });
@@ -82,7 +82,7 @@ export async function saveArea(
   let next = 0;
 
   // What the map needs besides tiles (cached by the service worker as fetched).
-  const extras = [STYLE, TILEJSON, ...FONTS.flatMap((f) => [0, 256, 512, 768].map((r) => `https://tiles.openfreemap.org/fonts/${encodeURIComponent(f)}/${r}-${r + 255}.pbf`))];
+  const extras = [...STYLES, TILEJSON, ...FONTS.flatMap((f) => [0, 256, 512, 768].map((r) => `https://tiles.openfreemap.org/fonts/${encodeURIComponent(f)}/${r}-${r + 255}.pbf`))];
   await Promise.all(extras.map((u) => fetch(u, { signal }).catch(() => undefined)));
 
   const worker = async () => {

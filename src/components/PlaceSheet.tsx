@@ -420,7 +420,7 @@ export function PlaceSheet(props: PlaceSheetProps) {
                 aria-pressed={saved.isWork}
                 onClick={saved.onToggleWork}
                 className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold ${focusRing} ${
-                  saved.isWork ? "bg-asphalt text-white" : "border border-asphalt/25"
+                  saved.isWork ? "bg-asphalt text-paper" : "border border-asphalt/25"
                 }`}
               >
                 <Briefcase aria-hidden className="h-4 w-4" /> {saved.isWork ? "Your Work" : "Set as Work"}
