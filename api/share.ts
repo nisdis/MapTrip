@@ -115,8 +115,42 @@ async function appHtml(origin: string, appUrl: string): Promise<{ html: string; 
   };
 }
 
+const LIVE_RE = /^\/live\/([A-Za-z0-9_-]{22})$/;
+
+/** Live trip links: a generic preview (it would be stale in a chat app anyway), never indexed. */
+async function livePage(url: URL): Promise<Response> {
+  const valid = LIVE_RE.test(url.pathname);
+  const { html, source } = await appHtml(url.origin, url.pathname);
+  const title = valid ? "Live trip" : "Map Trip";
+  const description = "Follow this trip live on the map. The link stops working when the trip ends.";
+  const tags = [
+    `<meta property="og:type" content="website">`,
+    `<meta property="og:site_name" content="Map Trip">`,
+    `<meta property="og:title" content="${escapeHtml(title)}">`,
+    `<meta property="og:description" content="${escapeHtml(description)}">`,
+    `<meta property="og:url" content="${escapeHtml(url.origin + url.pathname)}">`,
+    `<meta name="twitter:card" content="summary">`,
+    `<meta name="description" content="${escapeHtml(description)}">`,
+    `<meta name="robots" content="noindex, nofollow">`,
+  ].join("\n    ");
+  const page = html
+    .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(`${title} · Map Trip`)}</title>`)
+    .replace(/<meta name="description"[^>]*>/, "")
+    .replace("</head>", `    ${tags}\n  </head>`);
+  return new Response(page, {
+    status: valid ? 200 : 404,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "public, max-age=300, s-maxage=86400",
+      "X-Robots-Tag": "noindex, nofollow",
+      "X-Share-Source": source,
+    },
+  });
+}
+
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
+  if (url.pathname.startsWith("/live/")) return livePage(url);
   // Rewrites keep the original path; fall back to query params just in case.
   const m = url.pathname.match(/^\/p\/(node|way|relation|pin)\/([^/]+)$/);
   const kind = m?.[1] ?? url.searchParams.get("type") ?? "";

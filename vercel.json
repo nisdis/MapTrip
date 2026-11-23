@@ -2,7 +2,8 @@
   "regions": ["sin1"],
   "rewrites": [
     { "source": "/api/auth/:path*", "destination": "/api/auth" },
-    { "source": "/p/:type/:id", "destination": "/api/share" }
+    { "source": "/p/:type/:id", "destination": "/api/share" },
+    { "source": "/live/:token", "destination": "/api/share" }
   ],
   "functions": {
     "api/share.ts": { "includeFiles": "dist/index.html" }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Moon, Pause, Play, Square } from "lucide-react";
+import { Moon, Pause, Play, Radio, Square } from "lucide-react";
 import type { TrackGap } from "../types/trip";
 import { useReportHeight } from "../hooks/useReportHeight";
 import {
@@ -27,6 +27,9 @@ interface RecorderHudProps {
   estimatedM: number;
   lastGap: TrackGap | null;
   onPocket: () => void;
+  /** a live link is active */
+  sharing: boolean;
+  onShare: () => void;
 }
 
 const HOLD_MS = 900;
@@ -60,7 +63,7 @@ function HoldToFinish({ onFinish }: { onFinish: () => void }) {
       onContextMenu={(e) => e.preventDefault()}
       // Keyboard and assistive tech activate with a normal press.
       onClick={(e) => e.detail === 0 && onFinish()}
-      className="relative h-14 flex-1 overflow-hidden rounded-xl bg-signal text-white font-bold select-none touch-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asphalt"
+      className="relative h-14 flex-[1.5] overflow-hidden whitespace-nowrap rounded-xl bg-signal text-white font-bold select-none touch-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asphalt"
     >
       <span
         aria-hidden
@@ -163,6 +166,11 @@ export function RecorderHud(props: RecorderHudProps) {
               }`}
             />
             {recording ? "Recording" : "Paused"}
+            {props.sharing && (
+              <span className="ml-1 rounded-full bg-signal px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
+                Live
+              </span>
+            )}
           </div>
           <span className="text-asphalt/60">{gpsLabel(accuracyM)}</span>
         </div>
@@ -194,7 +202,7 @@ export function RecorderHud(props: RecorderHudProps) {
         />
       </div>
 
-      <div className="flex gap-3 px-4 pt-2.5">
+      <div className="flex gap-2 px-4 pt-2.5">
         {recording ? (
           <button
             type="button"
@@ -220,6 +228,17 @@ export function RecorderHud(props: RecorderHudProps) {
           className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl border-2 border-asphalt/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asphalt"
         >
           <Moon aria-hidden className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={props.onShare}
+          aria-label={props.sharing ? "Live sharing on. Manage live link" : "Share live location"}
+          title="Share live"
+          className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl border-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asphalt ${
+            props.sharing ? "border-signal text-signal bg-signal/10" : "border-asphalt/30"
+          }`}
+        >
+          <Radio aria-hidden className="h-5 w-5" />
         </button>
         <HoldToFinish onFinish={props.onFinish} />
       </div>

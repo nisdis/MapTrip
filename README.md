@@ -26,6 +26,19 @@ speed, distance, time and altitude. **Pause** for stops; **hold** the red button
 to finish. The screen stays awake while recording, and an unfinished trip is
 recovered if the tab closes.
 
+### Live sharing
+
+While recording, the radio button shares a live link (sign-in required; anyone
+with the link can watch, no account needed). Choose 1 hour, 8 hours or until the
+trip ends; every link also ends when the trip finishes and after 24 hours at
+most (+1 hour extends it within that limit). The phone uploads every 20 s and
+viewers refresh every 20 s from a CDN-cached answer. Viewers see the route, the
+current position, speed and stats, but never anything within 300 m of where the
+trip started. When sharing stops, the location data is deleted.
+
+Limitation: phone browsers pause web pages when the screen locks, so viewers
+see "No signal" until the phone is unlocked. Keep the screen on (pocket mode).
+
 ### Place details
 Tap the map to see what's there: a place icon (cafe, shop, ...) gives its name,
 category, address, phone, website and opening hours, with "Open · Closes 9:00 PM"

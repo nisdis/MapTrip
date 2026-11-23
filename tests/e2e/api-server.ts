@@ -5,6 +5,7 @@ import * as auth from "../../api/auth";
 import * as trips from "../../api/trips";
 import * as saved from "../../api/saved";
 import * as share from "../../api/share";
+import * as live from "../../api/live";
 
 type Mod = Record<string, ((r: Request) => Promise<Response>) | undefined>;
 const PORT = Number(process.env.API_PORT ?? 3999);
@@ -13,6 +14,7 @@ function route(path: string): Mod | null {
   if (path.startsWith("/api/auth")) return auth as unknown as Mod;
   if (path === "/api/trips") return trips as unknown as Mod;
   if (path === "/api/saved") return saved as unknown as Mod;
+  if (path === "/api/live") return live as unknown as Mod;
   if (path.startsWith("/p/")) return share as unknown as Mod;
   return null;
 }

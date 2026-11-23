@@ -44,6 +44,8 @@ import { DraftBanner } from "./components/DraftBanner";
 import { clearDraft } from "./services/draftStore";
 import { computeStats } from "./utils/tripStats";
 import { useTripRecorder } from "./hooks/useTripRecorder";
+import { useLiveShare } from "./hooks/useLiveShare";
+import { LiveShareSheet } from "./components/LiveShareSheet";
 import { useAuth } from "./hooks/useAuth";
 import { authClient } from "./services/authClient";
 import {
@@ -142,6 +144,20 @@ function App() {
   const [follow, setFollow] = useState(true);
   const [pocket, setPocket] = useState(false);
   const estimatedM = gapDistance(recorder.gaps);
+  const liveShare = useLiveShare({
+    status: recorder.status,
+    startedAt: recorder.startedAt,
+    track: recorder.track,
+    stats: {
+      distanceM: recorder.distanceM,
+      estimatedM,
+      maxSpeedMs: recorder.maxSpeedMs,
+      speedMs: recorder.speedMs,
+      altitudeM: recorder.altitudeM,
+      activeSeconds: recorder.activeSeconds,
+    },
+  });
+  const [showLiveShare, setShowLiveShare] = useState(false);
   // Height of whichever recorder panel covers the bottom of the map.
   const [panelHeight, setPanelHeight] = useState(0);
 
@@ -801,7 +817,35 @@ function App() {
             setPocket(true);
             setFollow(false); // nothing to see under the black screen: skip map work
           }}
+          sharing={!!liveShare.share}
+          onShare={() => setShowLiveShare(true)}
         />
+      )}
+
+      {showLiveShare && isLive && (
+        <LiveShareSheet
+          signedIn={!!auth.user}
+          share={liveShare.share}
+          lastSyncAt={liveShare.lastSyncAt}
+          problem={liveShare.problem}
+          onAuthenticate={auth.authenticate}
+          onStart={liveShare.start}
+          onExtend={liveShare.extend}
+          onStop={liveShare.stop}
+          onClose={() => setShowLiveShare(false)}
+        />
+      )}
+
+      {liveShare.endedNotice && (
+        <div
+          role="alert"
+          className="fixed top-4 inset-x-4 z-40 mx-auto flex max-w-md items-start gap-3 rounded-xl bg-asphalt px-4 py-3 font-hud text-sm text-white shadow-lg"
+        >
+          <span className="flex-1">{liveShare.endedNotice}</span>
+          <button type="button" onClick={liveShare.dismissNotice} className="font-bold underline">
+            OK
+          </button>
+        </div>
       )}
 
       {pocket && isLive && (

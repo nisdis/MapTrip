@@ -46,6 +46,28 @@ try {
     );
   `);
   console.log("[migrate] saved_places table ok");
+
+  // Live trip sharing. One row per share link; the location data is dropped as
+  // soon as the share ends, and ended/expired rows are deleted after a day.
+  await pool.query(`
+    create table if not exists live_shares (
+      token text primary key,
+      user_id text not null references "user" (id) on delete cascade,
+      created_at timestamptz not null default now(),
+      expires_at timestamptz not null,
+      ended_at timestamptz,
+      trip_started_at bigint not null,
+      status text not null default 'recording',
+      stats jsonb not null default '{}'::jsonb,
+      points jsonb not null default '[]'::jsonb,
+      point_count integer not null default 0,
+      trail_rev integer not null default 0,
+      updated_at timestamptz not null default now()
+    );
+    create index if not exists live_shares_user_idx on live_shares (user_id);
+    create index if not exists live_shares_expires_idx on live_shares (expires_at);
+  `);
+  console.log("[migrate] live_shares table ok");
 } catch (error) {
   console.error("[migrate] FAILED - cloud save may not work:", error);
 } finally {
