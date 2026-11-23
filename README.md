@@ -66,6 +66,15 @@ Reported trips, for emails in `ADMIN_EMAILS`).
 - Trips › **GPX** exports a trip; **Import GPX** adds one (marked "Imported",
   also when shared).
 
+### Deleting an account
+
+Account › **Delete my account** (password required, even when just signed in)
+removes the account and everything in it: cloud trips and their photos, shared
+and live links, views and reports on those trips, saved places, the public name,
+reports made, and all sessions (`api/account.ts`; linked rows go by
+`on delete cascade`). Trips on the device stay unless the person ticks
+"Also remove the trips saved on this device".
+
 ### Place details
 Tap the map to see what's there: a place icon (cafe, shop, ...) gives its name,
 category, address, phone, website and opening hours, with "Open · Closes 9:00 PM"

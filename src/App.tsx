@@ -1229,6 +1229,33 @@ function App() {
         {activeTab === "account" && (
           <AccountSheet
             onShowReports={isAdmin ? () => setShowReports(true) : undefined}
+            onDeleteAccount={async (password, alsoThisDevice) => {
+              let res: Response;
+              try {
+                res = await fetch("/api/account", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "delete", password }),
+                });
+              } catch {
+                throw new Error("You're offline. Deleting your account needs a connection.");
+              }
+              const body = await res.json().catch(() => ({}));
+              if (!res.ok) throw new Error(body.message || "Couldn't delete the account");
+              if (alsoThisDevice) {
+                for (const t of await listLocalTrips()) {
+                  await Promise.all((t.photos ?? []).map((p) => deletePhotoBlob(p.id)));
+                  await deleteLocalTrip(t.id);
+                }
+              } else {
+                // Kept on this device, but no longer linked to an account.
+                for (const t of await listLocalTrips()) {
+                  if (t.cloudSyncedAt) await saveTripLocally({ ...t, cloudSyncedAt: undefined, photos: t.photos?.map((p) => ({ id: p.id, addedAt: p.addedAt })) });
+                }
+              }
+              await authClient.signOut().catch(() => undefined);
+              await refreshTrips();
+            }}
             userEmail={auth.user?.email ?? null}
             onAuthenticate={auth.authenticate}
             onSignOut={auth.signOut}

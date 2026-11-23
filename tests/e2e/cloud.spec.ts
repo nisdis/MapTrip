@@ -79,3 +79,27 @@ test("favourites sync between two devices, deletions too", async ({ browser }) =
   await a.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect.poll(async () => savedTab(a), { timeout: 10_000 }).toContain("No favourites yet");
 });
+
+test("delete my account: needs the password; afterwards signed out", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForSelector(".leaflet-container");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await signUpFromSheet(page, "leaving@test.com", "signup");
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toHaveCount(0, { timeout: 10_000 });
+  await page.getByRole("button", { name: "Account", exact: true }).click();
+  await page.getByRole("button", { name: "Delete my account" }).click();
+  const form = page.getByRole("form", { name: "Delete account" });
+  await expect(form).toContainText("can't be undone");
+  await form.getByLabel("Your password").fill("not-my-password");
+  await form.getByRole("button", { name: "Delete forever" }).click();
+  await expect(form.getByRole("alert")).toContainText("That password isn't right");
+  await form.getByLabel("Your password").fill("password123");
+  await form.getByRole("button", { name: "Delete forever" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Account deleted" })).toBeVisible();
+  await page.getByRole("button", { name: "Close", exact: true }).last().click();
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+  // The account really is gone: signing in fails.
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await signUpFromSheet(page, "leaving@test.com", "signin");
+  await expect(page.getByRole("alert")).toBeVisible();
+});
