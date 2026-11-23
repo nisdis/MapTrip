@@ -154,7 +154,7 @@ export function TripsSheet({
                 <div className="text-xs text-gray-500 mt-1">
                   {new Date(trip.createdAt).toLocaleString()}
                   {trip.kind === "recorded" &&
-                    ` · ${formatDistance(trip.distanceM)} · ${formatDuration(trip.durationS)} · max ${maxKmh(trip)} km/h`}
+                    ` · ${formatDistance(trip.distanceM)}${trip.gaps?.length ? " (incl. estimate)" : ""} · ${formatDuration(trip.durationS)} · max ${maxKmh(trip)} km/h`}
                 </div>
               </button>
               <div className="flex items-center gap-2 mt-2 overflow-x-auto">

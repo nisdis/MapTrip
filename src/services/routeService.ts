@@ -31,3 +31,27 @@ export function formatDriveTime(seconds: number): string {
   const m = min % 60;
   return m ? `${h} hr ${m} min` : `${h} hr`;
 }
+
+/** Likely road route between two points (for filling a tracking gap). */
+export async function routePath(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+): Promise<{ distanceM: number; path: [number, number][] } | null> {
+  try {
+    const res = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}` +
+        `?overview=full&geometries=geojson&alternatives=false&steps=false`,
+      { signal: AbortSignal.timeout(10000) },
+    );
+    if (!res.ok) return null;
+    const body = (await res.json()) as {
+      code?: string;
+      routes?: { distance: number; geometry: { coordinates: [number, number][] } }[];
+    };
+    const r = body.code === "Ok" ? body.routes?.[0] : undefined;
+    if (!r) return null;
+    return { distanceM: r.distance, path: r.geometry.coordinates.map(([lng, lat]) => [lat, lng]) };
+  } catch {
+    return null;
+  }
+}

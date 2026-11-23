@@ -10,6 +10,7 @@ interface TripSummaryProps {
   onSave: (name: string) => void;
   onDiscard: () => void;
   onHeight: (px: number) => void;
+  estimatedM: number;
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -21,7 +22,7 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function TripSummary({ defaultName, activeSeconds, stats, onSave, onDiscard, onHeight }: TripSummaryProps) {
+export function TripSummary({ defaultName, activeSeconds, stats, onSave, onDiscard, onHeight, estimatedM }: TripSummaryProps) {
   const [name, setName] = useState(defaultName);
   const ref = useReportHeight(onHeight);
   const hasAlt = stats.maxAltM != null;
@@ -34,12 +35,21 @@ export function TripSummary({ defaultName, activeSeconds, stats, onSave, onDisca
     >
       <div className="text-sm font-bold">Trip finished</div>
       <div className="mt-1 flex items-baseline gap-2">
-        <span className="text-5xl font-bold tabular-nums">{formatKm(stats.distanceM)}</span>
+        <span className="text-5xl font-bold tabular-nums">{formatKm(stats.distanceM + estimatedM)}</span>
         <span className="text-lg text-asphalt/70">km in {formatClock(activeSeconds)}</span>
       </div>
 
+      {estimatedM > 0 && (
+        <p className="mt-1 text-sm text-[#9a6700]">
+          Includes {formatKm(estimatedM)} km estimated while the screen was off.
+        </p>
+      )}
+
       <dl className="mt-3 divide-y divide-asphalt/15 border-y border-asphalt/15">
-        <Row label="Average speed" value={`${formatSpeedKmh(stats.avgSpeedMs)} km/h`} />
+        <Row
+          label="Average speed"
+          value={`${formatSpeedKmh(activeSeconds > 0 ? (stats.distanceM + estimatedM) / activeSeconds : 0)} km/h`}
+        />
         <Row label="Max speed" value={`${formatSpeedKmh(stats.maxSpeedMs)} km/h`} />
         {hasAlt && <Row label="Highest point" value={`${Math.round(stats.maxAltM!)} m`} />}
         {hasAlt && <Row label="Climbed" value={`${Math.round(stats.ascentM)} m`} />}

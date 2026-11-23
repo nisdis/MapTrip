@@ -1,5 +1,5 @@
 import localforage from "localforage";
-import type { TrackPoint } from "../types/trip";
+import type { TrackGap, TrackPoint } from "../types/trip";
 
 // An in-progress trip is saved here so it survives a closed tab or a dead phone.
 const store = localforage.createInstance({
@@ -10,6 +10,7 @@ const store = localforage.createInstance({
 export interface TripDraft {
   startedAt: number;
   track: TrackPoint[];
+  gaps?: TrackGap[];
   distanceM: number;
   maxSpeedMs: number;
   activeSeconds: number;

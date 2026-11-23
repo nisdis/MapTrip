@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play, Square } from "lucide-react";
+import { Moon, Pause, Play, Square } from "lucide-react";
+import type { TrackGap } from "../types/trip";
 import { useReportHeight } from "../hooks/useReportHeight";
 import {
   SPEED_BANDS,
@@ -22,6 +23,10 @@ interface RecorderHudProps {
   onResume: () => void;
   onFinish: () => void;
   onHeight: (px: number) => void;
+  /** distance across tracking gaps (screen off), estimated */
+  estimatedM: number;
+  lastGap: TrackGap | null;
+  onPocket: () => void;
 }
 
 const HOLD_MS = 900;
@@ -99,16 +104,34 @@ function SpeedRibbon({ kmh, maxKmh }: { kmh: number; maxKmh: number }) {
   );
 }
 
-function Stat({ label, value, unit }: { label: string; value: string; unit?: string }) {
+function Stat({ label, value, unit, note }: { label: string; value: string; unit?: string; note?: string }) {
   return (
     <div className="px-4 py-2.5">
-      <div className="text-xs text-asphalt/60">{label}</div>
+      <div className="text-xs text-asphalt/60">
+        {label}
+        {note && <span className="ml-1 text-[#9a6700]">{note}</span>}
+      </div>
       <div className="mt-0.5 flex items-baseline gap-1">
         <span className="text-2xl font-bold tabular-nums">{value}</span>
         {unit && <span className="text-sm text-asphalt/60">{unit}</span>}
       </div>
     </div>
   );
+}
+
+/** Says plainly that locking the phone pauses tracking, and what happened after a gap. */
+function TrackingNote({ lastGap }: { lastGap: TrackGap | null }) {
+  const recent = lastGap && Date.now() - lastGap.endedAt < 30000;
+  if (recent) {
+    const min = Math.max(1, Math.round((lastGap.endedAt - lastGap.startedAt) / 60000));
+    return (
+      <p role="status" className="mt-1 text-xs font-bold text-[#9a6700]">
+        Tracking paused for {min} min while the screen was off.{" "}
+        {lastGap.path ? "Filled with an estimated road route." : "Shown as a dashed line."}
+      </p>
+    );
+  }
+  return <p className="mt-1 text-xs text-asphalt/55">Keep the screen on. Locking the phone pauses tracking.</p>;
 }
 
 function gpsLabel(accuracyM: number | null): string {
@@ -144,6 +167,8 @@ export function RecorderHud(props: RecorderHudProps) {
           <span className="text-asphalt/60">{gpsLabel(accuracyM)}</span>
         </div>
 
+        <TrackingNote lastGap={props.lastGap} />
+
         <div className="mt-2 flex items-baseline">
           <span className="inline-block min-w-[2ch] text-[76px] leading-none font-bold tabular-nums">
             {formatSpeedKmh(speedMs)}
@@ -154,7 +179,12 @@ export function RecorderHud(props: RecorderHudProps) {
       </div>
 
       <div className="mt-2 grid grid-cols-2 border-t border-asphalt/15 [&>*:nth-child(odd)]:border-r [&>*:nth-child(odd)]:border-asphalt/15 [&>*:nth-child(-n+2)]:border-b [&>*:nth-child(-n+2)]:border-asphalt/15">
-        <Stat label="Distance" value={formatKm(distanceM)} unit="km" />
+        <Stat
+          label="Distance"
+          value={formatKm(distanceM + props.estimatedM)}
+          unit="km"
+          note={props.estimatedM > 0 ? `incl. ${formatKm(props.estimatedM)} est.` : undefined}
+        />
         <Stat label="Time" value={formatClock(activeSeconds)} />
         <Stat label="Max speed" value={formatSpeedKmh(maxSpeedMs)} unit="km/h" />
         <Stat
@@ -182,6 +212,15 @@ export function RecorderHud(props: RecorderHudProps) {
             <Play className="w-5 h-5 fill-white" /> Resume
           </button>
         )}
+        <button
+          type="button"
+          onClick={props.onPocket}
+          aria-label="Dim screen (pocket mode). Recording continues."
+          title="Pocket mode"
+          className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl border-2 border-asphalt/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asphalt"
+        >
+          <Moon aria-hidden className="h-5 w-5" />
+        </button>
         <HoldToFinish onFinish={props.onFinish} />
       </div>
     </section>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { Polyline, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
-import type { TrackPoint } from "../types/trip";
+import type { TrackGap, TrackPoint } from "../types/trip";
 import { buildTrailRuns } from "../utils/tripStats";
 
 interface TripLayerProps {
@@ -11,13 +11,15 @@ interface TripLayerProps {
   showEnds?: boolean;
   /** Height in px of a panel covering the bottom of the map. */
   bottomInset?: number;
+  /** Stretches with no GPS: drawn dashed (estimated road route, or a straight line). */
+  gaps?: TrackGap[];
 }
 
 /**
  * The trail, coloured by speed. A pale casing under the colour keeps it
  * readable on top of every kind of road and land-use shading.
  */
-export function TripLayer({ track, fitKey, showEnds = false, bottomInset = 0 }: TripLayerProps) {
+export function TripLayer({ track, fitKey, showEnds = false, bottomInset = 0, gaps = [] }: TripLayerProps) {
   const map = useMap();
   const runs = useMemo(() => buildTrailRuns(track), [track]);
   const all = useMemo<L.LatLngTuple[]>(
@@ -58,6 +60,20 @@ export function TripLayer({ track, fitKey, showEnds = false, bottomInset = 0 }: 
           interactive={false}
         />
       ))}
+      {gaps.map((g) => {
+        const a = track[g.index - 1];
+        const b = track[g.index];
+        if (!a || !b) return null;
+        const positions = g.path ?? [[a.lat, a.lng] as [number, number], [b.lat, b.lng] as [number, number]];
+        return (
+          <Polyline
+            key={`gap-${g.index}`}
+            positions={positions}
+            pathOptions={{ color: "#5B6670", weight: 4, opacity: 0.85, dashArray: "2 10", lineCap: "round" }}
+            interactive={false}
+          />
+        );
+      })}
       {showEnds && (
         <>
           <Marker position={all[0]} />

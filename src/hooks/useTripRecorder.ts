@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LocationData } from "./useLocationTracking";
-import type { TrackPoint } from "../types/trip";
+import type { TrackGap, TrackPoint } from "../types/trip";
+import { routePath } from "../services/routeService";
 import { haversine } from "../utils/geo";
 import { clearDraft, loadDraft, saveDraft, type TripDraft } from "../services/draftStore";
 
@@ -10,12 +11,20 @@ const MIN_MOVE_M = 5; // ignore GPS jitter while standing still
 const MAX_ACCURACY_M = 50; // ignore poor fixes
 const MAX_PLAUSIBLE_MS = 100; // 360 km/h: anything faster is a GPS glitch
 const DRAFT_SAVE_EVERY_MS = 4000;
+// No fixes for this long, then a jump of at least GAP_MIN_M, means tracking was
+// paused (screen off / app in background) rather than you standing still.
+const GAP_MS = 15000;
+const GAP_MIN_M = 50;
 
 const round = (n: number, dp: number) => Math.round(n * 10 ** dp) / 10 ** dp;
 
 export function useTripRecorder(locationData: LocationData | null) {
   const [status, setStatus] = useState<RecorderStatus>("idle");
   const [track, setTrack] = useState<TrackPoint[]>([]);
+  const [gaps, setGaps] = useState<TrackGap[]>([]);
+  const lastSeenFixAt = useRef(0);
+  const trackRef = useRef<TrackPoint[]>([]);
+  trackRef.current = track;
   const [distanceM, setDistanceM] = useState(0);
   const [maxSpeedMs, setMaxSpeedMs] = useState(0);
   const [speedMs, setSpeedMs] = useState(0);
@@ -50,6 +59,10 @@ export function useTripRecorder(locationData: LocationData | null) {
     if (status !== "recording") return;
     if (locationData.timestamp === lastFixTs.current) return;
     lastFixTs.current = locationData.timestamp;
+    // Every fix counts as "still tracking" (including standing still), so only
+    // a real silence (screen off, app paused) looks like a gap.
+    const sinceLastFix = lastSeenFixAt.current ? locationData.timestamp - lastSeenFixAt.current : 0;
+    lastSeenFixAt.current = locationData.timestamp;
     if (locationData.accuracy > MAX_ACCURACY_M) return;
 
     const [lat, lng] = locationData.position;
@@ -66,17 +79,37 @@ export function useTripRecorder(locationData: LocationData | null) {
     setAltitudeM(locationData.altitude);
     if (prev && moved < MIN_MOVE_M) return; // standing still: don't pile up points
 
+    // Was tracking paused? (no fixes for a while, and we've moved on since)
+    const isGap = !!prev && sinceLastFix > GAP_MS && moved > GAP_MIN_M;
+
     const point: TrackPoint = {
       lat: round(lat, 6),
       lng: round(lng, 6),
       t,
       speed: round(speed, 1),
       alt: locationData.altitude != null ? round(locationData.altitude, 1) : null,
-      ...(pendingGap.current && prev === null ? { gap: true } : {}),
+      ...((pendingGap.current && prev === null) || isGap ? { gap: true } : {}),
     };
     pendingGap.current = false;
     lastPoint.current = point;
-    if (prev) setDistanceM((d) => d + moved);
+    if (prev && !isGap) setDistanceM((d) => d + moved);
+    if (isGap && prev) {
+      // Don't draw (or count) a straight line across the gap. Ask for the likely
+      // road route instead, and keep its distance separate as an estimate.
+      const gap: TrackGap = {
+        index: trackRef.current.length, // the point appended below
+        startedAt: prev.t,
+        endedAt: t,
+        straightM: moved,
+        routeM: null,
+        path: null,
+      };
+      setGaps((g) => [...g, gap]);
+      void routePath(prev, point).then((r) => {
+        if (!r) return;
+        setGaps((g) => g.map((x) => (x.index === gap.index ? { ...x, routeM: r.distanceM, path: r.path } : x)));
+      });
+    }
     setMaxSpeedMs((m) => Math.max(m, speed));
     setTrack((pts) => [...pts, point]);
   }, [locationData, status]);
@@ -118,12 +151,13 @@ export function useTripRecorder(locationData: LocationData | null) {
     void saveDraft({
       startedAt,
       track,
+      gaps,
       distanceM,
       maxSpeedMs,
       activeSeconds: readActiveSeconds(),
       savedAt: Date.now(),
     }).catch(() => undefined);
-  }, [track, startedAt, distanceM, maxSpeedMs, readActiveSeconds]);
+  }, [track, gaps, startedAt, distanceM, maxSpeedMs, readActiveSeconds]);
 
   const lastDraftSave = useRef(0);
   useEffect(() => {
@@ -145,6 +179,8 @@ export function useTripRecorder(locationData: LocationData | null) {
 
   const resetState = useCallback(() => {
     setTrack([]);
+    setGaps([]);
+    lastSeenFixAt.current = 0;
     setDistanceM(0);
     setMaxSpeedMs(0);
     setSpeedMs(0);
@@ -177,6 +213,7 @@ export function useTripRecorder(locationData: LocationData | null) {
     segmentStart.current = Date.now();
     lastPoint.current = null; // don't count the ground covered while paused
     pendingGap.current = true;
+    lastSeenFixAt.current = 0; // a deliberate pause isn't a tracking gap
     setStatus("recording");
   }, []);
 
@@ -200,6 +237,7 @@ export function useTripRecorder(locationData: LocationData | null) {
   const restoreDraft = useCallback(() => {
     if (!draft) return;
     setTrack(draft.track);
+    setGaps(draft.gaps ?? []);
     setDistanceM(draft.distanceM);
     setMaxSpeedMs(draft.maxSpeedMs);
     setActiveSeconds(draft.activeSeconds);
@@ -211,6 +249,9 @@ export function useTripRecorder(locationData: LocationData | null) {
   return {
     status,
     track,
+    gaps,
+    /** The most recent gap (current copy, including its route once it arrives) */
+    lastGap: gaps.length ? gaps[gaps.length - 1] : null,
     distanceM,
     maxSpeedMs,
     speedMs,

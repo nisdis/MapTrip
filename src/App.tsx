@@ -37,6 +37,8 @@ import { useSavedSync } from "./hooks/useSavedSync";
 import { favouriteKey } from "./types/saved";
 import type { PoiHint } from "./services/placeService";
 import { RecorderHud } from "./components/RecorderHud";
+import { PocketMode } from "./components/PocketMode";
+import { gapDistance } from "./types/trip";
 import { TripSummary } from "./components/TripSummary";
 import { DraftBanner } from "./components/DraftBanner";
 import { clearDraft } from "./services/draftStore";
@@ -138,6 +140,8 @@ function App() {
   const isLive = recorder.status === "recording" || recorder.status === "paused";
   // While recording, the map follows you until you drag it away.
   const [follow, setFollow] = useState(true);
+  const [pocket, setPocket] = useState(false);
+  const estimatedM = gapDistance(recorder.gaps);
   // Height of whichever recorder panel covers the bottom of the map.
   const [panelHeight, setPanelHeight] = useState(0);
 
@@ -158,7 +162,10 @@ function App() {
         kind: "recorded",
         createdAt: recorder.startedAt,
         track: recorder.track,
-        distanceM: stats.distanceM,
+        gaps: recorder.gaps,
+        // Total includes the estimated stretches; they're kept in `gaps` so the
+        // measured part can always be told apart.
+        distanceM: stats.distanceM + gapDistance(recorder.gaps),
         durationS: recorder.activeSeconds,
       };
       await persistTrip(trip);
@@ -169,10 +176,12 @@ function App() {
   );
 
   const handleDiscardRecordedTrip = useCallback(() => {
+    setPocket(false);
     recorder.reset();
   }, [recorder]);
 
   const handleFinishRecording = useCallback(() => {
+    setPocket(false);
     if (recorder.track.length < 2) {
       recorder.reset();
       alert("That trip was too short to save. Move a little before finishing.");
@@ -685,12 +694,13 @@ function App() {
         {isRecorderActive ? (
           <TripLayer
             track={recorder.track}
+            gaps={recorder.gaps}
             fitKey={recorder.status === "review" ? "review" : null}
             bottomInset={panelHeight}
           />
         ) : (
           viewTrip?.track && (
-            <TripLayer track={viewTrip.track} fitKey={viewTrip.id} showEnds />
+            <TripLayer track={viewTrip.track} gaps={viewTrip.gaps} fitKey={viewTrip.id} showEnds />
           )
         )}
         {origin && destination && (
@@ -792,6 +802,23 @@ function App() {
           onResume={recorder.resume}
           onFinish={handleFinishRecording}
           onHeight={setPanelHeight}
+          estimatedM={estimatedM}
+          lastGap={recorder.lastGap}
+          onPocket={() => {
+            setPocket(true);
+            setFollow(false); // nothing to see under the black screen: skip map work
+          }}
+        />
+      )}
+
+      {pocket && isLive && (
+        <PocketMode
+          distanceM={recorder.distanceM + estimatedM}
+          activeSeconds={recorder.activeSeconds}
+          onWake={() => {
+            setPocket(false);
+            setFollow(true);
+          }}
         />
       )}
 
@@ -808,6 +835,7 @@ function App() {
           onSave={handleSaveRecordedTrip}
           onDiscard={handleDiscardRecordedTrip}
           onHeight={setPanelHeight}
+          estimatedM={estimatedM}
         />
       )}
 
