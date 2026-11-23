@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useReportHeight } from "../hooks/useReportHeight";
 import type { TripStats } from "../utils/tripStats";
 import { formatClock, formatKm, formatSpeedKmh } from "../utils/tripStats";
+import { usesRoad, type TrackGap } from "../types/trip";
 
 interface TripSummaryProps {
   defaultName: string;
@@ -11,6 +12,10 @@ interface TripSummaryProps {
   onDiscard: () => void;
   onHeight: (px: number) => void;
   estimatedM: number;
+  gaps: TrackGap[];
+  selectedGap: number | null;
+  onSelectGap: (index: number | null) => void;
+  onSetGapFill: (index: number, fill: "road" | "straight") => void;
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -22,7 +27,8 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function TripSummary({ defaultName, activeSeconds, stats, onSave, onDiscard, onHeight, estimatedM }: TripSummaryProps) {
+export function TripSummary(props: TripSummaryProps) {
+  const { defaultName, activeSeconds, stats, onSave, onDiscard, onHeight, estimatedM } = props;
   const [name, setName] = useState(defaultName);
   const ref = useReportHeight(onHeight);
   const hasAlt = stats.maxAltM != null;
@@ -43,6 +49,15 @@ export function TripSummary({ defaultName, activeSeconds, stats, onSave, onDisca
         <p className="mt-1 text-sm text-[#9a6700]">
           Includes {formatKm(estimatedM)} km estimated while the screen was off.
         </p>
+      )}
+
+      {props.gaps.length > 0 && (
+        <GapList
+          gaps={props.gaps}
+          selected={props.selectedGap}
+          onSelect={props.onSelectGap}
+          onSetFill={props.onSetGapFill}
+        />
       )}
 
       <dl className="mt-3 divide-y divide-asphalt/15 border-y border-asphalt/15">
@@ -91,3 +106,83 @@ export function TripSummary({ defaultName, activeSeconds, stats, onSave, onDisca
   );
 }
 
+
+const REASON: Record<string, string> = {
+  rail: "Looks like a train",
+  "too-fast": "Too fast for the roads",
+  detour: "No direct road",
+};
+
+/** The stretches without GPS: switch each between the road route and a straight line. */
+function GapList({
+  gaps,
+  selected,
+  onSelect,
+  onSetFill,
+}: {
+  gaps: TrackGap[];
+  selected: number | null;
+  onSelect: (index: number | null) => void;
+  onSetFill: (index: number, fill: "road" | "straight") => void;
+}) {
+  return (
+    <ul aria-label="Stretches without GPS" className="mt-2 max-h-36 space-y-1.5 overflow-y-auto">
+      {gaps.map((g, i) => {
+        const road = usesRoad(g);
+        const canRoad = g.routeM != null;
+        const min = Math.max(1, Math.round((g.endedAt - g.startedAt) / 60000));
+        const km = formatKm(road ? g.routeM! : g.straightM);
+        const pending = g.routeM == null && g.fill == null; // still working it out
+        return (
+          <li
+            key={g.index}
+            onClick={() => onSelect(selected === g.index ? null : g.index)}
+            className={`flex items-center gap-2 rounded-xl border-2 px-3 py-2 text-sm ${
+              selected === g.index ? "border-signal" : "border-asphalt/15"
+            }`}
+          >
+            <div className="min-w-0 flex-1">
+              <div className="font-bold">
+                Gap {i + 1}: {min} min, {km} km
+              </div>
+              <div className="text-xs text-asphalt/60">
+                {pending
+                  ? "Estimating the route…"
+                  : g.reason && !road
+                    ? `${REASON[g.reason]}: straight line`
+                    : road
+                      ? "Filled with the road route"
+                      : "Straight line"}
+              </div>
+            </div>
+            <div role="group" aria-label={`Fill gap ${i + 1}`} className="flex overflow-hidden rounded-lg border-2 border-asphalt/20 text-xs font-bold">
+              <button
+                type="button"
+                aria-pressed={road}
+                disabled={!canRoad}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSetFill(g.index, "road");
+                }}
+                className={`px-2.5 py-1.5 disabled:opacity-40 ${road ? "bg-asphalt text-white" : ""}`}
+              >
+                Road
+              </button>
+              <button
+                type="button"
+                aria-pressed={!road}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSetFill(g.index, "straight");
+                }}
+                className={`px-2.5 py-1.5 ${!road ? "bg-asphalt text-white" : ""}`}
+              >
+                Straight
+              </button>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}

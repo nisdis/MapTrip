@@ -71,7 +71,7 @@ test("screen-off gaps are drawn dashed and counted as an estimate; pocket mode",
   for (let i = 0; i < 6; i++) await go(10, 1);
   expect(routeCalls).toBe(0); // standing still is not a gap
 
-  await go(2000, 25); // 25 s of silence, then 2 km further on
+  await go(2000, 120); // 2 min of silence, then 2 km further on
   for (let i = 0; i < 3; i++) await go(10, 1);
   await expect(hud).toContainText("Tracking paused");
   await expect(hud).toContainText("Filled with an estimated road route");
@@ -91,4 +91,51 @@ test("screen-off gaps are drawn dashed and counted as an estimate; pocket mode",
 
   await hold(page, 'button[aria-label^="Finish trip"]');
   await expect(page.locator('section[aria-label="Trip summary"]')).toContainText("Includes 2.50 km estimated");
+});
+
+test("a gap on a train is a straight line, not a road; the summary can switch it", async ({ page }) => {
+  await page.route(/router\.project-osrm\.org\/route.*geojson/, (r) =>
+    r.fulfill({
+      json: { code: "Ok", routes: [{ distance: 2500, geometry: { coordinates: [[77.6, 12.9755], [77.605, 12.985], [77.6, 12.9955]] } }] },
+    }),
+  );
+  // Both ends of the gap are next to a railway line.
+  let overpass = "";
+  await page.route(/overpass-api\.de\/api\/interpreter/, (r) => {
+    overpass = decodeURIComponent(r.request().url());
+    return r.fulfill({ json: { elements: [{ type: "count", tags: { ways: "2" } }, { type: "count", tags: { ways: "1" } }] } });
+  });
+  await page.goto("/");
+  await page.waitForSelector(".leaflet-container");
+  const M = 1 / 111320;
+  let lat = 12.97;
+  let t = 0;
+  const go = async (meters: number, dt: number) => {
+    lat += meters * M;
+    t += dt;
+    await fix(page, lat, 77.6, t, 10);
+    await page.waitForTimeout(80);
+  };
+  await go(0, 0);
+  await page.getByRole("button", { name: "Record a trip" }).click();
+  const hud = page.locator('section[aria-label="Trip recorder"]');
+  for (let i = 0; i < 5; i++) await go(10, 1);
+  await go(2000, 120);
+  for (let i = 0; i < 3; i++) await go(10, 1);
+  await expect(hud).toContainText("Looks like a train");
+  await expect(hud).toContainText("incl. 2.00 est."); // the straight line, not the 2.5 km road
+  expect(overpass).toContain('railway~"^(rail|subway');
+
+  await hold(page, 'button[aria-label^="Finish trip"]');
+  const summary = page.locator('section[aria-label="Trip summary"]');
+  const gaps = summary.getByRole("list", { name: "Stretches without GPS" });
+  await expect(gaps).toContainText("Looks like a train: straight line");
+  await expect(summary).toContainText("Includes 2.00 km estimated");
+  // It was actually a road: switch it.
+  await gaps.getByRole("button", { name: "Road" }).click();
+  await expect(summary).toContainText("Includes 2.50 km estimated");
+  await expect(gaps).toContainText("Filled with the road route");
+  // Tapping the gap on the map selects it in the list.
+  await gaps.getByRole("button", { name: "Straight" }).click();
+  await expect(summary).toContainText("Includes 2.00 km estimated");
 });

@@ -35,11 +35,24 @@ export interface TrackGap {
   routeM: number | null;
   /** road-route geometry [lat, lng][], if available */
   path: [number, number][] | null;
+  /**
+   * How the gap is drawn and counted. "straight" when the road route looked
+   * wrong (see `reason`) or the person chose it. Missing on older trips: road.
+   */
+  fill?: "road" | "straight";
+  /** why "straight" was chosen automatically */
+  reason?: GapReason;
 }
 
-/** Distance across gaps: the road estimate where we have one, else the straight line. */
+/** rail: both ends by a railway line; too-fast: the road route needs an impossible speed; detour: far longer than straight */
+export type GapReason = "rail" | "too-fast" | "detour";
+
+/** True when the gap is counted (and, with a path, drawn) along the road route. */
+export const usesRoad = (g: TrackGap) => g.fill !== "straight" && g.routeM != null;
+
+/** Distance across gaps: the road estimate where that's the fill, else the straight line. */
 export const gapDistance = (gaps: TrackGap[] = []) =>
-  gaps.reduce((sum, g) => sum + (g.routeM ?? g.straightM), 0);
+  gaps.reduce((sum, g) => sum + (usesRoad(g) ? g.routeM! : g.straightM), 0);
 
 export interface Trip {
   id: string;

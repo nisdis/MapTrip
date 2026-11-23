@@ -1,7 +1,7 @@
-import { useEffect, useMemo } from "react";
+import { Fragment, useEffect, useMemo } from "react";
 import { Polyline, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
-import type { TrackGap, TrackPoint } from "../types/trip";
+import { usesRoad, type TrackGap, type TrackPoint } from "../types/trip";
 import { buildTrailRuns } from "../utils/tripStats";
 
 interface TripLayerProps {
@@ -13,13 +13,24 @@ interface TripLayerProps {
   bottomInset?: number;
   /** Stretches with no GPS: drawn dashed (estimated road route, or a straight line). */
   gaps?: TrackGap[];
+  /** Makes gaps tappable (summary screen); the selected one is highlighted. */
+  onGapTap?: (index: number) => void;
+  selectedGap?: number | null;
 }
 
 /**
  * The trail, coloured by speed. A pale casing under the colour keeps it
  * readable on top of every kind of road and land-use shading.
  */
-export function TripLayer({ track, fitKey, showEnds = false, bottomInset = 0, gaps = [] }: TripLayerProps) {
+export function TripLayer({
+  track,
+  fitKey,
+  showEnds = false,
+  bottomInset = 0,
+  gaps = [],
+  onGapTap,
+  selectedGap = null,
+}: TripLayerProps) {
   const map = useMap();
   const runs = useMemo(() => buildTrailRuns(track), [track]);
   const all = useMemo<L.LatLngTuple[]>(
@@ -64,14 +75,30 @@ export function TripLayer({ track, fitKey, showEnds = false, bottomInset = 0, ga
         const a = track[g.index - 1];
         const b = track[g.index];
         if (!a || !b) return null;
-        const positions = g.path ?? [[a.lat, a.lng] as [number, number], [b.lat, b.lng] as [number, number]];
+        const positions = usesRoad(g) && g.path ? g.path : [[a.lat, a.lng] as [number, number], [b.lat, b.lng] as [number, number]];
+        const selected = selectedGap === g.index;
         return (
-          <Polyline
-            key={`gap-${g.index}`}
-            positions={positions}
-            pathOptions={{ color: "#5B6670", weight: 4, opacity: 0.85, dashArray: "2 10", lineCap: "round" }}
-            interactive={false}
-          />
+          <Fragment key={`gap-${g.index}`}>
+            <Polyline
+              positions={positions}
+              pathOptions={{
+                color: selected ? "#D7263D" : "#5B6670",
+                weight: selected ? 5 : 4,
+                opacity: 0.9,
+                dashArray: "2 10",
+                lineCap: "round",
+              }}
+              interactive={false}
+            />
+            {onGapTap && (
+              // Wide invisible line: easy to hit with a finger.
+              <Polyline
+                positions={positions}
+                pathOptions={{ color: "#000", weight: 28, opacity: 0 }}
+                eventHandlers={{ click: () => onGapTap(g.index) }}
+              />
+            )}
+          </Fragment>
         );
       })}
       {showEnds && (

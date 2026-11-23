@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FixListener, LocationData } from "./useLocationTracking";
 import type { TrackGap, TrackPoint } from "../types/trip";
-import { routePath } from "../services/routeService";
+import { fillGap } from "../services/gapFill";
 import { haversine } from "../utils/geo";
 import { clearDraft, loadDraft, saveDraft, type TripDraft } from "../services/draftStore";
 import { isInApp } from "../services/appBridge";
@@ -137,9 +137,9 @@ export function useTripRecorder(subscribe: (listener: FixListener) => () => void
     if (newGaps.length) {
       setGaps((g) => g.concat(newGaps.map((n) => n.gap)));
       for (const { gap, from, to } of newGaps) {
-        void routePath(from, to).then((r) => {
-          if (!r) return;
-          setGaps((g) => g.map((x) => (x.index === gap.index ? { ...x, routeM: r.distanceM, path: r.path } : x)));
+        void fillGap(from, to, to.t - from.t).then((f) => {
+          // The person may have chosen a fill already: keep their choice.
+          setGaps((g) => g.map((x) => (x.index === gap.index ? { ...x, ...f, fill: x.fill ?? f.fill } : x)));
         });
       }
     }
@@ -287,6 +287,11 @@ export function useTripRecorder(subscribe: (listener: FixListener) => () => void
     setStatus("review");
   }, [draft]);
 
+  /** The person chose how a gap is filled (summary screen). */
+  const setGapFill = useCallback((index: number, fill: "road" | "straight") => {
+    setGaps((g) => g.map((x) => (x.index === index ? { ...x, fill } : x)));
+  }, []);
+
   /**
    * App only: the page was reloaded while the app kept recording. Pick the trip
    * up from its draft and carry on; the app then replays the fixes since.
@@ -333,5 +338,6 @@ export function useTripRecorder(subscribe: (listener: FixListener) => () => void
     reset,
     restoreDraft,
     continueDraft,
+    setGapFill,
   };
 }

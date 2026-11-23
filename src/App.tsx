@@ -159,6 +159,7 @@ function App() {
     },
   });
   const [showLiveShare, setShowLiveShare] = useState(false);
+  const [selectedGap, setSelectedGap] = useState<number | null>(null);
 
   // ---- Inside the Record My Trip app (GPS and background recording by the app) ----
   const [appReady, setAppReady] = useState(() => !isInApp());
@@ -752,6 +753,8 @@ function App() {
             gaps={recorder.gaps}
             fitKey={recorder.status === "review" ? "review" : null}
             bottomInset={panelHeight}
+            onGapTap={recorder.status === "review" ? setSelectedGap : undefined}
+            selectedGap={recorder.status === "review" ? selectedGap : null}
           />
         ) : (
           viewTrip?.track && (
@@ -918,6 +921,10 @@ function App() {
           onDiscard={handleDiscardRecordedTrip}
           onHeight={setPanelHeight}
           estimatedM={estimatedM}
+          gaps={recorder.gaps}
+          selectedGap={selectedGap}
+          onSelectGap={setSelectedGap}
+          onSetGapFill={recorder.setGapFill}
         />
       )}
 

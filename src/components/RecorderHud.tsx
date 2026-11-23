@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Moon, Pause, Play, Radio, Square } from "lucide-react";
-import type { TrackGap } from "../types/trip";
+import { usesRoad, type TrackGap } from "../types/trip";
 import { useReportHeight } from "../hooks/useReportHeight";
 import { isInApp } from "../services/appBridge";
 import {
@@ -131,7 +131,11 @@ function TrackingNote({ lastGap }: { lastGap: TrackGap | null }) {
     return (
       <p role="status" className="mt-1 text-xs font-bold text-[#9a6700]">
         Tracking paused for {min} min while the screen was off.{" "}
-        {lastGap.path ? "Filled with an estimated road route." : "Shown as a dashed line."}
+        {usesRoad(lastGap)
+          ? "Filled with an estimated road route."
+          : lastGap.reason === "rail"
+            ? "Looks like a train: shown as a straight dashed line."
+            : "Shown as a dashed line."}
       </p>
     );
   }
