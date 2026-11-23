@@ -39,6 +39,21 @@ trip started. When sharing stops, the location data is deleted.
 Limitation: phone browsers pause web pages when the screen locks, so viewers
 see "No signal" until the phone is unlocked. Keep the screen on (pocket mode).
 
+### Sharing trips and Explore
+
+Trips saved to the cloud are **private** until their owner shares them (Trips ›
+Share): **Unlisted** (anyone with the `/t/<id>` link) or **Public** (also in
+Explore). Sharing needs a public name (never the email). The owner chooses how
+much of the start and end to hide (300 m, 500 m by default, 1 km, or off with a
+warning) and ticks which photos to show; shared photos are served with their
+metadata (EXIF/GPS) removed. Only the date is shown, not the time of day.
+
+Explore (More › Explore trips) lists public trips through the area on the map,
+ranked by unique views per day (counted with a one-way hash kept for two days),
+worth less as trips age. Signed-in viewers can report a trip; reports from 3
+different accounts take it out of Explore until an admin reviews it (Account ›
+Reported trips, for emails in `ADMIN_EMAILS`).
+
 ### Place details
 Tap the map to see what's there: a place icon (cafe, shop, ...) gives its name,
 category, address, phone, website and opening hours, with "Open · Closes 9:00 PM"

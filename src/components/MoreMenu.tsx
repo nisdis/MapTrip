@@ -4,8 +4,7 @@ import {
   Info,
   X,
   Wifi,
-  WifiOff,
-} from "lucide-react";
+  WifiOff, Compass } from "lucide-react";
 
 interface MoreMenuProps {
   isOpen: boolean;
@@ -14,6 +13,7 @@ interface MoreMenuProps {
   onClearClick: () => void;
   handleShoeRouteItems: () => void;
   isClearing?: boolean;
+  onExplore: () => void;
 }
 
 export function MoreMenu({
@@ -23,6 +23,7 @@ export function MoreMenu({
   onClearClick,
   isClearing = false,
   handleShoeRouteItems = () => {},
+  onExplore,
 }: MoreMenuProps) {
   if (!isOpen) return null;
 
@@ -52,6 +53,13 @@ export function MoreMenu({
               </span>
             </div>
             <div className="border-t border-gray-100 my-2" />
+            <button
+              onClick={onExplore}
+              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
+            >
+              <Compass className="w-5 h-5 text-emerald-700" />
+              <span className="text-sm text-gray-700">Explore trips</span>
+            </button>
             <button
               onClick={onClearClick}
               disabled={isClearing}

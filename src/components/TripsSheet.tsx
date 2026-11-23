@@ -9,6 +9,7 @@ import {
   Loader2,
   LogOut,
   ImagePlus,
+  Share2,
 } from "lucide-react";
 import { PhotoThumb } from "./PhotoThumb";
 import { hasUnsyncedPhotos } from "../services/cloudTrips";
@@ -33,6 +34,8 @@ interface TripsSheetProps {
   onAddPhoto: (trip: Trip, file: File) => Promise<void>;
   onRemovePhoto: (trip: Trip, photoId: string) => void;
   onSaveToCloud: (trip: Trip) => Promise<void>;
+  /** recorded trips saved to the cloud: who can see them */
+  onShare: (trip: Trip) => void;
   onAuthenticate: (mode: AuthMode, email: string, password: string) => Promise<void>;
   onSignOut: () => void;
   routeHistory: RouteHistoryItem[];
@@ -49,6 +52,7 @@ export function TripsSheet({
   onAddPhoto,
   onRemovePhoto,
   onSaveToCloud,
+  onShare,
   onAuthenticate,
   onSignOut,
   routeHistory,
@@ -204,6 +208,15 @@ export function TripsSheet({
                       <Cloud className="w-3 h-3" />
                     )}
                     {trip.cloudSyncedAt ? "Update cloud copy" : "Save to cloud"}
+                  </button>
+                )}
+                {trip.kind === "recorded" && trip.cloudSyncedAt && (
+                  <button
+                    onClick={() => onShare(trip)}
+                    className="ml-auto mr-2 flex items-center gap-1 text-xs font-medium text-gray-700"
+                    aria-label={`Share ${trip.name}`}
+                  >
+                    <Share2 className="w-3 h-3" /> Share
                   </button>
                 )}
                 <button

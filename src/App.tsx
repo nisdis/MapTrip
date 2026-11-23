@@ -48,6 +48,11 @@ import { useTripRecorder } from "./hooks/useTripRecorder";
 import { useLiveShare } from "./hooks/useLiveShare";
 import { LiveShareSheet } from "./components/LiveShareSheet";
 import { BatteryGuide } from "./components/BatteryGuide";
+import { TripShareSheet } from "./components/TripShareSheet";
+import { ExploreSheet } from "./components/ExploreSheet";
+import { ExploreLayer } from "./components/ExploreLayer";
+import { ReportsSheet } from "./components/ReportsSheet";
+import { exploreArea, getMe, type ExploreTrip } from "./services/publicTrips";
 import { useAuth } from "./hooks/useAuth";
 import { authClient } from "./services/authClient";
 import {
@@ -114,6 +119,38 @@ function App() {
   const [areaMoved, setAreaMoved] = useState(false);
   const auth = useAuth();
   const savedSync = useSavedSync(saved, auth.user?.id ?? null);
+  const [shareTrip, setShareTrip] = useState<Trip | null>(null);
+  const [showReports, setShowReports] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    if (!auth.user) {
+      setIsAdmin(false);
+      return;
+    }
+    getMe()
+      .then((m) => setIsAdmin(m.isAdmin))
+      .catch(() => setIsAdmin(false));
+  }, [auth.user]);
+
+  // Explore: public trips through the area on the map.
+  const [explore, setExplore] = useState<{ trips: ExploreTrip[] | null; loading: boolean; error: string | null; stale: boolean }>({
+    trips: null,
+    loading: false,
+    error: null,
+    stale: false,
+  });
+  const [exploreSelected, setExploreSelected] = useState<string | null>(null);
+  const loadExplore = useCallback(async () => {
+    const b = boundsRef.current;
+    if (!b) return;
+    setExplore((e) => ({ ...e, loading: true, error: null }));
+    try {
+      const r = await exploreArea(b);
+      setExplore({ trips: r.trips, loading: false, error: null, stale: false });
+    } catch (e) {
+      setExplore((x) => ({ ...x, loading: false, error: e instanceof Error ? e.message : "Couldn't load trips" }));
+    }
+  }, []);
 
   const refreshTrips = useCallback(async () => {
     try {
@@ -420,6 +457,7 @@ function App() {
   }, []);
   const handleBoundsChange = useCallback((b: Bounds) => {
     boundsRef.current = b;
+    setExplore((e) => (e.trips && !e.stale ? { ...e, stale: true } : e));
   }, []);
 
   const runNearby = useCallback(
@@ -738,7 +776,10 @@ function App() {
             </Popup>
           </Marker>
         )}
-        <MapTapHandler disabled={isRecorderActive} onTap={handleMapTap} />
+        <MapTapHandler disabled={isRecorderActive || (showSheet && activeTab === "explore")} onTap={handleMapTap} />
+        {showSheet && activeTab === "explore" && explore.trips && (
+          <ExploreLayer trips={explore.trips} selectedId={exploreSelected} onSelect={(t) => setExploreSelected(t.id)} />
+        )}
         {!isRecorderActive && showSavedOnMap && (
           <SavedMarkers
             entries={[...(saved.home ? [saved.home] : []), ...(saved.work ? [saved.work] : []), ...saved.favourites]}
@@ -989,7 +1030,17 @@ function App() {
         onClearClick={handleClearClick}
         isClearing={isClearing}
         handleShoeRouteItems={handleShoeRouteItems}
+        onExplore={() => {
+          setShowMoreMenu(false);
+          setActiveTab("explore");
+          setShowSheet(true);
+          setExploreSelected(null);
+          void loadExplore();
+        }}
       />
+
+      {shareTrip && <TripShareSheet trip={shareTrip} onClose={() => setShareTrip(null)} />}
+      {showReports && <ReportsSheet onClose={() => setShowReports(false)} />}
 
       <BottomSheet
         isOpen={showSheet}
@@ -1022,14 +1073,27 @@ function App() {
             onAddPhoto={handleAddPhoto}
             onRemovePhoto={handleRemovePhoto}
             onSaveToCloud={handleSaveToCloud}
+            onShare={setShareTrip}
             onAuthenticate={auth.authenticate}
             onSignOut={auth.signOut}
             routeHistory={routeHistory}
             onSelectRoute={handleSelectHistoryRoute}
           />
         )}
+        {activeTab === "explore" && (
+          <ExploreSheet
+            trips={explore.trips}
+            loading={explore.loading}
+            error={explore.error}
+            stale={explore.stale}
+            selectedId={exploreSelected}
+            onRefresh={() => void loadExplore()}
+            onSelect={(t) => window.location.assign(`/t/${t.id}`)}
+          />
+        )}
         {activeTab === "account" && (
           <AccountSheet
+            onShowReports={isAdmin ? () => setShowReports(true) : undefined}
             userEmail={auth.user?.email ?? null}
             onAuthenticate={auth.authenticate}
             onSignOut={auth.signOut}

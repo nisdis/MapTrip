@@ -68,6 +68,43 @@ try {
     create index if not exists live_shares_expires_idx on live_shares (expires_at);
   `);
   console.log("[migrate] live_shares table ok");
+
+  // Sharing finished trips: visibility per trip (private by default), public
+  // names, unique daily views (hashed, kept 2 days) and reports.
+  await pool.query(`
+    alter table trips add column if not exists visibility text not null default 'private';
+    alter table trips add column if not exists share jsonb not null default '{}'::jsonb;
+    alter table trips add column if not exists published_at timestamptz;
+    alter table trips add column if not exists min_lat double precision;
+    alter table trips add column if not exists max_lat double precision;
+    alter table trips add column if not exists min_lng double precision;
+    alter table trips add column if not exists max_lng double precision;
+    alter table trips add column if not exists views integer not null default 0;
+    alter table trips add column if not exists hidden_at timestamptz;
+    create index if not exists trips_explore_idx on trips (min_lat, max_lat, min_lng, max_lng)
+      where visibility = 'public' and hidden_at is null;
+    create table if not exists profiles (
+      user_id text primary key references "user" (id) on delete cascade,
+      display_name text not null,
+      updated_at timestamptz not null default now()
+    );
+    create table if not exists trip_views (
+      trip_id uuid not null references trips (id) on delete cascade,
+      viewer text not null,
+      day date not null default current_date,
+      primary key (trip_id, viewer, day)
+    );
+    create table if not exists trip_reports (
+      trip_id uuid not null references trips (id) on delete cascade,
+      reporter_id text not null references "user" (id) on delete cascade,
+      reason text not null,
+      details text,
+      created_at timestamptz not null default now(),
+      resolved_at timestamptz,
+      primary key (trip_id, reporter_id)
+    );
+  `);
+  console.log("[migrate] trip sharing tables ok");
 } catch (error) {
   console.error("[migrate] FAILED - cloud save may not work:", error);
 } finally {

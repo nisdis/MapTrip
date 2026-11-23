@@ -2,6 +2,7 @@ import { getAuth } from "./_lib/auth.js";
 import { del } from "@vercel/blob";
 import { getPool } from "./_lib/db.js";
 import { rejectForeignOrigin } from "./_lib/origin.js";
+import { refreshShareGeometry } from "./_lib/shareGeometry.js";
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -75,6 +76,8 @@ async function handle(request: Request): Promise<Response> {
         [trip.id, userId, JSON.stringify({ ...trip, photos, cloudSyncedAt: syncedAt }), createdAt],
       );
       if (result.rowCount === 0) return json({ message: "Trip id already in use" }, 409);
+      // A shared trip saved again (e.g. after adding photos): Explore's area follows.
+      await refreshShareGeometry(pool, trip.id);
       return json({ syncedAt });
     }
 

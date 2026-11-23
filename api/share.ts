@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { getConnectionString, getPool } from "./_lib/db.js";
 
 // Shared place links (/p/node/123, /p/pin/12.97,77.59) get a page with link-preview
 // tags (name, category, address, photo) so chat apps show the place, then the
@@ -148,9 +149,65 @@ async function livePage(url: URL): Promise<Response> {
   });
 }
 
+const TRIP_RE = /^\/t\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+/** Shared trips: name, author and distance in the preview; nothing for private ones. */
+async function tripPage(url: URL): Promise<Response> {
+  const id = url.pathname.match(TRIP_RE)?.[1] ?? null;
+  let meta: { title: string; description: string } | null = null;
+  if (id && getConnectionString()) {
+    try {
+      const { rows } = await getPool().query<{ name: string | null; distance: number | null; author: string | null }>(
+        `select t.data->>'name' as name, (t.data->>'distanceM')::float as distance, p.display_name as author
+         from trips t left join profiles p on p.user_id = t.user_id
+         where t.id = $1 and t.visibility in ('unlisted', 'public')`,
+        [id],
+      );
+      const r = rows[0];
+      if (r) {
+        const km = r.distance ? `${(r.distance / 1000).toFixed(1)} km` : null;
+        meta = {
+          title: (r.name ?? "A trip").slice(0, 120),
+          description: [km ? `${km} trip` : "A trip", r.author ? `by ${r.author}` : null, "on Map Trip"].filter(Boolean).join(" "),
+        };
+      }
+    } catch (e) {
+      console.error("Trip preview error:", e);
+    }
+  }
+  const { html, source } = await appHtml(url.origin, url.pathname);
+  const title = meta?.title ?? "Map Trip";
+  const description = meta?.description ?? "This trip isn't shared.";
+  const tags = [
+    `<meta property="og:type" content="website">`,
+    `<meta property="og:site_name" content="Map Trip">`,
+    `<meta property="og:title" content="${escapeHtml(title)}">`,
+    `<meta property="og:description" content="${escapeHtml(description)}">`,
+    `<meta property="og:url" content="${escapeHtml(url.origin + url.pathname)}">`,
+    `<meta name="twitter:card" content="summary">`,
+    `<meta name="description" content="${escapeHtml(description)}">`,
+    `<meta name="robots" content="noindex, nofollow">`,
+  ].join("\n    ");
+  const page = html
+    .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(`${title} · Map Trip`)}</title>`)
+    .replace(/<meta name="description"[^>]*>/, "")
+    .replace("</head>", `    ${tags}\n  </head>`);
+  return new Response(page, {
+    status: meta ? 200 : 404,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      // Short: making a trip private should take effect quickly.
+      "Cache-Control": "public, max-age=60, s-maxage=300",
+      "X-Robots-Tag": "noindex, nofollow",
+      "X-Share-Source": source,
+    },
+  });
+}
+
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   if (url.pathname.startsWith("/live/")) return livePage(url);
+  if (url.pathname.startsWith("/t/")) return tripPage(url);
   // Rewrites keep the original path; fall back to query params just in case.
   const m = url.pathname.match(/^\/p\/(node|way|relation|pin)\/([^/]+)$/);
   const kind = m?.[1] ?? url.searchParams.get("type") ?? "";
