@@ -20,6 +20,7 @@ body {
 /* Older screens use Tailwind's white and greys: their dark equivalents. */
 .dark .bg-white { background-color: #1c2429; }
 .dark .bg-white\/90 { background-color: rgb(28 36 41 / 0.9); }
+.dark .bg-white\/80 { background-color: rgb(28 36 41 / 0.8); }
 .dark .bg-gray-50, .dark .hover\:bg-gray-50:hover { background-color: #232c32; }
 .dark .bg-gray-100, .dark .hover\:bg-gray-100:hover { background-color: #2a343b; }
 .dark .bg-gray-200, .dark .hover\:bg-blue-200:hover { background-color: #34404a; }

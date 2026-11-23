@@ -21,7 +21,7 @@ export const MAX_AREA_KM = 30;
 /** Average size of a vector tile, for the estimate shown before downloading. */
 const AVG_TILE_BYTES = 70_000;
 const TILEJSON = "https://tiles.openfreemap.org/planet";
-const STYLES = ["https://tiles.openfreemap.org/styles/liberty", "https://tiles.openfreemap.org/styles/dark"];
+const STYLES = ["https://tiles.openfreemap.org/styles/liberty", "https://tiles.openfreemap.org/styles/fiord"];
 const FONTS = ["Noto Sans Regular", "Noto Sans Bold", "Noto Sans Italic"];
 
 const store = localforage.createInstance({ name: "record-my-trip", storeName: "offline_areas" });

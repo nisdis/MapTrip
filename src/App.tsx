@@ -748,7 +748,7 @@ function App() {
   return (
     <div className="h-screen w-screen relative bg-gray-100">
       {!isRecorderActive && (
-      <div className="absolute top-0 left-0 w-full z-10 bg-gradient-to-b from-white/90 to-transparent p-4 pointer-events-none">
+      <div className="absolute top-0 left-0 w-full z-10 bg-gradient-to-b from-paper/90 to-transparent p-4 pointer-events-none">
         <div className="max-w-7xl mx-auto pointer-events-auto">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">

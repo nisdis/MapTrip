@@ -11,7 +11,7 @@ test("appearance: follows the phone by default; Light/Dark override it and are r
 
   // System (default) and the phone is dark: dark app, dark map.
   expect(await isDark()).toBe(true);
-  await expect.poll(() => styles.some((u) => u.endsWith("/styles/dark"))).toBe(true);
+  await expect.poll(() => styles.some((u) => u.endsWith("/styles/fiord"))).toBe(true);
   const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   expect(bg).toBe("rgb(21, 27, 31)");
 

@@ -2,8 +2,26 @@ import type { StyleSpecification } from "maplibre-gl";
 
 // OpenFreeMap: free vector tiles built from OpenStreetMap, no API key.
 export const BASEMAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
-/** Same map data, dark colours (dark mode). */
-export const BASEMAP_DARK_STYLE_URL = "https://tiles.openfreemap.org/styles/dark";
+/**
+ * Same map data, dark colours (dark mode). "fiord" rather than OpenFreeMap's
+ * "dark": its roads stand out from the background; "dark" was too low-contrast
+ * to read on a phone.
+ */
+export const BASEMAP_DARK_STYLE_URL = "https://tiles.openfreemap.org/styles/fiord";
+
+/** Dark mode: brighter names with a dark outline, so they read at a glance. */
+export function brightenLabels(style: StyleSpecification): StyleSpecification {
+  const layers = style.layers.map((layer) => {
+    if (layer.type !== "symbol" || !layer.layout?.["text-field"]) return layer;
+    const paint = { ...(layer.paint ?? {}) } as Record<string, unknown>;
+    const road = /road|street|highway|transportation/.test(layer.id);
+    paint["text-color"] = road ? "#d4dde2" : "#eef3f1";
+    paint["text-halo-color"] = "#1c2530";
+    paint["text-halo-width"] = 1.6;
+    return { ...layer, paint } as typeof layer;
+  });
+  return { ...style, layers };
+}
 export const BASEMAP_ATTRIBUTION =
   '<a href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a> ' +
   '&copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noreferrer">OpenMapTiles</a> ' +
@@ -30,5 +48,6 @@ export function makeEnglish(style: StyleSpecification): StyleSpecification {
 export async function loadEnglishStyle(signal?: AbortSignal, theme: "light" | "dark" = "light"): Promise<StyleSpecification> {
   const response = await fetch(theme === "dark" ? BASEMAP_DARK_STYLE_URL : BASEMAP_STYLE_URL, { signal });
   if (!response.ok) throw new Error(`Basemap style failed: ${response.status}`);
-  return makeEnglish((await response.json()) as StyleSpecification);
+  const english = makeEnglish((await response.json()) as StyleSpecification);
+  return theme === "dark" ? brightenLabels(english) : english;
 }
