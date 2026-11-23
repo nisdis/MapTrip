@@ -51,8 +51,9 @@ import { BatteryGuide } from "./components/BatteryGuide";
 import { TripShareSheet } from "./components/TripShareSheet";
 import { ExploreSheet } from "./components/ExploreSheet";
 import { ExploreLayer } from "./components/ExploreLayer";
+import { ExploreCard } from "./components/ExploreCard";
 import { ReportsSheet } from "./components/ReportsSheet";
-import { exploreArea, getMe, type ExploreTrip } from "./services/publicTrips";
+import { exploreArea, getMe, type ExploreTrip, type NearestTrip } from "./services/publicTrips";
 import { useAuth } from "./hooks/useAuth";
 import { authClient } from "./services/authClient";
 import {
@@ -133,24 +134,55 @@ function App() {
   }, [auth.user]);
 
   // Explore: public trips through the area on the map.
-  const [explore, setExplore] = useState<{ trips: ExploreTrip[] | null; loading: boolean; error: string | null; stale: boolean }>({
-    trips: null,
-    loading: false,
-    error: null,
-    stale: false,
-  });
+  const [explore, setExplore] = useState<{
+    trips: ExploreTrip[] | null;
+    nearest: NearestTrip[];
+    loading: boolean;
+    error: string | null;
+    stale: boolean;
+  }>({ trips: null, nearest: [], loading: false, error: null, stale: false });
+  // Explore mode: public trips drawn on the map (until the Explore chip is tapped again).
+  const [exploring, setExploring] = useState(false);
   const [exploreSelected, setExploreSelected] = useState<string | null>(null);
+  const [exploreFocus, setExploreFocus] = useState<{ bbox: [number, number, number, number]; key: number } | null>(null);
+  const reloadAfterMove = useRef(false);
+  // The app moved the map to show a trip: that isn't "the area changed".
+  const quietMove = useRef(false);
   const loadExplore = useCallback(async () => {
     const b = boundsRef.current;
     if (!b) return;
     setExplore((e) => ({ ...e, loading: true, error: null }));
     try {
       const r = await exploreArea(b);
-      setExplore({ trips: r.trips, loading: false, error: null, stale: false });
+      setExplore({ trips: r.trips, nearest: r.nearest ?? [], loading: false, error: null, stale: false });
     } catch (e) {
       setExplore((x) => ({ ...x, loading: false, error: e instanceof Error ? e.message : "Couldn't load trips" }));
     }
   }, []);
+  const focusOn = useCallback((bbox: [number, number, number, number]) => {
+    setExploreFocus({ bbox, key: Date.now() });
+  }, []);
+  const startExplore = useCallback(() => {
+    setShowMoreMenu(false);
+    setExploring(true);
+    setExploreSelected(null);
+    setActiveTab("explore");
+    setShowSheet(true);
+    void loadExplore();
+  }, [loadExplore]);
+  const stopExplore = useCallback(() => {
+    setExploring(false);
+    setExploreSelected(null);
+    setActiveTab((t) => {
+      if (t === "explore") setShowSheet(false);
+      return t;
+    });
+  }, []);
+  const lineBox = (t: ExploreTrip): [number, number, number, number] => {
+    const lats = t.line.map((p) => p[0]);
+    const lngs = t.line.map((p) => p[1]);
+    return [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)];
+  };
 
   const refreshTrips = useCallback(async () => {
     try {
@@ -455,10 +487,23 @@ function App() {
     setFollow(false);
     setAreaMoved(true);
   }, []);
-  const handleBoundsChange = useCallback((b: Bounds) => {
-    boundsRef.current = b;
-    setExplore((e) => (e.trips && !e.stale ? { ...e, stale: true } : e));
-  }, []);
+  const handleBoundsChange = useCallback(
+    (b: Bounds) => {
+      boundsRef.current = b;
+      // Flew to a trip from "nearest": list what's there once the map has arrived.
+      if (reloadAfterMove.current) {
+        reloadAfterMove.current = false;
+        void loadExplore();
+        return;
+      }
+      if (quietMove.current) {
+        quietMove.current = false;
+        return;
+      }
+      setExplore((e) => (e.trips && !e.stale ? { ...e, stale: true } : e));
+    },
+    [loadExplore],
+  );
 
   const runNearby = useCallback(
     (category: NearbyCategory) => {
@@ -776,9 +821,17 @@ function App() {
             </Popup>
           </Marker>
         )}
-        <MapTapHandler disabled={isRecorderActive || (showSheet && activeTab === "explore")} onTap={handleMapTap} />
-        {showSheet && activeTab === "explore" && explore.trips && (
-          <ExploreLayer trips={explore.trips} selectedId={exploreSelected} onSelect={(t) => setExploreSelected(t.id)} />
+        <MapTapHandler disabled={isRecorderActive || exploring} onTap={handleMapTap} />
+        {exploring && !isRecorderActive && (
+          <ExploreLayer
+            trips={explore.trips ?? []}
+            selectedId={exploreSelected}
+            focus={exploreFocus}
+            onSelect={(t) => {
+              setExploreSelected(t.id);
+              setShowSheet(false);
+            }}
+          />
         )}
         {!isRecorderActive && showSavedOnMap && (
           <SavedMarkers
@@ -839,7 +892,12 @@ function App() {
       )}
 
       {!isRecorderActive && (
-        <CategoryChips activeId={nearby.state?.category.id ?? null} onSelect={handleSelectCategory} />
+        <CategoryChips
+          activeId={nearby.state?.category.id ?? null}
+          onSelect={handleSelectCategory}
+          exploring={exploring}
+          onExplore={() => (exploring ? stopExplore() : startExplore())}
+        />
       )}
 
       {!isRecorderActive && nearby.state && areaMoved && !placeLookup.target && (
@@ -1023,6 +1081,31 @@ function App() {
         </button>
       )}
 
+      {exploring && !isRecorderActive && !showSheet && (() => {
+        const t = explore.trips?.find((x) => x.id === exploreSelected);
+        return t ? (
+          <ExploreCard
+            trip={t}
+            onOpen={() => window.location.assign(`/t/${t.id}`)}
+            onList={() => {
+              setActiveTab("explore");
+              setShowSheet(true);
+            }}
+            onClose={() => setExploreSelected(null)}
+          />
+        ) : null;
+      })()}
+
+      {exploring && !isRecorderActive && explore.stale && (
+        <button
+          type="button"
+          onClick={() => void loadExplore()}
+          className="fixed left-1/2 top-[7.5rem] z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-highway px-4 py-2 text-sm font-bold text-white shadow-lg"
+        >
+          Search this area
+        </button>
+      )}
+
       <MoreMenu
         isOpen={showMoreMenu}
         onClose={handleCloseMore}
@@ -1030,13 +1113,7 @@ function App() {
         onClearClick={handleClearClick}
         isClearing={isClearing}
         handleShoeRouteItems={handleShoeRouteItems}
-        onExplore={() => {
-          setShowMoreMenu(false);
-          setActiveTab("explore");
-          setShowSheet(true);
-          setExploreSelected(null);
-          void loadExplore();
-        }}
+        onExplore={startExplore}
       />
 
       {shareTrip && <TripShareSheet trip={shareTrip} onClose={() => setShareTrip(null)} />}
@@ -1088,7 +1165,19 @@ function App() {
             stale={explore.stale}
             selectedId={exploreSelected}
             onRefresh={() => void loadExplore()}
-            onSelect={(t) => window.location.assign(`/t/${t.id}`)}
+            onSelect={(t) => {
+              // Show it on the map first; the card opens it.
+              setExploreSelected(t.id);
+              setShowSheet(false);
+              quietMove.current = true;
+              focusOn(lineBox(t));
+            }}
+            nearest={explore.nearest}
+            onGoTo={(t) => {
+              reloadAfterMove.current = true;
+              setShowSheet(false);
+              focusOn(t.bbox);
+            }}
           />
         )}
         {activeTab === "account" && (

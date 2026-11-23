@@ -1,5 +1,6 @@
-import { Fragment, useMemo } from "react";
-import { Polyline } from "react-leaflet";
+import { Fragment, useEffect, useMemo } from "react";
+import { Polyline, useMap } from "react-leaflet";
+import L from "leaflet";
 import type { ExploreTrip } from "../services/publicTrips";
 
 /** Explore's trips on the map (tap one to select it). Lines break where something is hidden. */
@@ -7,11 +8,21 @@ export function ExploreLayer({
   trips,
   selectedId,
   onSelect,
+  focus,
 }: {
   trips: ExploreTrip[];
   selectedId: string | null;
   onSelect: (t: ExploreTrip) => void;
+  /** Move the map to show this area ([south, west, north, east]); `key` changes trigger it. */
+  focus?: { bbox: [number, number, number, number]; key: number } | null;
 }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!focus) return;
+    const [s, w, n, e] = focus.bbox;
+    // Keep the route clear of the card / sheet at the bottom.
+    map.fitBounds(L.latLngBounds([s, w], [n, e]), { paddingTopLeft: [40, 140], paddingBottomRight: [40, 200], maxZoom: 15 });
+  }, [map, focus]);
   const runs = useMemo(
     () =>
       trips.map((t) => {

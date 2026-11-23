@@ -72,15 +72,33 @@ test("share a trip: private by default, public with a name, ends hidden, in Expl
   await expect(report).toContainText("to report this trip");
   await report.getByRole("button", { name: "Close" }).click();
 
-  // Explore (owner's map is around the trip): it's listed.
+  // Explore, from the chip on the map: listed for this area.
   await page.locator('button[aria-label="Close"]').first().click(); // the Trips sheet
-  await page.getByRole("button", { name: "More", exact: true }).click();
-  await page.getByRole("button", { name: "Explore trips" }).click();
-  await expect(page.getByRole("button", { name: /River loop/ })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByRole("button", { name: /River loop/ })).toContainText("River Rider");
+  const chip = page.getByRole("button", { name: "Explore", exact: true });
+  await chip.click();
+  await expect(chip).toHaveAttribute("aria-pressed", "true");
+  const item = page.getByRole("button", { name: /River loop/ });
+  await expect(item).toBeVisible({ timeout: 10_000 });
+  await expect(item).toContainText("River Rider");
+
+  // Picking it shows it on the map with a card above the bottom navigation.
+  await item.click();
+  const card = page.getByRole("region", { name: "Selected trip" });
+  await expect(card).toContainText("River loop");
+  await expect(page.getByRole("button", { name: "Search this area" })).toHaveCount(0); // the app moved the map, not you
+  const cardBox = (await card.boundingBox())!;
+  const navBox = (await page.getByRole("button", { name: "Search", exact: true }).boundingBox())!;
+  expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(navBox.y);
+  // "All trips here" brings the list back; picking again and opening goes to the trip page.
+  await card.getByRole("button", { name: "All trips here" }).click();
+  await page.getByRole("button", { name: /River loop/ }).click();
+  await card.getByRole("button", { name: "Open trip" }).click();
+  await expect(page).toHaveURL(/\/t\/[0-9a-f-]{36}$/);
+  await expect(page.locator('section[aria-label="Trip"]')).toContainText("River loop");
+  await page.goBack();
+  await page.waitForSelector(".leaflet-container");
 
   // Back to private: the link stops working.
-  await page.locator('button[aria-label="Close"]').first().click();
   await page.getByRole("button", { name: "Trips", exact: true }).click();
   await page.getByRole("button", { name: "Share River loop" }).click();
   await sheet.getByRole("button", { name: /Private/ }).click();

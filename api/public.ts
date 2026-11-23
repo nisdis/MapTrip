@@ -2,6 +2,7 @@ import { getAuth } from "./_lib/auth.js";
 import { getPool } from "./_lib/db.js";
 import { rejectForeignOrigin } from "./_lib/origin.js";
 import { refreshShareGeometry } from "./_lib/shareGeometry.js";
+import { haversineM } from "./_lib/live.js";
 import {
   HIDE_AFTER_REPORTS,
   REPORT_REASONS,
@@ -105,8 +106,34 @@ async function explore(url: URL): Promise<Response> {
      limit ${EXPLORE_LIMIT}`,
     [s, w, n, e],
   );
+  // Nothing in view: the nearest public trips instead, so Explore never looks empty.
+  let nearest: { id: string; title: string; author: string | null; distanceKm: number; center: [number, number]; bbox: [number, number, number, number] }[] = [];
+  if (!rows.length) {
+    const lat = (s + n) / 2;
+    const lng = (w + e) / 2;
+    const near = await getPool().query<{ id: string; name: string | null; display_name: string | null; clat: number; clng: number; min_lat: number; max_lat: number; min_lng: number; max_lng: number }>(
+      `select t.id, t.data->>'name' as name, p.display_name,
+              (t.min_lat + t.max_lat) / 2 as clat, (t.min_lng + t.max_lng) / 2 as clng,
+              t.min_lat, t.max_lat, t.min_lng, t.max_lng
+       from trips t left join profiles p on p.user_id = t.user_id
+       where t.visibility = 'public' and t.hidden_at is null and t.min_lat is not null
+       order by power((t.min_lat + t.max_lat) / 2 - $1, 2)
+              + power(((t.min_lng + t.max_lng) / 2 - $2) * cos(radians($1)), 2)
+       limit 5`,
+      [lat, lng],
+    );
+    nearest = near.rows.map((r) => ({
+      id: r.id,
+      title: (r.name ?? "Trip").slice(0, 120),
+      author: r.display_name,
+      distanceKm: Math.round(haversineM([lat, lng], [r.clat, r.clng]) / 1000),
+      center: [r.clat, r.clng],
+      bbox: [r.min_lat, r.min_lng, r.max_lat, r.max_lng],
+    }));
+  }
   return json(
     {
+      nearest,
       trips: rows.map((r) => {
         const all = pointsOf(r.data);
         const line = simplify(trimEnds(all, r.share?.hideM ?? 500), EXPLORE_POINTS);

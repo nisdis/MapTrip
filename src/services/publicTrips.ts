@@ -45,6 +45,17 @@ export interface ExploreTrip {
   line: [number, number, 0 | 1][];
 }
 
+/** When nothing is in view: the closest public trips (by the middle of their route). */
+export interface NearestTrip {
+  id: string;
+  title: string;
+  author: string | null;
+  distanceKm: number;
+  center: [number, number];
+  /** [south, west, north, east] */
+  bbox: [number, number, number, number];
+}
+
 export interface ReportedTrip {
   id: string;
   title: string | null;
@@ -103,7 +114,7 @@ export const countView = (id: string) => post<{ ok: boolean }>({ action: "view",
 export const reportTrip = (id: string, reason: string, details: string) =>
   post<{ ok: true }>({ action: "report", trip: id, reason, details });
 export const exploreArea = (b: { south: number; west: number; north: number; east: number }, signal?: AbortSignal) =>
-  request<{ trips: ExploreTrip[] }>(
+  request<{ trips: ExploreTrip[]; nearest: NearestTrip[] }>(
     `/api/public?explore=1&s=${b.south.toFixed(4)}&w=${b.west.toFixed(4)}&n=${b.north.toFixed(4)}&e=${b.east.toFixed(4)}`,
     { signal },
   );

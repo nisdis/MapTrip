@@ -81,6 +81,10 @@ describe.skipIf(!hasDb)("shared trips API", async () => {
     expect(item.line.length).toBeGreaterThan(10);
     const elsewhere = await (await get("explore=1&s=12.9&w=77.5&n=13.1&e=77.7")).json();
     expect(elsewhere.trips).toHaveLength(0);
+    // Nothing in view: the nearest public trips are offered instead, with how far they are.
+    expect(elsewhere.nearest[0]).toMatchObject({ title: "Morning ride", author: "Alice R" });
+    expect(elsewhere.nearest[0].distanceKm).toBeGreaterThan(5000); // Bengaluru to Kyoto
+    expect(elsewhere.nearest[0].bbox).toHaveLength(4);
     // Only the hidden start lies in this box: not found there.
     const startOnly = await (await get("explore=1&s=34.984&w=135.75&n=34.986&e=135.76")).json();
     expect(startOnly.trips.map((x: { id: string }) => x.id)).not.toContain(t.id);
