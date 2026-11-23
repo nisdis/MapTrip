@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { getPool } from "./db.js";
 
-function trustedOrigins(): string[] {
+export function trustedOrigins(): string[] {
   const origins = new Set<string>([
     "https://map.recordmytrip.com",
     "https://mapx-iota.vercel.app",
@@ -24,6 +24,10 @@ function createAuth() {
     // Email + password: no email provider needed. Accounts are only used for
     // saving trips to the cloud; the rest of the app needs no login.
     emailAndPassword: { enabled: true, minPasswordLength: 8 },
+    // Always check request origins. (Better Auth turns this off by itself when it
+    // detects a test runner; being explicit keeps it on everywhere, and lets
+    // our tests prove it.)
+    advanced: { disableOriginCheck: false },
   });
 }
 

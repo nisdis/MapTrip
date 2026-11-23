@@ -1,6 +1,7 @@
 import { getAuth } from "./_lib/auth.js";
 import { del } from "@vercel/blob";
 import { getPool } from "./_lib/db.js";
+import { rejectForeignOrigin } from "./_lib/origin.js";
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -16,6 +17,8 @@ function json(body: unknown, status = 200): Response {
 }
 
 async function handle(request: Request): Promise<Response> {
+  const foreign = rejectForeignOrigin(request);
+  if (foreign) return foreign;
   try {
     const userId = await requireUserId(request);
     if (!userId) return json({ message: "Please sign in" }, 401);

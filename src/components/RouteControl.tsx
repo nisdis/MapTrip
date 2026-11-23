@@ -28,10 +28,9 @@ export function RouteControl({
 
     const routingControl = L.Routing.control({
       router: L.Routing.osrmv1({
-        serviceUrl:
-          window.location.hostname === "localhost"
-            ? "http://localhost:5000/route/v1"
-            : "https://router.project-osrm.org/route/v1",
+        // Public worldwide router; set VITE_OSRM_URL to use your own (e.g. the
+        // India-only server in /server: http://localhost:5000/route/v1).
+        serviceUrl: import.meta.env.VITE_OSRM_URL || "https://router.project-osrm.org/route/v1",
       }),
       waypoints: [
         L.latLng(origin.location[0], origin.location[1]),
@@ -58,16 +57,9 @@ export function RouteControl({
       routingControl.hide();
     }
 
-    // Save the route once it's calculated. Only a small summary is stored:
-    // full route geometry can exceed the localStorage quota.
-    routingControl.on("routesfound", (e) => {
-      const summary = e.routes?.[0]?.summary;
-      saveRouteToHistory(origin, destination, {
-        summary: summary && {
-          totalDistance: summary.totalDistance,
-          totalTime: summary.totalTime,
-        },
-      });
+    // Remember the route (start and end only) once one is found.
+    routingControl.on("routesfound", () => {
+      saveRouteToHistory(origin, destination);
     });
     routingControl.on("routingerror", (e) => {
       console.error("Routing failed:", e);

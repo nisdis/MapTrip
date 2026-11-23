@@ -1,4 +1,5 @@
 import { haversine } from "../utils/geo";
+import { nominatimGet } from "./nominatimClient";
 
 // Place details from OpenStreetMap's Nominatim. Hours, phone, photos etc. only
 // exist where OSM volunteers have added them.
@@ -68,30 +69,10 @@ interface NominatimPlace {
   extratags?: Record<string, string>;
 }
 
-const BASE = "https://nominatim.openstreetmap.org";
 const DETAIL_PARAMS = "format=jsonv2&addressdetails=1&extratags=1&namedetails=1";
-const MIN_GAP_MS = 1100; // Nominatim allows about one request per second
-let lastRequestAt = 0;
 
-async function politeDelay(signal: AbortSignal) {
-  const wait = lastRequestAt + MIN_GAP_MS - Date.now();
-  lastRequestAt = Math.max(Date.now(), lastRequestAt + MIN_GAP_MS);
-  if (wait <= 0) return;
-  await new Promise<void>((resolve, reject) => {
-    const t = setTimeout(resolve, wait);
-    signal.addEventListener("abort", () => {
-      clearTimeout(t);
-      reject(new DOMException("Aborted", "AbortError"));
-    });
-  });
-}
-
-async function nominatim<T>(path: string, signal: AbortSignal): Promise<T> {
-  await politeDelay(signal);
-  const response = await fetch(`${BASE}${path}`, { signal, headers: { "Accept-Language": "en" } });
-  if (!response.ok) throw new Error(`Place lookup failed (${response.status})`);
-  return (await response.json()) as T;
-}
+/** All Nominatim traffic goes through the shared, rate-limited client. */
+const nominatim = <T,>(path: string, signal?: AbortSignal) => nominatimGet<T>(path, signal);
 
 async function reverse(lat: number, lng: number, layer: "poi" | "address", signal: AbortSignal) {
   const body = await nominatim<NominatimPlace>(

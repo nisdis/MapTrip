@@ -1,5 +1,6 @@
 import { LatLngTuple } from 'leaflet';
 import { getCachedResults, cacheResults } from './cacheService';
+import { nominatimGet } from './nominatimClient';
 
 export interface SearchResult {
   id: number;
@@ -37,22 +38,11 @@ export async function searchPlaces(query: string): Promise<SearchResult[]> {
   }
 
   try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?countrycodes=${SEARCH_COUNTRIES.join(",")}&format=json&q=${encodeURIComponent(
-        query
-      )}&limit=5`,
-      {
-        headers: {
-          'Accept-Language': 'en',
-        },
-      }
+    // Shared, rate-limited client (search, directions fields and place lookups
+    // all share Nominatim's one-request-per-second allowance).
+    const data = await nominatimGet<NominatimResponse[]>(
+      `/search?countrycodes=${SEARCH_COUNTRIES.join(",")}&format=json&q=${encodeURIComponent(query)}&limit=5`,
     );
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch search results');
-    }
-
-    const data: NominatimResponse[] = await response.json();
 
     const results = data.map((item) => ({
       id: item.place_id,
@@ -71,10 +61,7 @@ export async function searchPlaces(query: string): Promise<SearchResult[]> {
     console.error('Search failed:', error);
 
     // If offline and no cached results, return empty array
-    if (!navigator.onLine) {
-      console.log('Device is offline, returning empty results');
-      return [];
-    }
+    if (!navigator.onLine) return [];
 
     throw error;
   }

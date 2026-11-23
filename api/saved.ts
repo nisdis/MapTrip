@@ -1,5 +1,6 @@
 import { getAuth } from "./_lib/auth.js";
 import { getPool } from "./_lib/db.js";
+import { rejectForeignOrigin } from "./_lib/origin.js";
 
 // Sync for Favourites / Home / Work. The client sends all its records; the
 // server keeps whichever copy of each was edited last, then returns them all.
@@ -55,6 +56,8 @@ function clean(raw: unknown, now: number) {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const foreign = rejectForeignOrigin(request);
+  if (foreign) return foreign;
   try {
     const session = await getAuth().api.getSession({ headers: request.headers });
     if (!session) return json({ message: "Please sign in" }, 401);

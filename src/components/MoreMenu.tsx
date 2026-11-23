@@ -1,5 +1,4 @@
 import {
-  Download,
   Trash2,
   Settings,
   Info,
@@ -12,10 +11,8 @@ interface MoreMenuProps {
   isOpen: boolean;
   onClose: () => void;
   isOnline: boolean;
-  onCacheClick: () => void;
   onClearClick: () => void;
   handleShoeRouteItems: () => void;
-  isCaching?: boolean;
   isClearing?: boolean;
 }
 
@@ -23,9 +20,7 @@ export function MoreMenu({
   isOpen,
   onClose,
   isOnline,
-  onCacheClick,
   onClearClick,
-  isCaching = false,
   isClearing = false,
   handleShoeRouteItems = () => {},
 }: MoreMenuProps) {
@@ -57,18 +52,6 @@ export function MoreMenu({
               </span>
             </div>
             <div className="border-t border-gray-100 my-2" />
-            <button
-              onClick={onCacheClick}
-              disabled={isCaching}
-              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              <Download
-                className={`w-5 h-5 text-blue-600 ${isCaching ? "animate-pulse" : ""}`}
-              />
-              <span className="text-sm text-gray-700">
-                {isCaching ? "Caching..." : "Cache Map Area"}
-              </span>
-            </button>
             <button
               onClick={onClearClick}
               disabled={isClearing}

@@ -1,5 +1,5 @@
 import { useMap, useMapEvents } from "react-leaflet";
-import { queryPoiNear } from "./VectorBasemap";
+import { queryPoiNear } from "../services/basemapRegistry";
 import type { PoiHint } from "../services/placeService";
 
 interface MapTapHandlerProps {

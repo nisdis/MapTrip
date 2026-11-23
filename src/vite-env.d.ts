@@ -1,5 +1,10 @@
 /// <reference types="vite/client" />
 
+interface ImportMetaEnv {
+  /** Optional: your own OSRM server (default: the public router.project-osrm.org) */
+  readonly VITE_OSRM_URL?: string;
+}
+
 declare module 'leaflet-routing-machine' {
   import * as L from 'leaflet';
 
@@ -22,8 +27,8 @@ declare module 'leaflet-routing-machine' {
 
     class Control extends L.Control {
       constructor(options: RoutingControlOptions);
-      getPlan(): any;
-      getRouter(): any;
+      getPlan(): unknown;
+      getRouter(): unknown;
       route(): void;
     }
 

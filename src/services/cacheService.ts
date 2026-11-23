@@ -49,33 +49,3 @@ export async function cacheResults(query: string, results: SearchResult[]): Prom
     console.error('Failed to cache search results:', error);
   }
 }
-
-export async function clearOldCache(): Promise<void> {
-  try {
-    const cache = await caches.open(CACHE_NAME);
-    const keys = await cache.keys();
-    const maxEntries = 50; // Maximum number of entries to keep
-
-    if (keys.length > maxEntries) {
-      // Get all cache entries with their timestamps
-      const entries = await Promise.all(
-        keys.map(async (key) => {
-          const response = await cache.match(key);
-          const data: CacheEntry = await response!.json();
-          return { key, timestamp: data.timestamp };
-        })
-      );
-
-      // Sort by timestamp and get the oldest entries
-      const sortedEntries = entries.sort((a, b) => a.timestamp - b.timestamp);
-      const entriesToDelete = sortedEntries.slice(0, sortedEntries.length - maxEntries);
-
-      // Delete the oldest entries
-      await Promise.all(
-        entriesToDelete.map((entry) => cache.delete(entry.key))
-      );
-    }
-  } catch (error) {
-    console.error('Failed to clear old cache:', error);
-  }
-}

@@ -132,6 +132,15 @@ export function PlaceSheet(props: PlaceSheetProps) {
   const { status, coords, place, error, userPosition, onClose, onDirections, saved } = props;
   const [noteDraft, setNoteDraft] = useState(saved.note ?? "");
   useEffect(() => setNoteDraft(saved.note ?? ""), [saved.note, place?.id]);
+  // Save the note shortly after typing stops, not only when the box loses focus
+  // (leaving the page or locking the phone would otherwise lose it).
+  const saveNote = saved.onSaveNote;
+  const currentNote = saved.note ?? "";
+  useEffect(() => {
+    if (noteDraft === currentNote) return;
+    const t = setTimeout(() => saveNote(noteDraft), 800);
+    return () => clearTimeout(t);
+  }, [noteDraft, currentNote, saveNote]);
   const ref = useReportHeight(props.onHeight);
   const [expanded, setExpanded] = useState(false);
   const [wiki, setWiki] = useState<WikiSummary | null>(null);

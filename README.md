@@ -41,3 +41,17 @@ time from you, and expands to full details: weekly hours, contacts, payment,
 diet, accessibility, and a photo and description for notable places (from
 Wikipedia). Share links look like `/?place=lat,lng`.
 Ratings, reviews and most photos aren't available from free map data.
+
+### Local routing server (optional)
+`server/` runs OSRM with India-only data. The app uses the public worldwide
+router unless you set `VITE_OSRM_URL=http://localhost:5000/route/v1` in `.env.local`.
+
+## Development
+```bash
+pnpm install
+pnpm dev            # app (set API_PROXY_TARGET to serve /api, see tests/e2e/api-server.ts)
+pnpm lint && pnpm typecheck
+pnpm test           # unit tests; API tests run too when DATABASE_URL points at a Postgres
+pnpm build && pnpm test:e2e   # browser tests (outside services are mocked)
+```
+CI (`.github/workflows/ci.yml`) runs all of the above on every push. It's advisory.

@@ -536,12 +536,6 @@ function App() {
     setShowMoreMenu(false);
   }, []);
 
-  const handleCacheClick = useCallback(() => {
-    alert(
-      "Use the download button on the map controls to cache the current area",
-    );
-  }, []);
-
   const handleShoeRouteItems = useCallback(() => {
     setIsVisible((visible) => !visible);
   }, []);
@@ -714,7 +708,6 @@ function App() {
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
           onResetView={handleResetView}
-          showDownload={false}
         />
       </MapContainer>
 
@@ -865,7 +858,6 @@ function App() {
         isOpen={showMoreMenu}
         onClose={handleCloseMore}
         isOnline={isOnline}
-        onCacheClick={handleCacheClick}
         onClearClick={handleClearClick}
         isClearing={isClearing}
         handleShoeRouteItems={handleShoeRouteItems}

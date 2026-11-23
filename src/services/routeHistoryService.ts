@@ -5,41 +5,35 @@ export interface RouteHistoryItem {
   origin: SearchResult;
   destination: SearchResult;
   timestamp: number;
-  route?: any; // Cache of the actual route data
 }
 
 const HISTORY_KEY = 'map_route_history';
-const ROUTE_CACHE_KEY = 'map_route_cache';
+/** Older versions also cached whole routes under this prefix; cleared on save. */
+const LEGACY_ROUTE_CACHE_PREFIX = 'map_route_cache';
 const MAX_HISTORY_ITEMS = 20;
 
-export function saveRouteToHistory(origin: SearchResult, destination: SearchResult, route?: any): void {
+const routeKey = (origin: SearchResult, destination: SearchResult) =>
+  `${origin.location.join(',')}_${destination.location.join(',')}`;
+
+export function saveRouteToHistory(origin: SearchResult, destination: SearchResult): void {
   // Same origin/destination replaces the older entry instead of duplicating it.
   const history = getRouteHistory().filter(
-    (item) =>
-      generateRouteCacheKey(item.origin, item.destination) !==
-      generateRouteCacheKey(origin, destination),
+    (item) => routeKey(item.origin, item.destination) !== routeKey(origin, destination),
   );
-  const newRoute: RouteHistoryItem = {
+  history.unshift({
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
     origin,
     destination,
-    timestamp: Date.now()
-  };
-
-  // Add to beginning of array and limit size
-  history.unshift(newRoute);
+    timestamp: Date.now(),
+  });
   history.length = Math.min(history.length, MAX_HISTORY_ITEMS);
 
   try {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-
-    if (route) {
-      const cacheKey = generateRouteCacheKey(origin, destination);
-      localStorage.setItem(`${ROUTE_CACHE_KEY}_${cacheKey}`, JSON.stringify({
-        route,
-        timestamp: Date.now()
-      }));
-    }
+    // Free space used by the old route cache.
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(LEGACY_ROUTE_CACHE_PREFIX))
+      .forEach((k) => localStorage.removeItem(k));
   } catch (error) {
     // Storage full/unavailable (e.g. private mode): history is best-effort.
     console.error('Failed to save route history:', error);
@@ -58,38 +52,4 @@ export function getRouteHistory(): RouteHistoryItem[] {
 
 export function clearRouteHistory(): void {
   localStorage.removeItem(HISTORY_KEY);
-  
-  // Clear route cache
-  const keys = Object.keys(localStorage);
-  keys.forEach(key => {
-    if (key.startsWith(ROUTE_CACHE_KEY)) {
-      localStorage.removeItem(key);
-    }
-  });
-}
-
-export function getCachedRoute(origin: SearchResult, destination: SearchResult): any | null {
-  try {
-    const cacheKey = generateRouteCacheKey(origin, destination);
-    const cached = localStorage.getItem(`${ROUTE_CACHE_KEY}_${cacheKey}`);
-    
-    if (!cached) return null;
-    
-    const { route, timestamp } = JSON.parse(cached);
-    
-    // Cache expires after 7 days
-    if (Date.now() - timestamp > 7 * 24 * 60 * 60 * 1000) {
-      localStorage.removeItem(`${ROUTE_CACHE_KEY}_${cacheKey}`);
-      return null;
-    }
-    
-    return route;
-  } catch (error) {
-    console.error('Failed to get cached route:', error);
-    return null;
-  }
-}
-
-function generateRouteCacheKey(origin: SearchResult, destination: SearchResult): string {
-  return `${origin.location.join(',')}_${destination.location.join(',')}`;
 }

@@ -1,0 +1,64 @@
+import { describe, expect, it } from "vitest";
+import { SpeedEstimator } from "../../src/utils/speedEstimator";
+
+const M_PER_DEG_LAT = 111320;
+
+/** Simulates 1 fix/second heading north; returns km/h readings. */
+function simulate(
+  seconds: number,
+  ms: (t: number) => number,
+  deviceSpeed: (t: number, v: number) => number | null,
+  { accuracy = 8, noiseM = 3 } = {},
+) {
+  const e = new SpeedEstimator();
+  let y = 0;
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 2;
+  const out: number[] = [];
+  for (let t = 0; t < seconds; t++) {
+    const v = ms(t);
+    y += v;
+    const lat = 12.97 + (y + rnd() * noiseM) / M_PER_DEG_LAT;
+    const lng = 77.6 + (rnd() * noiseM) / 108500;
+    out.push(Math.round(e.update({ lat, lng, t: t * 1000, accuracy, speed: deviceSpeed(t, v) }) * 3.6));
+  }
+  return out;
+}
+
+describe("SpeedEstimator", () => {
+  it("never drops to 0 while driving when the phone only sometimes reports speed (the flicker bug)", () => {
+    const out = simulate(15, () => 10, (t, v) => (t % 3 === 0 ? v : null));
+    expect(out.slice(1).every((k) => k > 0)).toBe(true);
+    expect(out.at(-1)).toBeGreaterThanOrEqual(33);
+    expect(out.at(-1)).toBeLessThanOrEqual(39);
+  });
+
+  it("measures speed from positions when the phone never reports it", () => {
+    const out = simulate(15, () => 10, () => null);
+    expect(out.slice(3).every((k) => k >= 30 && k <= 42)).toBe(true);
+  });
+
+  it("reads a slow walk without speed from the phone (old recorder showed 0)", () => {
+    const out = simulate(15, () => 1.4, () => null);
+    expect(out.slice(3).every((k) => k > 0)).toBe(true);
+  });
+
+  it("reads 0 when standing still with normal GPS wander", () => {
+    expect(simulate(15, () => 0, () => null).every((k) => k === 0)).toBe(true);
+  });
+
+  it("ignores a single impossible spike so it can't set max speed", () => {
+    const out = simulate(10, () => 10, (t, v) => (t === 5 ? 83 : v));
+    expect(Math.max(...out)).toBeLessThanOrEqual(40);
+  });
+
+  it("accepts a real jump once a second reading confirms it", () => {
+    const out = simulate(8, (t) => (t < 3 ? 0 : 22), (t, v) => v);
+    expect(out.at(-1)).toBeGreaterThan(70);
+  });
+
+  it("reaches 0 within a few seconds of stopping", () => {
+    const out = simulate(16, (t) => (t < 8 ? 13.9 : 0), (t, v) => v);
+    expect(out[13]).toBe(0);
+  });
+});
