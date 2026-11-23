@@ -35,6 +35,17 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Live trip and place links open in the app (verified against
+                 https://map.recordmytrip.com/.well-known/assetlinks.json). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="map.recordmytrip.com" android:pathPrefix="/live/" />
+                <data android:scheme="https" android:host="map.recordmytrip.com" android:pathPrefix="/p/" />
+            </intent-filter>
+            <!-- Links are handled by app_links and loaded in the web view, not by Flutter's router. -->
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

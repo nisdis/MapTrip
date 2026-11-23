@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:app_links/app_links.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:path_provider/path_provider.dart';
@@ -13,6 +14,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'config.dart';
+import 'device/phone.dart';
 import 'live/background_share.dart';
 import 'recorder/fix.dart';
 import 'recorder/fix_buffer.dart';
@@ -50,14 +52,34 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
   Timer? _liveTimer;
   bool _ready = false;
 
+  /// Opened from a link (a live trip, a place): start on that page.
+  String? _startUrl;
+  bool _startKnown = false;
+  final Phone _phone = Phone();
+  final AppLinks _links = AppLinks();
+  StreamSubscription<Uri>? _linkSub;
+
   @override
   void initState() {
     super.initState();
+    _links
+        .getInitialLink()
+        .then((uri) => _inApp(uri)?.toString(), onError: (_) => null)
+        .then((url) {
+          if (mounted) setState(() => (_startUrl = url, _startKnown = true));
+        });
     WidgetsBinding.instance.addObserver(this);
     _init();
   }
 
   /// Picks up where a previous run left off (app killed mid-trip).
+  /// The app's own page for a link, or null if it isn't one of ours.
+  Uri? _inApp(Uri? uri) {
+    if (uri == null || !isTrustedOrigin(uri)) return null;
+    return Uri.parse(appUrl)
+        .replace(path: uri.path, query: uri.hasQuery ? uri.query : null);
+  }
+
   Future<void> _init() async {
     final dir = await getApplicationSupportDirectory();
     final buffer = FixBuffer(File('${dir.path}/trip_fixes.jsonl'));
@@ -74,6 +96,13 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
       // first run
     }
     _ready = true;
+    // A link opened while the app is already running loads in the same view.
+    _linkSub = _links.uriLinkStream.listen((uri) {
+      final target = _inApp(uri);
+      if (target != null) {
+        _web?.loadUrl(urlRequest: URLRequest(url: WebUri(target.toString())));
+      }
+    });
     await _applyGpsMode();
   }
 
@@ -175,7 +204,14 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
           'share': share == null
               ? null
               : {'token': share.token, 'expiresAt': share.expiresAt},
+          'device': await _phone.device(),
+          'battery': {'unrestricted': await _phone.batteryUnrestricted()},
         };
+      case 'batteryStatus':
+        return {'unrestricted': await _phone.batteryUnrestricted()};
+      case 'openBatterySettings':
+        await _phone.openSettings();
+        return {'ok': true};
       case 'recording':
         final state = msg['state'];
         final next = state == 'recording' || state == 'paused'
@@ -184,6 +220,9 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
         if (next == 'idle' && _recording != 'idle') {
           buffer?.clear(); // trip finished: nothing to keep
           _live.handoff(null);
+        }
+        if (next == 'recording' && _recording == 'idle') {
+          await _phone.askNotifications();
         }
         _recording = next;
         _startedAt = (msg['startedAt'] as num?)?.toInt() ?? 0;
@@ -250,6 +289,7 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _liveTimer?.cancel();
+    _linkSub?.cancel();
     _gps.dispose();
     super.dispose();
   }
@@ -283,66 +323,77 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
         child: Scaffold(
           backgroundColor: const Color(0xFFF4F6F5),
           body: SafeArea(
-            child: InAppWebView(
-              initialUrlRequest: URLRequest(url: WebUri(appUrl)),
-              initialSettings: InAppWebViewSettings(
-                javaScriptEnabled: true,
-                useShouldOverrideUrlLoading: true,
-                mediaPlaybackRequiresUserGesture: false,
-                allowsInlineMediaPlayback: true,
-                geolocationEnabled: true,
-                supportZoom: false,
-                applicationNameForUserAgent: 'RecordMyTripApp/$appVersion',
-                isInspectable: kDebugMode,
-              ),
-              // Tells the page it is inside the app, before any of its code runs.
-              initialUserScripts: UnmodifiableListView([
-                UserScript(
-                  source:
-                      'window.__RMT_APP__ = ${jsonEncode({'version': appVersion, 'platform': Platform.operatingSystem})};',
-                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-                  forMainFrameOnly: true,
-                  allowedOriginRules: trustedOrigins,
-                ),
-              ]),
-              onWebViewCreated: (controller) {
-                _web = controller;
-                controller.addJavaScriptHandler(
-                  handlerName: 'rmt',
-                  callback: _onMessage,
-                );
-              },
-              // Links away from the app (Wikipedia, websites, phone numbers) open outside it.
-              shouldOverrideUrlLoading: (controller, action) async {
-                final uri = action.request.url;
-                if (uri == null ||
-                    isTrustedOrigin(uri) ||
-                    uri.scheme == 'about' ||
-                    uri.scheme == 'blob' ||
-                    uri.scheme == 'data') {
-                  return NavigationActionPolicy.ALLOW;
-                }
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-                return NavigationActionPolicy.CANCEL;
-              },
-              // Fallback for page code that asks the browser for location directly.
-              onGeolocationPermissionsShowPrompt: (controller, origin) async {
-                final ok = isTrustedOrigin(Uri.tryParse(origin));
-                return GeolocationPermissionShowPromptResponse(
-                  origin: origin,
-                  allow: ok,
-                  retain: ok,
-                );
-              },
-              onPermissionRequest: (controller, request) async {
-                return PermissionResponse(
-                  resources: request.resources,
-                  action: isTrustedOrigin(request.origin)
-                      ? PermissionResponseAction.GRANT
-                      : PermissionResponseAction.DENY,
-                );
-              },
-            ),
+            // Wait (a moment) to learn whether a link opened the app.
+            child: !_startKnown
+                ? const SizedBox.shrink()
+                : InAppWebView(
+                    initialUrlRequest: URLRequest(
+                      url: WebUri(_startUrl ?? appUrl),
+                    ),
+                    initialSettings: InAppWebViewSettings(
+                      javaScriptEnabled: true,
+                      useShouldOverrideUrlLoading: true,
+                      mediaPlaybackRequiresUserGesture: false,
+                      allowsInlineMediaPlayback: true,
+                      geolocationEnabled: true,
+                      supportZoom: false,
+                      applicationNameForUserAgent:
+                          'RecordMyTripApp/$appVersion',
+                      isInspectable: kDebugMode,
+                    ),
+                    // Tells the page it is inside the app, before any of its code runs.
+                    initialUserScripts: UnmodifiableListView([
+                      UserScript(
+                        source:
+                            'window.__RMT_APP__ = ${jsonEncode({'version': appVersion, 'platform': Platform.operatingSystem})};',
+                        injectionTime:
+                            UserScriptInjectionTime.AT_DOCUMENT_START,
+                        forMainFrameOnly: true,
+                        allowedOriginRules: trustedOrigins,
+                      ),
+                    ]),
+                    onWebViewCreated: (controller) {
+                      _web = controller;
+                      controller.addJavaScriptHandler(
+                        handlerName: 'rmt',
+                        callback: _onMessage,
+                      );
+                    },
+                    // Links away from the app (Wikipedia, websites, phone numbers) open outside it.
+                    shouldOverrideUrlLoading: (controller, action) async {
+                      final uri = action.request.url;
+                      if (uri == null ||
+                          isTrustedOrigin(uri) ||
+                          uri.scheme == 'about' ||
+                          uri.scheme == 'blob' ||
+                          uri.scheme == 'data') {
+                        return NavigationActionPolicy.ALLOW;
+                      }
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
+                      return NavigationActionPolicy.CANCEL;
+                    },
+                    // Fallback for page code that asks the browser for location directly.
+                    onGeolocationPermissionsShowPrompt:
+                        (controller, origin) async {
+                          final ok = isTrustedOrigin(Uri.tryParse(origin));
+                          return GeolocationPermissionShowPromptResponse(
+                            origin: origin,
+                            allow: ok,
+                            retain: ok,
+                          );
+                        },
+                    onPermissionRequest: (controller, request) async {
+                      return PermissionResponse(
+                        resources: request.resources,
+                        action: isTrustedOrigin(request.origin)
+                            ? PermissionResponseAction.GRANT
+                            : PermissionResponseAction.DENY,
+                      );
+                    },
+                  ),
           ),
         ),
       ),

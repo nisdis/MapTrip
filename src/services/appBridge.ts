@@ -32,6 +32,10 @@ export interface NativeHello {
   /** fixes the page hasn't confirmed yet (e.g. recorded while the phone was locked) */
   pending: NativeFix[];
   share: { token: string; expiresAt: number } | null;
+  /** phone brand/model (for the battery settings guide) */
+  device?: { os: string; manufacturer: string; model: string; sdk: number };
+  /** Android: is the app exempt from battery optimisation? */
+  battery?: { unrestricted: boolean };
 }
 
 /** What the app needs to keep a live share going while this page is frozen. */
@@ -60,7 +64,9 @@ type AppMessage =
   | { type: "recording"; state: NativeRecording; startedAt: number }
   | { type: "ack"; seq: number }
   | { type: "share"; share: ShareHandoff | null }
-  | { type: "shareText"; title: string; text: string; url: string };
+  | { type: "shareText"; title: string; text: string; url: string }
+  | { type: "batteryStatus" }
+  | { type: "openBatterySettings" };
 
 type Incoming = { type: "fixes"; fixes: NativeFix[] } | { type: "resumed" };
 

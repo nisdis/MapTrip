@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "com.recordmytrip.map"
-    compileSdk = flutter.compileSdkVersion
+    // 37: permission_handler needs it to compile. Target SDK stays at Flutter's default.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.recordmytrip.map",
+      "sha256_cert_fingerprints": [
+        "EA:FE:27:0E:75:F9:28:68:FC:C1:FA:F6:68:44:9F:70:62:4E:51:15:93:CE:D0:DE:5E:F2:E3:74:68:A1:17:6F"
+      ]
+    }
+  }
+]

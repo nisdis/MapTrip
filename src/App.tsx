@@ -47,6 +47,7 @@ import { computeStats } from "./utils/tripStats";
 import { useTripRecorder } from "./hooks/useTripRecorder";
 import { useLiveShare } from "./hooks/useLiveShare";
 import { LiveShareSheet } from "./components/LiveShareSheet";
+import { BatteryGuide } from "./components/BatteryGuide";
 import { useAuth } from "./hooks/useAuth";
 import { authClient } from "./services/authClient";
 import {
@@ -164,12 +165,15 @@ function App() {
   // ---- Inside the Record My Trip app (GPS and background recording by the app) ----
   const [appReady, setAppReady] = useState(() => !isInApp());
   const appPending = useRef<NativeFix[] | null>(null);
+  const [appHello, setAppHello] = useState<NativeHello | null>(null);
+  const [showBattery, setShowBattery] = useState(false);
   useEffect(() => {
     if (!isInApp()) return;
     let cancelled = false;
     void (async () => {
       const hello = await callApp<NativeHello>({ type: "hello" });
       if (cancelled) return;
+      setAppHello(hello);
       // The page was reloaded while the app kept recording: carry the trip on.
       if (hello && hello.recording !== "idle") {
         const d = await loadDraft().catch(() => null);
@@ -198,6 +202,20 @@ function App() {
       appPending.current = null;
     }
   }, [recorder.status, attachApp]);
+  // First trip in the app while Android may still stop it in the background:
+  // explain how to let it run (once; it stays reachable from the recorder).
+  const batteryRestricted = appHello?.device?.os === "android" && appHello.battery?.unrestricted === false;
+  useEffect(() => {
+    if (recorder.status !== "recording" || !batteryRestricted) return;
+    try {
+      if (localStorage.getItem("batteryGuideSeen")) return;
+      localStorage.setItem("batteryGuideSeen", "1");
+    } catch {
+      /* show it anyway */
+    }
+    setShowBattery(true);
+  }, [recorder.status, batteryRestricted]);
+
   // The app records in the background only while a trip is being recorded.
   useEffect(() => {
     if (!appReady || !isInApp()) return;
@@ -867,6 +885,20 @@ function App() {
           }}
           sharing={!!liveShare.share}
           onShare={() => setShowLiveShare(true)}
+          onBatteryHelp={batteryRestricted ? () => setShowBattery(true) : undefined}
+        />
+      )}
+
+      {showBattery && (
+        <BatteryGuide
+          manufacturer={appHello?.device?.manufacturer ?? ""}
+          onClose={() => {
+            setShowBattery(false);
+            // It may have been changed in settings: ask again.
+            void callApp<{ unrestricted: boolean }>({ type: "batteryStatus" }).then(
+              (r) => r && setAppHello((h) => (h ? { ...h, battery: { unrestricted: r.unrestricted } } : h)),
+            );
+          }}
         />
       )}
 

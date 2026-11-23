@@ -31,6 +31,8 @@ interface RecorderHudProps {
   /** a live link is active */
   sharing: boolean;
   onShare: () => void;
+  /** In the app, while Android may still stop it in the background */
+  onBatteryHelp?: () => void;
 }
 
 const HOLD_MS = 900;
@@ -124,7 +126,7 @@ function Stat({ label, value, unit, note }: { label: string; value: string; unit
 }
 
 /** Says plainly that locking the phone pauses tracking, and what happened after a gap. */
-function TrackingNote({ lastGap }: { lastGap: TrackGap | null }) {
+function TrackingNote({ lastGap, onBatteryHelp }: { lastGap: TrackGap | null; onBatteryHelp?: () => void }) {
   const recent = lastGap && Date.now() - lastGap.endedAt < 30000;
   if (recent) {
     const min = Math.max(1, Math.round((lastGap.endedAt - lastGap.startedAt) / 60000));
@@ -139,7 +141,21 @@ function TrackingNote({ lastGap }: { lastGap: TrackGap | null }) {
       </p>
     );
   }
-  if (isInApp()) return <p className="mt-1 text-xs text-asphalt/55">Keeps recording with the screen off.</p>;
+  if (isInApp()) {
+    return (
+      <p className="mt-1 text-xs text-asphalt/55">
+        Keeps recording with the screen off.
+        {onBatteryHelp && (
+          <>
+            {" "}
+            <button type="button" onClick={onBatteryHelp} className="font-bold text-[#9a6700] underline">
+              Check battery settings
+            </button>
+          </>
+        )}
+      </p>
+    );
+  }
   return <p className="mt-1 text-xs text-asphalt/55">Keep the screen on. Locking the phone pauses tracking.</p>;
 }
 
@@ -181,7 +197,7 @@ export function RecorderHud(props: RecorderHudProps) {
           <span className="text-asphalt/60">{gpsLabel(accuracyM)}</span>
         </div>
 
-        <TrackingNote lastGap={props.lastGap} />
+        <TrackingNote lastGap={props.lastGap} onBatteryHelp={props.onBatteryHelp} />
 
         <div className="mt-2 flex items-baseline">
           <span className="inline-block min-w-[2ch] text-[76px] leading-none font-bold tabular-nums">

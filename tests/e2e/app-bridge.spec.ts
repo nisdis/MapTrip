@@ -1,5 +1,5 @@
 import { test as base, expect, type Page } from "@playwright/test";
-import { isolate } from "./fixtures";
+import { hold, isolate } from "./fixtures";
 
 // The web side of the Record My Trip app bridge, with the app played by a fake
 // (window.flutter_inappwebview). It pins down the protocol mobile/ implements.
@@ -29,8 +29,17 @@ const test = base.extend({
         callHandler: async (_name: string, msg: { type: string }) => {
           log.push(msg);
           if (msg.type === "hello") {
-            return { version: "test", platform: "android", recording: cfg.recording ?? "idle", pending: cfg.pending ?? [], share: cfg.share ?? null };
+            return {
+              version: "test",
+              platform: "android",
+              recording: cfg.recording ?? "idle",
+              pending: cfg.pending ?? [],
+              share: cfg.share ?? null,
+              device: cfg.device,
+              battery: cfg.battery,
+            };
           }
+          if (msg.type === "batteryStatus") return cfg.battery ?? { unrestricted: true };
           return { ok: true };
         },
       };
@@ -111,4 +120,63 @@ test("in the app: nothing to continue tells the app to stop", async ({ page }) =
   await page.waitForSelector(".leaflet-container");
   await expect.poll(async () => (await appLog(page)).filter((m) => m.type === "recording").at(-1)).toMatchObject({ state: "idle" });
   await expect(page.locator('section[aria-label="Trip recorder"]')).toHaveCount(0);
+});
+
+test("in the app: first trip on a phone that may stop it in the background shows the battery guide once", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "__fakeApp",
+      JSON.stringify({ device: { os: "android", manufacturer: "samsung", model: "SM-S921B", sdk: 35 }, battery: { unrestricted: false } }),
+    ),
+  );
+  await page.reload();
+  await page.waitForSelector(".leaflet-container");
+  await send(page, fixes(0, 1));
+  await page.getByRole("button", { name: "Record a trip" }).click();
+  const guide = page.getByRole("dialog", { name: "Keep recording with the screen off" });
+  await expect(guide).toContainText("Samsung phones can stop apps");
+  await expect(guide).toContainText("Choose Unrestricted");
+  await guide.getByRole("button", { name: "Open settings" }).click();
+  await expect.poll(async () => (await appLog(page)).map((m) => m.type)).toContain("openBatterySettings");
+  await guide.getByRole("button", { name: "Later" }).click();
+  await expect(guide).toHaveCount(0);
+
+  // Still reachable from the recorder, but not shown again by itself.
+  const hud = page.locator('section[aria-label="Trip recorder"]');
+  await hud.getByRole("button", { name: "Check battery settings" }).click();
+  await expect(guide).toBeVisible();
+  await guide.getByRole("button", { name: "Close" }).click();
+  page.on("dialog", (d) => d.accept());
+  await send(page, fixes(1, 3));
+  await hold(page, 'button[aria-label^="Finish trip"]', 1200);
+  await page.getByRole("button", { name: "Discard" }).click();
+  await page.getByRole("button", { name: "Record a trip" }).click();
+  await page.waitForTimeout(500);
+  await expect(guide).toHaveCount(0);
+});
+
+test("in the app: no battery guide when the app may already run in the background", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "__fakeApp",
+      JSON.stringify({ device: { os: "android", manufacturer: "google", model: "Pixel 9", sdk: 36 }, battery: { unrestricted: true } }),
+    ),
+  );
+  await page.reload();
+  await page.waitForSelector(".leaflet-container");
+  await send(page, fixes(0, 1));
+  await page.getByRole("button", { name: "Record a trip" }).click();
+  await page.waitForTimeout(500);
+  await expect(page.getByRole("dialog", { name: "Keep recording with the screen off" })).toHaveCount(0);
+  await expect(page.locator('section[aria-label="Trip recorder"]')).not.toContainText("Check battery settings");
+});
+
+test("the website tells Android this app may open its links", async ({ request }) => {
+  const res = await request.get("/.well-known/assetlinks.json");
+  expect(res.ok()).toBe(true);
+  const body = await res.json();
+  expect(body[0].target.package_name).toBe("com.recordmytrip.map");
+  expect(body[0].relation).toContain("delegate_permission/common.handle_all_urls");
 });
