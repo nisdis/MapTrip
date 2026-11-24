@@ -1,4 +1,4 @@
-import { Search, Navigation, Star, MoreVertical, Route, Circle, type LucideIcon } from "lucide-react";
+import { Search, Navigation, Star, MoreVertical, Route, type LucideIcon } from "lucide-react";
 
 interface BottomNavProps {
   activeTab: string;
@@ -64,9 +64,7 @@ export function BottomNav({ activeTab, onTabChange, onMoreClick, onRecord, moreB
         >
           {/* The circle rises above the bar; the label lines up with the other labels. */}
           <span className="h-6 w-6" aria-hidden />
-          <span className="absolute left-1/2 top-0 flex h-14 w-14 -translate-x-1/2 -translate-y-[38%] items-center justify-center rounded-full bg-milestone text-[#1F2A30] shadow-lg ring-4 ring-white dark:ring-[#1c2429] group-focus-visible:ring-asphalt">
-            <Circle className="w-6 h-6 fill-signal text-signal" />
-          </span>
+          <span className="absolute left-1/2 top-0 h-14 w-14 -translate-x-1/2 -translate-y-[38%] rounded-full bg-signal shadow-lg ring-4 ring-white dark:ring-[#1c2429] group-focus-visible:ring-asphalt" />
           <span className="text-xs mt-1 font-medium text-gray-700">Record</span>
         </button>
         <div className="flex h-full">{right.map(renderItem)}</div>
