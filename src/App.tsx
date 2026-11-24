@@ -77,6 +77,7 @@ import type { Trip } from "./types/trip";
 import "leaflet/dist/leaflet.css";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 import { LatLngTuple } from "leaflet";
+import { setUpdateBusy } from "./swUpdate";
 
 function App() {
   const [center, setCenter] = useState<LatLngTuple>([51.505, -0.09]);
@@ -235,6 +236,8 @@ function App() {
 
   const isRecorderActive = recorder.status !== "idle";
   const isLive = recorder.status === "recording" || recorder.status === "paused";
+  // A new version of the app never reloads the page in the middle of a trip.
+  useEffect(() => setUpdateBusy(isRecorderActive), [isRecorderActive]);
   // While recording, the map follows you until you drag it away.
   const [follow, setFollow] = useState(true);
   const [pocket, setPocket] = useState(false);

@@ -9,6 +9,8 @@ import ProfileViewer from './live/ProfileViewer.tsx';
 import { setupLeaflet } from './utils/leaflet-setup';
 import './index.css';
 import './theme';
+import { registerServiceWorker } from './swUpdate';
+import { UpdateBanner } from './components/UpdateBanner';
 
 const container = document.getElementById('root')!;
 const root = createRoot(container);
@@ -24,14 +26,8 @@ if (live || shared) setupLeaflet();
 root.render(
   <StrictMode>
     {live ? <LiveViewer token={live[1]} /> : shared ? <TripViewer id={shared[1]} /> : person ? <ProfileViewer userId={person[1]} /> : <App />}
+    <UpdateBanner />
   </StrictMode>
 );
 
-// Register service worker
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(error => {
-      console.error('Service worker registration failed:', error);
-    });
-  });
-}
+registerServiceWorker();
