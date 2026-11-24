@@ -45,10 +45,12 @@ const remember = (token: string | null) => {
 };
 
 /**
- * Shares the trip being recorded through a live link. New trail points and the
- * current stats go up every 20 s (and straight away on pause/resume). Whatever
- * hasn't been accepted yet is simply sent again next time, so a dead zone or a
- * failed request loses nothing. The share ends when the trip does.
+ * Shares the trip being recorded through a live link. Only the points the
+ * server doesn't have yet go up, with the current stats, every 20 s (and
+ * straight away on pause/resume and when the connection comes back). The
+ * recorded trail itself is the buffer: offline, nothing is dropped, and once
+ * back online everything since the last accepted point goes up (in batches of
+ * 2,000). The share ends when the trip does.
  */
 export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
   const [share, setShare] = useState<ActiveShare | null>(null);
@@ -61,6 +63,9 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
   const latest = useRef({ status, track, stats });
   latest.current = { status, track, stats };
   const sentT = useRef(-Infinity); // time of the newest point the server has
+  // Picked up a share already running (app, after a reload): ask the server
+  // where it is before sending, instead of offering it the whole trail.
+  const askServerFirst = useRef(false);
   const inFlight = useRef(false);
   const shareRef = useRef<ActiveShare | null>(null);
   shareRef.current = share;
@@ -101,6 +106,11 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
     inFlight.current = true;
     try {
       const { status: s, track: t, stats: st } = latest.current;
+      if (askServerFirst.current) {
+        const res = await sendLiveUpdate(current.token, [], s === "paused" ? "paused" : "recording", st);
+        askServerFirst.current = false;
+        if (res.lastT != null) sentT.current = res.lastT;
+      }
       // At least one request (stats/status may have changed), more if there's a backlog.
       let from = firstAfter(t, sentT.current);
       do {
@@ -140,6 +150,14 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
     const onVisible = () => document.visibilityState === "visible" && void sync();
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [share, sync]);
+
+  // Back online after a dead zone: send the backlog now, not at the next tick.
+  useEffect(() => {
+    if (!share) return;
+    const onOnline = () => void sync();
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
   }, [share, sync]);
 
   // Viewers should see "Paused" (or recording again) without waiting for the timer.
@@ -223,7 +241,8 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
       /* nothing to clean up */
     }
     if (fromApp && fromApp.expiresAt > Date.now()) {
-      sentT.current = -Infinity; // the server skips what it already has
+      sentT.current = -Infinity;
+      askServerFirst.current = true;
       remember(fromApp.token);
       setShare({ token: fromApp.token, url: liveUrl(fromApp.token), expiresAt: fromApp.expiresAt, atLimit: false });
       return;

@@ -115,3 +115,45 @@ test("an unknown live link says so", async ({ page }) => {
   await page.goto("/live/aaaaaaaaaaaaaaaaaaaaaa");
   await expect(page.getByRole("heading", { name: "Live link not found" })).toBeVisible();
 });
+
+test("live share sends only new points; offline it keeps them and sends the lot when back online", async ({ page, context }) => {
+  await page.goto("/");
+  await page.waitForSelector(".leaflet-container");
+  await fix(page, 12.9, 77.6, 0, 0);
+  await page.getByRole("button", { name: "Record a trip" }).click();
+  for (let i = 1; i <= 3; i++) await fix(page, 12.9 + i * 0.001, 77.6, i, 12);
+
+  const hud = page.locator('section[aria-label="Trip recorder"]');
+  await hud.getByRole("button", { name: "Share live location" }).click();
+  const sheet = page.getByRole("dialog", { name: "Share live location" });
+  await sheet.getByLabel("Email").fill("buffer@test.com");
+  await sheet.getByLabel("Password").fill("password123");
+  await sheet.getByText("New here? Create an account").click();
+  await sheet.getByRole("button", { name: "Create account" }).click();
+
+  // Record every update the page sends.
+  const sent: number[][] = [];
+  page.on("request", (r) => {
+    if (!r.url().endsWith("/api/live") || r.method() !== "POST") return;
+    const body = r.postDataJSON();
+    if (body.action === "update") sent.push(body.points.map((p: number[]) => p[2]));
+  });
+  await sheet.getByRole("button", { name: "1 hour" }).click();
+  await sheet.getByRole("button", { name: "Start sharing" }).click();
+  await expect(sheet).toContainText(/Last sent/, { timeout: 10_000 });
+  await sheet.getByRole("button", { name: "Close" }).click();
+  expect(sent.flat()).toHaveLength(4);
+
+  // Dead zone: points are recorded but can't go anywhere.
+  await context.setOffline(true);
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  for (let i = 4; i <= 9; i++) await fix(page, 12.9 + i * 0.001, 77.6, i, 12);
+  sent.length = 0;
+
+  // Back online: the backlog goes straight away (not at the next 20 s tick), and only that.
+  await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect.poll(() => sent.flat().length, { timeout: 5000 }).toBe(6);
+  const t0 = sent.flat()[0];
+  expect(sent.flat().map((t) => (t - t0) / 1000)).toEqual([0, 1, 2, 3, 4, 5]);
+});
