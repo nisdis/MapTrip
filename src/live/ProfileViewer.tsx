@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Award, Ban, Check, Lock, Route, Share2, UserMinus, UserPlus, Users } from "lucide-react";
+import { Award, Ban, Check, Lock, Route, Share2, UserMinus, UserPlus, UserRound, Users } from "lucide-react";
 import { AuthForm } from "../components/AuthForm";
 import { useAuth } from "../hooks/useAuth";
 import { shareLink } from "../services/appBridge";
+import { setDisplayName } from "../services/publicTrips";
 import {
   SocialError,
   block,
@@ -28,6 +29,60 @@ function Toggle({ label, note, on, onChange }: { label: string; note: string; on
   );
 }
 
+function ChooseName({ onDone }: { onDone: () => void }) {
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-paper p-6 font-hud text-asphalt">
+      <form
+        className="w-full max-w-sm"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setError(null);
+          try {
+            await setDisplayName(name.trim());
+            onDone();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Couldn't save the name");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <UserRound aria-hidden className="h-10 w-10 text-asphalt/40" />
+        <h1 className="mt-3 text-xl font-bold">Set up your profile</h1>
+        <p className="mt-1 text-sm text-asphalt/65">
+          Your profile shows the name you choose and the trips you share. Your email is never shown.
+        </p>
+        <label className="mt-4 block text-sm font-bold" htmlFor="public-name">
+          Public name
+        </label>
+        <input
+          id="public-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={40}
+          required
+          className="mt-1 w-full rounded-xl border-2 border-asphalt/20 bg-paper px-3 py-2.5 text-base"
+        />
+        {error && (
+          <p role="alert" className="mt-2 text-sm text-signal">
+            {error}
+          </p>
+        )}
+        <button type="submit" disabled={busy || !name.trim()} className="mt-4 h-11 w-full rounded-xl bg-highway text-sm font-bold text-white disabled:opacity-50">
+          Save
+        </button>
+        <a href="/" className="mt-3 block text-center text-sm font-bold text-highway">
+          ← Map Trip
+        </a>
+      </form>
+    </main>
+  );
+}
+
 /** A person's page (/u/<id>): name, trips you may see, achievements if they show them, follow. */
 export default function ProfileViewer({ userId }: { userId: string }) {
   const auth = useAuth();
@@ -42,6 +97,7 @@ export default function ProfileViewer({ userId }: { userId: string }) {
     () =>
       getProfile(userId)
         .then((p) => {
+          setMissing(false);
           setProfile(p);
           document.title = `${p.displayName} · Map Trip`;
         })
@@ -67,6 +123,8 @@ export default function ProfileViewer({ userId }: { userId: string }) {
     }
   };
 
+  // Your own page before you've picked a public name: pick one here.
+  if (missing && auth.user?.id === userId) return <ChooseName onDone={() => void load()} />;
   if (missing) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-paper p-6 font-hud text-asphalt">

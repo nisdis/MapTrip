@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useTheme, type ThemePref } from "../theme";
 import { BUILD_ID, checkForUpdate, reloadNow, useUpdate } from "../swUpdate";
 import {
+  CircleUserRound,
   Compass,
   HardDriveDownload,
   Info,
@@ -9,9 +10,7 @@ import {
   Navigation,
   Route,
   Search,
-  Settings,
   Star,
-  Trash2,
   UserRound,
   Users,
   X,
@@ -25,14 +24,13 @@ interface SideMenuProps {
   onOpen: (panel: string) => void;
   activePanel: string | null;
   signedIn: boolean;
+  /** signed-in person's id, for "My profile" */
+  userId?: string | null;
   onExplore: () => void;
   onOfflineMaps: () => void;
   onPeople: () => void;
   /** follow requests waiting */
   peopleBadge?: number;
-  onClearClick: () => void;
-  isClearing?: boolean;
-  handleShoeRouteItems: () => void;
 }
 
 /** The app's menu: a drawer from the left, opened from the ☰ button. */
@@ -46,9 +44,7 @@ export function SideMenu({
   onOfflineMaps,
   onPeople,
   peopleBadge = 0,
-  onClearClick,
-  isClearing = false,
-  handleShoeRouteItems,
+  userId = null,
 }: SideMenuProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -109,19 +105,10 @@ export function SideMenu({
           ),
         )}
         {item("offline", HardDriveDownload, "Offline maps", onOfflineMaps)}
+        {signedIn && userId && item("profile", CircleUserRound, "My profile", () => window.location.assign(`/u/${userId}`))}
         {item("account", UserRound, signedIn ? "Account" : "Sign in", () => onOpen("account"))}
         <div className="my-2 border-t border-gray-100" />
         <Appearance />
-        {item("detailed", Settings, "Show detailed route", handleShoeRouteItems)}
-        <button
-          type="button"
-          onClick={onClearClick}
-          disabled={isClearing}
-          className="flex w-full items-center gap-3 px-5 py-3 text-left text-[15px] text-gray-800 hover:bg-gray-50 disabled:opacity-50"
-        >
-          <Trash2 aria-hidden className={`h-5 w-5 text-red-600 ${isClearing ? "animate-pulse" : ""}`} />
-          {isClearing ? "Clearing…" : "Clear map cache"}
-        </button>
         <a
           href="/privacy"
           target="_blank"

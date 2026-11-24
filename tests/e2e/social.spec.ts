@@ -92,3 +92,36 @@ test("follow by request: request, approve, then the follower sees unlisted trips
   await ben.page.goto(`/u/${ana.id}`);
   await expect(ben.page.getByRole("heading", { name: "Profile not found" })).toBeVisible();
 });
+
+test("menu: My profile; with no public name yet, you choose one there", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  await isolate(ctx);
+  const page = await ctx.newPage();
+  await page.goto("/");
+  await page.waitForSelector(".leaflet-container");
+  const menu = page.getByRole("navigation", { name: "Menu" });
+
+  // Signed out: no profile in the menu, and no placeholder items.
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await expect(menu.getByRole("button", { name: "Sign in" })).toBeVisible();
+  await expect(menu.getByRole("button", { name: "My profile" })).toHaveCount(0);
+  await expect(menu).not.toContainText("Show detailed route");
+  await expect(menu).not.toContainText("Clear map cache");
+
+  await menu.getByRole("button", { name: "Sign in" }).click();
+  await page.getByLabel("Email").fill("cam@test.com");
+  await page.getByLabel("Password").fill("password123");
+  await page.getByText("New here? Create an account").click();
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toHaveCount(0, { timeout: 10_000 });
+
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await menu.getByRole("button", { name: "My profile" }).click();
+  await expect(page.getByRole("heading", { name: "Set up your profile" })).toBeVisible();
+  await page.getByLabel("Public name").fill("Cam T");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Cam T" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
+  await ctx.close();
+});

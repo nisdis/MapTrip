@@ -11,7 +11,6 @@ import { SpeedPill } from "./components/SpeedPill";
 import { useLocationTracking } from "./hooks/useLocationTracking";
 import { setupLeaflet } from "./utils/leaflet-setup";
 import { getRouteHistory } from "./services/routeHistoryService";
-import { clearTileCache } from "./services/tileService";
 import type { SearchResult } from "./services/searchService";
 import type { RouteHistoryItem } from "./services/routeHistoryService";
 import { BottomSheet } from "./components/BottomSheet";
@@ -95,7 +94,6 @@ function App() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [origin, setOrigin] = useState<SearchResult | null>(null);
   const [destination, setDestination] = useState<SearchResult | null>(null);
-  const [isClearing, setIsClearing] = useState(false);
   const { locationData, error, subscribe, attachApp } = useLocationTracking();
   const hasCenteredOnUser = useRef(false);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -730,21 +728,6 @@ function App() {
   const handleShoeRouteItems = useCallback(() => {
     setIsVisible((visible) => !visible);
   }, []);
-  const handleClearClick = useCallback(() => {
-    if (
-      window.confirm("Are you sure you want to clear the offline map cache?")
-    ) {
-      setIsClearing(true);
-      clearTileCache()
-        .then(() => alert("Map cache cleared successfully"))
-        .catch((error: unknown) => {
-          console.error("Failed to clear map cache:", error);
-          alert("Failed to clear map cache");
-        })
-        .finally(() => setIsClearing(false));
-    }
-  }, []);
-
   if (!isMapReady) {
     return null;
   }
@@ -1163,9 +1146,7 @@ function App() {
         }}
         activePanel={showSheet ? activeTab : exploring ? "explore" : null}
         signedIn={!!auth.user}
-        onClearClick={handleClearClick}
-        isClearing={isClearing}
-        handleShoeRouteItems={handleShoeRouteItems}
+        userId={auth.user?.id ?? null}
         onExplore={startExplore}
         onPeople={() => {
           setShowMoreMenu(false);
