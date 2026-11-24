@@ -6,11 +6,14 @@ import {
   Compass,
   HardDriveDownload,
   Info,
+  Moon,
   RefreshCw,
   Navigation,
   Route,
   Search,
   Star,
+  Sun,
+  SunMoon,
   UserRound,
   Users,
   X,
@@ -165,29 +168,31 @@ function AppUpdate() {
   );
 }
 
-const OPTIONS: { id: ThemePref; label: string }[] = [
-  { id: "system", label: "System" },
-  { id: "light", label: "Light" },
-  { id: "dark", label: "Dark" },
+const OPTIONS: { id: ThemePref; label: string; Icon: LucideIcon }[] = [
+  { id: "system", label: "System", Icon: SunMoon },
+  { id: "light", label: "Light", Icon: Sun },
+  { id: "dark", label: "Dark", Icon: Moon },
 ];
 
-/** System (follows the phone), Light or Dark. Remembered on this device. */
+/** System (follows the phone), Light or Dark, as three icons on one row. Remembered on this device. */
 function Appearance() {
   const { pref, setPref } = useTheme();
   return (
-    <div className="px-5 py-2">
-      <div className="mb-1.5 text-xs font-medium text-gray-500">Appearance</div>
-      <div role="radiogroup" aria-label="Appearance" className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
-        {OPTIONS.map((o) => (
+    <div className="flex items-center gap-3 px-5 py-2">
+      <span className="flex-1 text-[15px] text-gray-800">Appearance</span>
+      <div role="radiogroup" aria-label="Appearance" className="flex gap-1 rounded-full bg-gray-100 p-1">
+        {OPTIONS.map(({ id, label, Icon }) => (
           <button
-            key={o.id}
+            key={id}
             type="button"
             role="radio"
-            aria-checked={pref === o.id}
-            onClick={() => setPref(o.id)}
-            className={`rounded-md py-1.5 text-xs font-medium ${pref === o.id ? "bg-white text-gray-900 shadow" : "text-gray-600"}`}
+            aria-checked={pref === id}
+            aria-label={label}
+            title={label}
+            onClick={() => setPref(id)}
+            className={`flex h-8 w-8 items-center justify-center rounded-full ${pref === id ? "bg-white text-gray-900 shadow" : "text-gray-500"}`}
           >
-            {o.label}
+            <Icon aria-hidden className="h-4 w-4" />
           </button>
         ))}
       </div>
