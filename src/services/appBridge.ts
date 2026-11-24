@@ -21,6 +21,9 @@ export interface NativeFix {
   speedAccuracy?: number | null;
   altitude: number | null;
   heading: number | null;
+  /** newer app versions only */
+  altitudeAccuracy?: number | null;
+  headingAccuracy?: number | null;
 }
 
 export type NativeRecording = "idle" | "recording" | "paused";

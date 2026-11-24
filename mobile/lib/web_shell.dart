@@ -164,6 +164,12 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
           : null,
       altitude: p.hasAltitude ? p.altitude : null,
       heading: p.hasHeading && p.heading >= 0 ? p.heading : null,
+      altitudeAccuracy: p.hasAltitudeAccuracy && p.altitudeAccuracy > 0
+          ? p.altitudeAccuracy
+          : null,
+      headingAccuracy: p.hasHeadingAccuracy && p.headingAccuracy > 0
+          ? p.headingAccuracy
+          : null,
       // Only trip fixes are kept until the page confirms them.
       persist: recording,
     );

@@ -129,6 +129,19 @@ try {
     alter table profiles add column if not exists show_achievements boolean not null default false;
   `);
   console.log("[migrate] social tables ok");
+
+  // Tracks stored as a table of points (api/_lib/trackFormat.ts), and the
+  // finished route as encoded polylines. Converts trips saved in the old format.
+  await pool.query("alter table trips add column if not exists polyline jsonb");
+  try {
+    const { register } = await import("tsx/esm/api");
+    register();
+    const { convertStoredTracks } = await import("../api/_lib/storedTrip.ts");
+    const n = await convertStoredTracks(pool);
+    console.log(`[migrate] track format ok (converted ${n} trips)`);
+  } catch (error) {
+    console.error("[migrate] track conversion skipped:", error);
+  }
 } catch (error) {
   console.error("[migrate] FAILED - cloud save may not work:", error);
 } finally {

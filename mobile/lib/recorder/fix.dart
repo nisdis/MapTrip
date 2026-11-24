@@ -12,6 +12,8 @@ class Fix {
     this.speedAccuracy,
     this.altitude,
     this.heading,
+    this.altitudeAccuracy,
+    this.headingAccuracy,
   });
 
   final int seq;
@@ -30,6 +32,12 @@ class Fix {
   final double? altitude;
   final double? heading;
 
+  /// uncertainty of [altitude] in m, if the device reports it
+  final double? altitudeAccuracy;
+
+  /// uncertainty of [heading] in degrees, if the device reports it
+  final double? headingAccuracy;
+
   Map<String, Object?> toJson() => {
     'seq': seq,
     'lat': lat,
@@ -40,6 +48,8 @@ class Fix {
     'speedAccuracy': speedAccuracy,
     'altitude': altitude,
     'heading': heading,
+    'altitudeAccuracy': altitudeAccuracy,
+    'headingAccuracy': headingAccuracy,
   };
 
   static Fix fromJson(Map<String, Object?> j) => Fix(
@@ -52,6 +62,8 @@ class Fix {
     speedAccuracy: (j['speedAccuracy'] as num?)?.toDouble(),
     altitude: (j['altitude'] as num?)?.toDouble(),
     heading: (j['heading'] as num?)?.toDouble(),
+    altitudeAccuracy: (j['altitudeAccuracy'] as num?)?.toDouble(),
+    headingAccuracy: (j['headingAccuracy'] as num?)?.toDouble(),
   );
 }
 

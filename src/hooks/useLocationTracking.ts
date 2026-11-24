@@ -12,6 +12,14 @@ export interface LocationData {
   altitude: number | null;
   accuracy: number;
   timestamp: number;
+  /** Exactly what the device reported (null where it gave nothing), for storing. */
+  device: {
+    speed: number | null;
+    heading: number | null;
+    altitudeAccuracy: number | null;
+    headingAccuracy: number | null;
+    speedAccuracy: number | null;
+  };
 }
 
 export type FixListener = (batch: LocationData[]) => void;
@@ -25,6 +33,8 @@ interface RawFix {
   speedAccuracy?: number | null;
   heading: number | null;
   altitude: number | null;
+  altitudeAccuracy?: number | null;
+  headingAccuracy?: number | null;
 }
 
 /**
@@ -76,6 +86,13 @@ export function useLocationTracking() {
         altitude: f.altitude,
         accuracy: f.accuracy,
         timestamp: f.t,
+        device: {
+          speed: f.speed ?? null,
+          heading: f.heading ?? null,
+          altitudeAccuracy: f.altitudeAccuracy ?? null,
+          headingAccuracy: f.headingAccuracy ?? null,
+          speedAccuracy: f.speedAccuracy ?? null,
+        },
       };
     };
     const emit = (batch: LocationData[]) => {
@@ -118,6 +135,7 @@ export function useLocationTracking() {
             speed: c.speed,
             heading: c.heading,
             altitude: c.altitude,
+            altitudeAccuracy: c.altitudeAccuracy,
           }),
         ]);
       },

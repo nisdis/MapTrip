@@ -3,6 +3,7 @@
 // count: imported GPX files could be anyone's.
 
 import { haversineM } from "./live.js";
+import { decodeTrack } from "./trackFormat.js";
 
 export interface TripFacts {
   distanceM: number;
@@ -103,12 +104,11 @@ export function achievementsFor(all: TripFacts[]): Achievement[] {
 
 /** The facts needed above, from a stored trip. */
 export function factsOf(data: Record<string, unknown>): TripFacts {
-  const track = Array.isArray(data.track) ? (data.track as { lat?: unknown; lng?: unknown }[]) : [];
-  const first = track[0];
+  const first = decodeTrack(data.track)[0];
   return {
     distanceM: typeof data.distanceM === "number" ? data.distanceM : 0,
     createdAt: typeof data.createdAt === "number" ? data.createdAt : 0,
-    start: first && typeof first.lat === "number" && typeof first.lng === "number" ? [first.lat, first.lng] : null,
+    start: first ? [first.lat, first.lng] : null,
     imported: data.imported === true,
   };
 }

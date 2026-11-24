@@ -3,10 +3,25 @@ import { del } from "@vercel/blob";
 import { getPool } from "./_lib/db.js";
 import { rejectForeignOrigin } from "./_lib/origin.js";
 import { refreshShareGeometry } from "./_lib/shareGeometry.js";
+import { toStored } from "./_lib/storedTrip.js";
+import { gunzipSync } from "node:zlib";
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_BODY_BYTES = 4_000_000;
+// The app sends trips gzipped (a long trip is several MB of JSON, more than a
+// request may carry); this is the most it may unpack to.
+const MAX_TRIP_BYTES = 60_000_000;
+
+/** The request body as text, unpacking it if the app sent it gzipped. */
+async function readBody(request: Request): Promise<string | null> {
+  const bytes = Buffer.from(await request.arrayBuffer());
+  if (bytes.length > MAX_BODY_BYTES) return null;
+  if (request.headers.get("content-type")?.startsWith("application/gzip")) {
+    return gunzipSync(bytes, { maxOutputLength: MAX_TRIP_BYTES }).toString("utf8");
+  }
+  return bytes.toString("utf8");
+}
 
 async function requireUserId(request: Request): Promise<string | null> {
   const session = await getAuth().api.getSession({ headers: request.headers });
@@ -34,14 +49,16 @@ async function handle(request: Request): Promise<Response> {
     }
 
     if (request.method === "POST") {
-      const raw = await request.text();
-      if (raw.length > MAX_BODY_BYTES) return json({ message: "Trip too large" }, 413);
       let trip: { id?: unknown; createdAt?: unknown; kind?: unknown };
       try {
+        const raw = await readBody(request);
+        if (raw == null) return json({ message: "Trip too large" }, 413);
         trip = JSON.parse(raw);
-      } catch {
-        return json({ message: "Invalid JSON" }, 400);
+      } catch (e) {
+        if ((e as { code?: string })?.code === "ERR_BUFFER_TOO_LARGE") return json({ message: "Trip too large" }, 413);
+        return json({ message: "Invalid trip data" }, 400);
       }
+      if (!trip || typeof trip !== "object") return json({ message: "Invalid trip data" }, 400);
       if (typeof trip.id !== "string" || !UUID.test(trip.id))
         return json({ message: "Invalid trip id" }, 400);
       if (trip.kind !== "recorded" && trip.kind !== "planned")
@@ -68,12 +85,20 @@ async function handle(request: Request): Promise<Response> {
 
       const syncedAt = Date.now();
       // The WHERE clause stops one user overwriting another user's trip id.
+      // The track is stored as a table of points, with the route as polylines.
+      const stored = toStored({ ...trip, photos, cloudSyncedAt: syncedAt });
       const result = await pool.query(
-        `insert into trips (id, user_id, data, created_at)
-         values ($1, $2, $3::jsonb, to_timestamp($4 / 1000.0))
-         on conflict (id) do update set data = excluded.data
+        `insert into trips (id, user_id, data, polyline, created_at)
+         values ($1, $2, $3::jsonb, $4::jsonb, to_timestamp($5 / 1000.0))
+         on conflict (id) do update set data = excluded.data, polyline = excluded.polyline
          where trips.user_id = excluded.user_id`,
-        [trip.id, userId, JSON.stringify({ ...trip, photos, cloudSyncedAt: syncedAt }), createdAt],
+        [
+          trip.id,
+          userId,
+          JSON.stringify(stored.data),
+          stored.polyline ? JSON.stringify(stored.polyline) : null,
+          createdAt,
+        ],
       );
       if (result.rowCount === 0) return json({ message: "Trip id already in use" }, 409);
       // A shared trip saved again (e.g. after adding photos): Explore's area follows.

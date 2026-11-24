@@ -18,6 +18,9 @@ const GAP_MS = 15000;
 const GAP_MIN_M = 50;
 
 const round = (n: number, dp: number) => Math.round(n * 10 ** dp) / 10 ** dp;
+/** Rounded, or null when the device didn't give a usable value. */
+const opt = (n: number | null | undefined, dp: number) =>
+  n != null && Number.isFinite(n) && n >= 0 ? round(n, dp) : null;
 
 export function useTripRecorder(subscribe: (listener: FixListener) => () => void) {
   const [status, setStatus] = useState<RecorderStatus>("idle");
@@ -100,6 +103,12 @@ export function useTripRecorder(subscribe: (listener: FixListener) => () => void
         t,
         speed: round(speed, 1),
         alt: fix.altitude != null ? round(fix.altitude, 1) : null,
+        accuracy: opt(fix.accuracy, 1),
+        altAccuracy: opt(fix.device?.altitudeAccuracy, 1),
+        heading: opt(fix.device?.heading, 0),
+        headingAccuracy: opt(fix.device?.headingAccuracy, 0),
+        deviceSpeed: opt(fix.device?.speed, 2),
+        speedAccuracy: opt(fix.device?.speedAccuracy, 2),
         ...((pendingGap.current && prev === null) || isGap ? { gap: true } : {}),
       };
       pendingGap.current = false;

@@ -52,6 +52,8 @@ class FixBuffer {
     double? speedAccuracy,
     double? altitude,
     double? heading,
+    double? altitudeAccuracy,
+    double? headingAccuracy,
     bool persist = true,
   }) {
     final fix = Fix(
@@ -64,6 +66,8 @@ class FixBuffer {
       speedAccuracy: speedAccuracy,
       altitude: altitude,
       heading: heading,
+      altitudeAccuracy: altitudeAccuracy,
+      headingAccuracy: headingAccuracy,
     );
     if (persist) {
       _pending.add(fix);

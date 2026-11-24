@@ -3,6 +3,7 @@
 
 import { createHash } from "node:crypto";
 import { haversineM } from "./live.js";
+import { decodeTrack } from "./trackFormat.js";
 
 export type Visibility = "private" | "unlisted" | "public";
 export const VISIBILITIES: Visibility[] = ["private", "unlisted", "public"];
@@ -37,17 +38,13 @@ export function cleanSettings(raw: unknown, photoIds: string[]): ShareSettings {
 
 /** Points from the stored trip, validated (the data comes from the owner's device). */
 export function pointsOf(data: unknown): SharePoint[] {
-  const track = (data as { track?: unknown })?.track;
-  if (!Array.isArray(track)) return [];
-  const out: SharePoint[] = [];
-  for (const p of track) {
-    if (!p || typeof p !== "object") continue;
-    const { lat, lng, t, speed, gap } = p as Record<string, unknown>;
-    if (typeof lat !== "number" || typeof lng !== "number" || typeof t !== "number") continue;
-    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) continue;
-    out.push({ lat, lng, t, speed: typeof speed === "number" && Number.isFinite(speed) ? speed : null, ...(gap === true ? { gap: true } : {}) });
-  }
-  return out;
+  return decodeTrack((data as { track?: unknown })?.track).map(({ lat, lng, t, speed, gap }) => ({
+    lat,
+    lng,
+    t,
+    speed,
+    ...(gap ? { gap: true } : {}),
+  }));
 }
 
 /**

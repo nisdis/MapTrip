@@ -11,6 +11,17 @@ export interface TrackPoint {
   alt?: number | null;
   /** true when recording was paused before this point: don't join it to the previous one */
   gap?: boolean;
+  // What the device reported for this fix; null when it didn't give it.
+  /** m, horizontal */
+  accuracy?: number | null;
+  /** m */
+  altAccuracy?: number | null;
+  /** degrees from north */
+  heading?: number | null;
+  headingAccuracy?: number | null;
+  /** m/s as reported (`speed` above is smoothed) */
+  deviceSpeed?: number | null;
+  speedAccuracy?: number | null;
 }
 
 export interface TripPhoto {
