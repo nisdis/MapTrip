@@ -5,7 +5,7 @@ const String appUrl = String.fromEnvironment(
   defaultValue: 'https://map.recordmytrip.com',
 );
 
-const String appVersion = '1.0.0';
+const String appVersion = '1.0.1';
 
 /// Pages the app's bridge (GPS, live sharing, share sheet) is offered to.
 /// Anything else (a link to Wikipedia, a website) opens in the browser.

@@ -2,7 +2,12 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// Which build this is: shown in the menu so you can tell whether the app has updated.
+const BUILD_ID =
+  process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? new Date().toISOString().slice(0, 16).replace('T', ' ');
+
 export default defineConfig({
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   server: {
     // Local dev: forward /api to `vercel dev` (or any server running the api/ functions).
     proxy: { '/api': process.env.API_PROXY_TARGET || 'http://localhost:3000' },

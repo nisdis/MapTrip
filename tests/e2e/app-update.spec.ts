@@ -50,3 +50,26 @@ test("new version: waits for the trip to end, then offers a reload", async ({ pa
   await page.waitForSelector(".leaflet-container");
   await expect(banner).toHaveCount(0);
 });
+
+test("menu: Check for updates says up to date, then finds a new build and reloads into it", async ({ page }) => {
+  writeFileSync(SW, original);
+  await page.goto("/");
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15_000 }).catch(() => page.reload());
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15_000 });
+  await page.waitForSelector(".leaflet-container");
+
+  const menu = page.getByRole("navigation", { name: "Menu" });
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await expect(menu).toContainText(/Version \S+/);
+  await menu.getByRole("button", { name: "Check for updates" }).click();
+  await expect(menu).toContainText("You have the latest version.");
+
+  writeFileSync(SW, `${original}\n// another build`);
+  await menu.getByRole("button", { name: "Check for updates" }).click();
+  const reload = menu.getByRole("button", { name: "Reload to update" });
+  await expect(reload).toBeVisible({ timeout: 15_000 });
+  await Promise.all([page.waitForEvent("load"), reload.click()]);
+  await page.waitForSelector(".leaflet-container");
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await expect(menu.getByRole("button", { name: "Check for updates" })).toBeVisible();
+});

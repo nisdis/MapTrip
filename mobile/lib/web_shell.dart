@@ -283,6 +283,10 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
       // Everything recorded while locked, in one go.
       final pending = _buffer?.pending ?? const [];
       if (pending.isNotEmpty) _sendFixes(pending);
+      // A newer version of the web app may be out: let the page check now.
+      _web?.evaluateJavascript(
+        source: 'window.__rmtCheckUpdate && window.__rmtCheckUpdate()',
+      );
     } else if (state == AppLifecycleState.hidden ||
         state == AppLifecycleState.paused) {
       if (!_foreground) return;

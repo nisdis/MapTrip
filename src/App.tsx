@@ -77,7 +77,7 @@ import type { Trip } from "./types/trip";
 import "leaflet/dist/leaflet.css";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 import { LatLngTuple } from "leaflet";
-import { setUpdateBusy } from "./swUpdate";
+import { setUpdateBusy, useUpdateReady } from "./swUpdate";
 
 function App() {
   const [center, setCenter] = useState<LatLngTuple>([51.505, -0.09]);
@@ -236,6 +236,7 @@ function App() {
 
   const isRecorderActive = recorder.status !== "idle";
   const isLive = recorder.status === "recording" || recorder.status === "paused";
+  const updateReady = useUpdateReady();
   // A new version of the app never reloads the page in the middle of a trip.
   useEffect(() => setUpdateBusy(isRecorderActive), [isRecorderActive]);
   // While recording, the map follows you until you drag it away.
@@ -762,7 +763,7 @@ function App() {
               className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asphalt"
             >
               <Menu aria-hidden className="h-5 w-5 text-gray-800" />
-              {requestCount > 0 && (
+              {(requestCount > 0 || updateReady) && (
                 <span aria-hidden className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-signal ring-2 ring-white" />
               )}
             </button>
