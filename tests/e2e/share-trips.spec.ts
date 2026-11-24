@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { test, expect, fix, hold, hasDb, isolate } from "./fixtures";
+import { test, expect, fix, hold, hasDb, isolate, openMenu } from "./fixtures";
 
 test.skip(!hasDb, "needs DATABASE_URL (a Postgres for the API)");
 
@@ -25,7 +25,7 @@ test("share a trip: private by default, public with a name, ends hidden, in Expl
   await hold(page, 'button[aria-label^="Finish trip"]');
   await page.fill("#trip-name", "River loop");
   await page.getByRole("button", { name: "Save trip" }).click();
-  await page.getByRole("button", { name: "Trips", exact: true }).click();
+  await openMenu(page, "Trips");
   await page.getByText("Save to cloud").click();
   await page.getByLabel("Email").fill("sharer@test.com");
   await page.getByLabel("Password").fill("password123");
@@ -87,7 +87,7 @@ test("share a trip: private by default, public with a name, ends hidden, in Expl
   await expect(card).toContainText("River loop");
   await expect(page.getByRole("button", { name: "Search this area" })).toHaveCount(0); // the app moved the map, not you
   const cardBox = (await card.boundingBox())!;
-  const navBox = (await page.getByRole("button", { name: "Search", exact: true }).boundingBox())!;
+  const navBox = (await page.getByRole("button", { name: "Record a trip" }).boundingBox())!;
   expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(navBox.y);
   // "All trips here" brings the list back; picking again and opening goes to the trip page.
   await card.getByRole("button", { name: "All trips here" }).click();
@@ -99,7 +99,7 @@ test("share a trip: private by default, public with a name, ends hidden, in Expl
   await page.waitForSelector(".leaflet-container");
 
   // Back to private: the link stops working.
-  await page.getByRole("button", { name: "Trips", exact: true }).click();
+  await openMenu(page, "Trips");
   await page.getByRole("button", { name: "Share River loop" }).click();
   await sheet.getByRole("button", { name: /Private/ }).click();
   await sheet.getByRole("button", { name: "Make private" }).click();

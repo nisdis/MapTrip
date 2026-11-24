@@ -1,4 +1,4 @@
-import { test, expect, fix } from "./fixtures";
+import { test, expect, fix, openMenu } from "./fixtures";
 
 const POI = {
   osm_type: "node",
@@ -50,7 +50,7 @@ test("place sheet: details, save, Home, note, Saved tab, Home shortcut", async (
   await page.goto("/");
   await page.waitForSelector(".leaflet-container");
   await expect(page.locator(".category-pin")).toHaveCount(2); // Home + favourite pins
-  await page.locator('button[aria-label="Saved"]').click();
+  await openMenu(page, "Saved");
   const panel = page.locator(".overflow-y-auto").last();
   await expect(panel).toContainText("Home");
   await expect(panel).toContainText("“Masala dosa”");
@@ -59,7 +59,7 @@ test("place sheet: details, save, Home, note, Saved tab, Home shortcut", async (
   await sheet.getByRole("button", { name: "Close place details" }).click();
 
   await fix(page, 12.96, 77.59, 1, 0); // "Current location" needs a GPS fix
-  await page.locator('button[aria-label="Directions"]').click();
+  await openMenu(page, "Directions");
   await page.locator(".overflow-y-auto").last().getByRole("button", { name: "Home", exact: true }).click();
   await expect(page.getByPlaceholder("Enter destination")).toHaveValue("Home");
   await expect(page.getByPlaceholder("Enter starting point")).toHaveValue("Current location");

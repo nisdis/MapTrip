@@ -2,7 +2,7 @@ import { useCallback, useState, useEffect, useRef } from "react";
 import { MapContainer, Marker, Popup } from "react-leaflet";
 import { NearbyMarkers } from "./components/NearbyMarkers";
 import { VectorBasemap } from "./components/VectorBasemap";
-import { Map as MapIcon, Wifi, WifiOff, Car, UserRound } from "lucide-react";
+import { Map as MapIcon, Wifi, WifiOff, Car, UserRound, Menu } from "lucide-react";
 import { MapControls } from "./components/MapControls";
 import { MapController } from "./components/MapController";
 import { RouteControl } from "./components/RouteControl";
@@ -15,8 +15,8 @@ import { clearTileCache } from "./services/tileService";
 import type { SearchResult } from "./services/searchService";
 import type { RouteHistoryItem } from "./services/routeHistoryService";
 import { BottomSheet } from "./components/BottomSheet";
-import { BottomNav } from "./components/BottomNav";
-import { MoreMenu } from "./components/MoreMenu";
+import { RecordButton } from "./components/RecordButton";
+import { SideMenu } from "./components/SideMenu";
 import { SearchSheet } from "./components/SearchSheet";
 import { DirectionsSheet } from "./components/DirectionsSheet";
 import { SavedSheet } from "./components/SavedSheet";
@@ -753,7 +753,19 @@ function App() {
       {!isRecorderActive && (
       <div className="absolute top-0 left-0 w-full z-10 bg-gradient-to-b from-paper/90 to-transparent p-4 pointer-events-none">
         <div className="max-w-7xl mx-auto pointer-events-auto">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleToggleMore}
+              aria-label="Menu"
+              aria-expanded={showMoreMenu}
+              className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asphalt"
+            >
+              <Menu aria-hidden className="h-5 w-5 text-gray-800" />
+              {requestCount > 0 && (
+                <span aria-hidden className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-signal ring-2 ring-white" />
+              )}
+            </button>
             <div className="flex items-center gap-2">
               <MapIcon className="w-8 h-8 text-blue-600" />
               <h1 className="text-2xl font-bold text-gray-800">Map Trip</h1>
@@ -946,15 +958,7 @@ function App() {
         />
       )}
 
-      {!isRecorderActive && (
-        <BottomNav
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-          onMoreClick={handleToggleMore}
-          onRecord={handleStartRecording}
-          moreBadge={requestCount > 0}
-        />
-      )}
+      {!isRecorderActive && <RecordButton onRecord={handleStartRecording} />}
 
       {placeLookup.target && !isRecorderActive && placeLookup.status !== "idle" && (
         <PlaceSheet
@@ -1149,10 +1153,15 @@ function App() {
         </div>
       )}
 
-      <MoreMenu
+      <SideMenu
         isOpen={showMoreMenu}
         onClose={handleCloseMore}
-        isOnline={isOnline}
+        onOpen={(panel) => {
+          setShowMoreMenu(false);
+          handleTabChange(panel);
+        }}
+        activePanel={showSheet ? activeTab : exploring ? "explore" : null}
+        signedIn={!!auth.user}
         onClearClick={handleClearClick}
         isClearing={isClearing}
         handleShoeRouteItems={handleShoeRouteItems}

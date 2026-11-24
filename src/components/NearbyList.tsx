@@ -73,7 +73,7 @@ export function NearbyList({ state, onSelect, onClose, onHeight }: NearbyListPro
     <section
       ref={ref}
       aria-label={`${label} nearby`}
-      className={`fixed left-3 right-3 bottom-[5.75rem] z-30 flex flex-col rounded-2xl bg-paper font-hud text-asphalt shadow-[0_8px_32px_rgba(31,42,48,0.28)] transition-[max-height] duration-300 md:left-auto md:right-4 md:w-[26rem] ${SNAP_HEIGHT[snap]}`}
+      className={`fixed left-3 right-3 bottom-[calc(7.5rem+env(safe-area-inset-bottom))] z-30 flex flex-col rounded-2xl bg-paper font-hud text-asphalt shadow-[0_8px_32px_rgba(31,42,48,0.28)] transition-[max-height] duration-300 md:left-auto md:right-4 md:w-[26rem] ${SNAP_HEIGHT[snap]}`}
     >
       {/* Handle: tap to grow/shrink, or drag up and down. */}
       <button

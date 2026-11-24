@@ -16,7 +16,7 @@ test("appearance: follows the phone by default; Light/Dark override it and are r
   expect(bg).toBe("rgb(21, 27, 31)");
 
   // Light overrides it, also after a reload.
-  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
   const appearance = page.getByRole("radiogroup", { name: "Appearance" });
   await expect(appearance.getByRole("radio", { name: "System" })).toHaveAttribute("aria-checked", "true");
   await appearance.getByRole("radio", { name: "Light" }).click();
@@ -27,7 +27,7 @@ test("appearance: follows the phone by default; Light/Dark override it and are r
   expect(await isDark()).toBe(false);
 
   // Back to System: dark again.
-  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
   await page.getByRole("radiogroup", { name: "Appearance" }).getByRole("radio", { name: "System" }).click();
   expect(await isDark()).toBe(true);
 

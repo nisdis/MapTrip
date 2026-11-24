@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { test, expect, fix, hold, hasDb } from "./fixtures";
+import { test, expect, fix, hold, hasDb, openMenu } from "./fixtures";
 
 test.skip(!hasDb, "needs DATABASE_URL (a Postgres for the API)");
 
@@ -33,7 +33,7 @@ test("record a trip, sign up from Save to cloud, and it saves", async ({ page })
   await hold(page, 'button[aria-label^="Finish trip"]');
   await page.fill("#trip-name", "Cloud run");
   await page.getByRole("button", { name: "Save trip" }).click();
-  await page.getByRole("button", { name: "Trips", exact: true }).click();
+  await openMenu(page, "Trips");
   await page.getByText("Save to cloud").click();
   await expect(page.getByText(/to save “Cloud run” to the cloud/)).toBeVisible();
   await signUpFromSheet(page, "cloud@test.com", "signup");
@@ -51,7 +51,7 @@ test("favourites sync between two devices, deletions too", async ({ browser }) =
     return ctx.newPage();
   };
   const savedTab = async (p: import("@playwright/test").Page) => {
-    await p.locator('button[aria-label="Saved"]').click();
+    await openMenu(p, "Saved");
     const text = await p.locator(".overflow-y-auto").last().innerText();
     await p.locator('button[aria-label="Close"]').first().click();
     return text;
@@ -72,7 +72,7 @@ test("favourites sync between two devices, deletions too", async ({ browser }) =
   await signUpFromSheet(b, "sync@test.com", "signin");
   await expect.poll(async () => savedTab(b), { timeout: 10_000 }).toContain("Sync Cafe");
 
-  await b.locator('button[aria-label="Saved"]').click();
+  await openMenu(b, "Saved");
   await b.getByRole("button", { name: /Remove Sync Cafe from Favourites/ }).click();
   await b.waitForTimeout(2500);
   await b.locator('button[aria-label="Close"]').first().click();

@@ -23,6 +23,6 @@ test("privacy policy: served, says who to contact, linked from the menu", async 
   await expect(page.getByRole("link", { name: "privacy@recordmytrip.com" }).first()).toBeVisible();
   await expect(page.getByText("Delete my account")).toBeVisible();
   await page.goto("/");
-  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
   await expect(page.getByRole("link", { name: "Privacy policy" })).toHaveAttribute("href", "/privacy");
 });

@@ -1,4 +1,4 @@
-import { test, expect, fix, hold } from "./fixtures";
+import { test, expect, fix, hold, openMenu } from "./fixtures";
 
 const STEP = 0.0012; // ~180 m diagonal per fix
 
@@ -9,7 +9,7 @@ test("records a trip: live HUD, pause, hold-to-finish, draft recovery, save", as
   await page.getByRole("button", { name: "Record a trip" }).click();
   const hud = page.locator('section[aria-label="Trip recorder"]');
   await expect(hud).toBeVisible();
-  await expect(page.getByRole("button", { name: "Search", exact: true })).toHaveCount(0); // nav hidden
+  await expect(page.getByRole("button", { name: "Menu", exact: true })).toHaveCount(0); // menu hidden
 
   const legs: [number, number][] = [[3, 12], [8, 20], [14, 35], [20, 48], [25, 60], [28, 75], [18, 70]];
   for (const [i, [spd, alt]] of legs.entries()) await fix(page, 12.97 + (i + 1) * STEP, 77.6 + (i + 1) * STEP, i + 1, spd, alt);
@@ -39,7 +39,7 @@ test("records a trip: live HUD, pause, hold-to-finish, draft recovery, save", as
   await expect(summary).toContainText("Trip finished");
   await page.fill("#trip-name", "E2E run");
   await page.getByRole("button", { name: "Save trip" }).click();
-  await page.getByRole("button", { name: "Trips", exact: true }).click();
+  await openMenu(page, "Trips");
   await expect(page.locator("li").first()).toContainText("E2E run");
   await expect(page.locator("li").first()).not.toContainText("incl. estimate"); // pause isn't a gap
 });

@@ -60,7 +60,7 @@ test("follow by request: request, approve, then the follower sees unlisted trips
   // Ana sees the request (badge), approves it.
   await ana.page.reload();
   await ana.page.waitForSelector(".leaflet-container");
-  await ana.page.getByRole("button", { name: "More", exact: true }).click();
+  await ana.page.getByRole("button", { name: "Menu", exact: true }).click();
   await expect(ana.page.getByLabel("1 follow requests")).toBeVisible();
   await ana.page.getByRole("button", { name: /^People/ }).click();
   await ana.page.getByRole("button", { name: "Approve Ben K" }).click();
@@ -72,7 +72,7 @@ test("follow by request: request, approve, then the follower sees unlisted trips
   await expect(ben.page.getByText("Ana's unlisted ride")).toBeVisible();
   await ben.page.goto("/");
   await ben.page.waitForSelector(".leaflet-container");
-  await ben.page.getByRole("button", { name: "More", exact: true }).click();
+  await ben.page.getByRole("button", { name: "Menu", exact: true }).click();
   await ben.page.getByRole("button", { name: /^People/ }).click();
   const feed = ben.page.getByRole("list", { name: "Trips from people you follow" });
   await expect(feed).toContainText("Ana's unlisted ride");

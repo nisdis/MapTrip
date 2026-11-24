@@ -14,7 +14,7 @@ export function ExploreCard({ trip, onOpen, onList, onClose }: ExploreCardProps)
   return (
     <section
       aria-label="Selected trip"
-      className="fixed inset-x-3 z-30 rounded-2xl bg-white p-3 shadow-xl bottom-[calc(4.5rem+env(safe-area-inset-bottom))] md:left-auto md:right-4 md:w-96"
+      className="fixed inset-x-3 z-30 rounded-2xl bg-white p-3 shadow-xl bottom-[calc(7.5rem+env(safe-area-inset-bottom))] md:left-auto md:right-4 md:w-96"
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">

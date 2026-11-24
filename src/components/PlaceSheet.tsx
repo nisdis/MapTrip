@@ -233,7 +233,7 @@ export function PlaceSheet(props: PlaceSheetProps) {
       ref={ref}
       role="dialog"
       aria-label="Place details"
-      className={`fixed left-3 right-3 bottom-[5.75rem] z-30 flex flex-col rounded-2xl bg-paper font-hud text-asphalt shadow-[0_8px_32px_rgba(31,42,48,0.28)] md:left-auto md:right-4 md:w-[26rem] ${
+      className={`fixed left-3 right-3 bottom-[calc(7.5rem+env(safe-area-inset-bottom))] z-30 flex flex-col rounded-2xl bg-paper font-hud text-asphalt shadow-[0_8px_32px_rgba(31,42,48,0.28)] md:left-auto md:right-4 md:w-[26rem] ${
         expanded ? "max-h-[min(78vh,44rem)]" : ""
       }`}
     >

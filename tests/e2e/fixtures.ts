@@ -59,3 +59,9 @@ export const test = base.extend<{ gps: void }>({
 export { expect };
 
 export const hasDb = !!process.env.DATABASE_URL;
+
+/** Opens a panel (Search, Directions, Trips, Saved…) from the ☰ menu. */
+export async function openMenu(page: Page, item: string) {
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await page.getByRole("navigation", { name: "Menu" }).getByRole("button", { name: item, exact: true }).click();
+}

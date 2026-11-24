@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test as base } from "@playwright/test";
-import { test, expect, fix, hold, hasDb, isolate } from "./fixtures";
+import { test, expect, fix, hold, hasDb, isolate, openMenu } from "./fixtures";
 
 const truncate = () =>
   execFileSync(
@@ -45,7 +45,7 @@ test.describe("offline, then back online", () => {
     await expect(page.getByRole("status").filter({ hasText: "You're offline" })).toBeVisible();
     await recordAndSave(page, "Tunnel ride");
 
-    await page.getByRole("button", { name: "Trips", exact: true }).click();
+    await openMenu(page, "Trips");
     await expect(page.getByText("1 trip will back up when you're online.")).toBeVisible();
     await expect(page.locator("li").filter({ hasText: "Tunnel ride" })).not.toContainText("Saved to cloud");
 
@@ -60,7 +60,7 @@ test("GPX: export a trip, import the file back as an 'Imported' trip", async ({ 
   await page.goto("/");
   await page.waitForSelector(".leaflet-container");
   await recordAndSave(page, "Ride to export");
-  await page.getByRole("button", { name: "Trips", exact: true }).click();
+  await openMenu(page, "Trips");
 
   const downloading = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export Ride to export as GPX" }).click();
@@ -73,7 +73,7 @@ test("GPX: export a trip, import the file back as an 'Imported' trip", async ({ 
 
   await page.getByLabel("Import a GPX file").setInputFiles({ name: "ride.gpx", mimeType: "application/gpx+xml", buffer: Buffer.from(xml) });
   // It's shown on the map; in the list it's marked as imported.
-  await page.getByRole("button", { name: "Trips", exact: true }).click();
+  await openMenu(page, "Trips");
   const items = page.locator("li").filter({ hasText: "Ride to export" });
   await expect(items).toHaveCount(2);
   await expect(items.filter({ hasText: "Imported" })).toHaveCount(1);
@@ -111,7 +111,7 @@ withSw("save an area: its map tiles are served offline, even after the map data 
   // A small area so the test is quick.
   for (let i = 0; i < 4; i++) await page.locator('button[aria-label="Zoom in"]').click().catch(() => undefined);
 
-  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
   await page.getByRole("button", { name: "Offline maps" }).click();
   await expect(page.getByLabel("Area name")).toHaveValue("Testville");
   await page.getByRole("button", { name: "Save", exact: true }).click();
