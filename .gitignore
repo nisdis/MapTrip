@@ -27,3 +27,6 @@ data/*
 # test output
 test-results
 playwright-report
+
+# Built Android apps (sent to the user, not kept in git)
+*.apk
