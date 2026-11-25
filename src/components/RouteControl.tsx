@@ -4,17 +4,20 @@ import "leaflet-routing-machine";
 import { useMap } from "react-leaflet";
 import type { SearchResult } from "../services/searchService";
 import { saveRouteToHistory } from "../services/routeHistoryService";
+import { routerFor, type TravelMode } from "../services/travelMode";
 
 interface RouteControlProps {
   origin: SearchResult;
   destination: SearchResult;
   isVisible: boolean;
+  mode: TravelMode;
 }
 
 export function RouteControl({
   origin,
   destination,
   isVisible,
+  mode,
 }: RouteControlProps) {
   const map = useMap();
   const controlRef = useRef<L.Routing.Control | null>(null);
@@ -26,12 +29,17 @@ export function RouteControl({
   useEffect(() => {
     if (!map || !origin || !destination) return;
 
+    const router = L.Routing.osrmv1(routerFor(mode));
+    // The first answer already has the full line (from each step). Without this
+    // the library asks again whenever an end of the route is off screen, e.g.
+    // while the map is zoomed on the destination just picked: twice the requests
+    // to free servers for nothing.
+    router.requiresMoreDetail = () => false;
+
     const routingControl = L.Routing.control({
-      router: L.Routing.osrmv1({
-        // Public worldwide router; set VITE_OSRM_URL to use your own (e.g. the
-        // India-only server in /server: http://localhost:5000/route/v1).
-        serviceUrl: import.meta.env.VITE_OSRM_URL || "https://router.project-osrm.org/route/v1",
-      }),
+      // Car: the public worldwide router, or your own (VITE_OSRM_URL, e.g. the
+      // India-only server in /server). Bike and walk: see travelMode.ts.
+      router,
       waypoints: [
         L.latLng(origin.location[0], origin.location[1]),
         L.latLng(destination.location[0], destination.location[1]),
@@ -69,7 +77,7 @@ export function RouteControl({
       controlRef.current = null;
       map.removeControl(routingControl);
     };
-  }, [map, origin, destination]);
+  }, [map, origin, destination, mode]);
 
   useEffect(() => {
     const control = controlRef.current;

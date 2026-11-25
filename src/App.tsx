@@ -6,6 +6,7 @@ import { Map as MapIcon, Wifi, WifiOff, Car, UserRound, Menu } from "lucide-reac
 import { MapControls } from "./components/MapControls";
 import { MapController } from "./components/MapController";
 import { RouteControl } from "./components/RouteControl";
+import { loadTravelMode, saveTravelMode, type TravelMode } from "./services/travelMode";
 import { CurrentLocationMarker } from "./components/CurrentLocationMarker";
 import { SpeedPill } from "./components/SpeedPill";
 import { useLocationTracking } from "./hooks/useLocationTracking";
@@ -93,6 +94,7 @@ function App() {
   const [showSheet, setShowSheet] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [origin, setOrigin] = useState<SearchResult | null>(null);
+  const [travelMode, setTravelMode] = useState<TravelMode>(loadTravelMode);
   const [destination, setDestination] = useState<SearchResult | null>(null);
   const { locationData, error, subscribe, attachApp } = useLocationTracking();
   const hasCenteredOnUser = useRef(false);
@@ -901,6 +903,7 @@ function App() {
             origin={origin}
             destination={destination}
             isVisible={isVisible}
+            mode={travelMode}
           />
         )}
         <MapControls
@@ -1182,6 +1185,11 @@ function App() {
               (s): s is { label: string; onPick: () => void } => s !== null,
             )}
             locationData={locationData}
+            mode={travelMode}
+            onModeChange={(m) => {
+              setTravelMode(m);
+              saveTravelMode(m);
+            }}
           />
         )}
         {activeTab === "trips" && (

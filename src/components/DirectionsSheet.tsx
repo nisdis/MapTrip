@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Navigation, Crosshair, Loader2 } from "lucide-react";
+import { Navigation, Crosshair, Loader2, Car, Bike, Footprints, TrainFront, ExternalLink } from "lucide-react";
+import { TRAVEL_MODES, transitUrl, type TravelMode } from "../services/travelMode";
 import type { SearchResult } from "../services/searchService";
 import { searchPlaces } from "../services/searchService";
 import { debounce } from "../utils/debounce";
@@ -15,7 +16,11 @@ interface DirectionsSheetProps {
   onSaveTrip?: () => void;
   /** One-tap destinations */
   shortcuts?: { label: string; onPick: () => void }[];
+  mode: TravelMode;
+  onModeChange: (mode: TravelMode) => void;
 }
+
+const MODE_ICON = { car: Car, bike: Bike, foot: Footprints } as const;
 
 export function DirectionsSheet({
   origin,
@@ -26,6 +31,8 @@ export function DirectionsSheet({
   locationData,
   onSaveTrip,
   shortcuts = [],
+  mode,
+  onModeChange,
 }: DirectionsSheetProps) {
   const [originInput, setOriginInput] = useState(origin?.name || "");
   const [destinationInput, setDestinationInput] = useState(destination?.name || "");
@@ -197,6 +204,45 @@ export function DirectionsSheet({
           Clear
         </button>
       </div>
+
+      <div className="mb-4 flex gap-2">
+        <div role="radiogroup" aria-label="Travel mode" className="flex flex-1 gap-1 rounded-xl bg-gray-100 p-1">
+          {TRAVEL_MODES.map(({ mode: m, label }) => {
+            const Icon = MODE_ICON[m];
+            const on = m === mode;
+            return (
+              <button
+                key={m}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                onClick={() => onModeChange(m)}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium ${
+                  on ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                <Icon aria-hidden className="h-4 w-4" />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {destination && (
+        <a
+          href={transitUrl(origin, destination)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mb-4 flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-2.5 text-sm hover:bg-gray-50"
+        >
+          <TrainFront aria-hidden className="h-5 w-5 flex-shrink-0 text-gray-600" />
+          <span className="flex-1">
+            <span className="block font-medium text-gray-900">Public transport</span>
+            <span className="block text-xs text-gray-500">Opens Google Maps</span>
+          </span>
+          <ExternalLink aria-hidden className="h-4 w-4 text-gray-400" />
+        </a>
+      )}
 
       <div className="space-y-4 flex-1">
         <div className="relative">
