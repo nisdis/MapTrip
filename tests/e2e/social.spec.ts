@@ -123,5 +123,26 @@ test("menu: My profile; with no public name yet, you choose one there", async ({
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Cam T" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
+
+  // A shared trip shows its route shape on the profile (ends trimmed by the server).
+  const tripId = await page.evaluate(async () => {
+    const id = crypto.randomUUID();
+    const now = Date.now() - 3_600_000;
+    const track = Array.from({ length: 60 }, (_, i) => ({
+      lat: 12.97 + i * 0.0006 + Math.sin(i / 6) * 0.002,
+      lng: 77.6 + i * 0.0004,
+      t: now + i * 10_000,
+      speed: 8,
+    }));
+    const save = (body: unknown, url: string) =>
+      fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    await save({ id, name: "Wiggly ride", kind: "recorded", createdAt: now, track, distanceM: 6000, durationS: 600 }, "/api/trips");
+    await save({ action: "settings", trip: id, visibility: "public" }, "/api/public");
+    return id;
+  });
+  await page.reload();
+  const card = page.locator(`a[href="/t/${tripId}"]`);
+  await expect(card).toContainText("Wiggly ride");
+  await expect(card.locator("svg path")).toHaveCount(1);
   await ctx.close();
 });

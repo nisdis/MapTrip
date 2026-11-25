@@ -16,6 +16,7 @@ import {
   type Profile,
 } from "../services/social";
 import { formatClock, formatKm } from "../utils/tripStats";
+import { RouteThumb } from "../components/RouteThumb";
 
 function Toggle({ label, note, on, onChange }: { label: string; note: string; on: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -280,7 +281,11 @@ export default function ProfileViewer({ userId }: { userId: string }) {
               {profile.trips.map((t) => (
                 <li key={t.id}>
                   <a href={`/t/${t.id}`} className="flex items-center gap-3 rounded-xl bg-asphalt/5 p-3">
-                    <Route aria-hidden className="h-5 w-5 flex-shrink-0 text-highway" />
+                    {t.line?.length ? (
+                      <RouteThumb lines={t.line} className="h-12 w-12 text-highway" />
+                    ) : (
+                      <Route aria-hidden className="h-5 w-5 flex-shrink-0 text-highway" />
+                    )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-bold">{t.title}</span>
                       <span className="block text-xs text-asphalt/60">

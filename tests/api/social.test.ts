@@ -55,6 +55,18 @@ describe.skipIf(!hasDb)("social: follows, blocks, feed, leaderboard, achievement
     expect((await get(`profile=${id.dan}`)).status).toBe(404); // no public name, no profile
   });
 
+  it("trip cards carry the route as others see it: start and end trimmed, never the full route", async () => {
+    const { decodePolyline } = await import("../../api/_lib/trackFormat");
+    const p = await (await get(`profile=${id.ana}`)).json();
+    const card = p.trips.find((t: { title: string }) => t.title === "Ana public");
+    expect(card.line.length).toBeGreaterThan(0);
+    const pts = card.line.flatMap((l: string) => decodePolyline(l));
+    // 31 points ~111 m apart going north; the default 500 m is hidden at each end.
+    const lats = pts.map((q: number[]) => q[0]);
+    expect(Math.min(...lats)).toBeGreaterThan(track[0].lat + 0.004);
+    expect(Math.max(...lats)).toBeLessThan(track[30].lat - 0.004);
+  });
+
   it("following needs approval; approved followers also see unlisted trips", async () => {
     expect(await (await post({ action: "follow", user: id.ana }, "ben")).json()).toMatchObject({ following: "pending" });
     let p = await (await get(`profile=${id.ana}`, "ben")).json();

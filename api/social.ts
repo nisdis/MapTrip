@@ -49,7 +49,9 @@ async function relation(me: string | null, other: string) {
   };
 }
 
-const tripCard = (r: { id: string; data: Record<string, unknown>; visibility: string; views: number }) => {
+type CardRow = { id: string; data: Record<string, unknown>; visibility: string; views: number; share_polyline: string[] | null };
+
+const tripCard = (r: CardRow) => {
   const pts = pointsOf(r.data);
   return {
     id: r.id,
@@ -58,6 +60,8 @@ const tripCard = (r: { id: string; data: Record<string, unknown>; visibility: st
     imported: r.data.imported === true,
     stats: statsOf(r.data, pts),
     views: r.views,
+    /** the visible (trimmed) route as encoded polylines, for drawing on the card */
+    line: r.share_polyline ?? [],
   };
 };
 
@@ -82,8 +86,8 @@ async function profile(request: Request, userId: string): Promise<Response> {
             (select count(*)::int from follows where follower_id = $1 and status = 'approved') as following`,
     [userId],
   );
-  const trips = await pool.query<{ id: string; data: Record<string, unknown>; visibility: string; views: number }>(
-    `select id, data, visibility, views from trips
+  const trips = await pool.query<CardRow>(
+    `select id, data, visibility, views, share_polyline from trips
      where user_id = $1 and (visibility = 'public' or (visibility = 'unlisted' and $2::boolean) or ($3::boolean and visibility <> 'private'))
        and (hidden_at is null or visibility <> 'public' or $3::boolean)
      order by created_at desc limit 100`,
@@ -143,8 +147,8 @@ async function people(me: string): Promise<Response> {
 }
 
 async function feed(me: string): Promise<Response> {
-  const { rows } = await getPool().query<{ id: string; data: Record<string, unknown>; visibility: string; views: number; user_id: string; display_name: string | null }>(
-    `select t.id, t.data, t.visibility, t.views, t.user_id, p.display_name
+  const { rows } = await getPool().query<CardRow & { user_id: string; display_name: string | null }>(
+    `select t.id, t.data, t.visibility, t.views, t.share_polyline, t.user_id, p.display_name
      from follows f join trips t on t.user_id = f.followee_id left join profiles p on p.user_id = t.user_id
      where f.follower_id = $1 and f.status = 'approved' and t.visibility in ('public', 'unlisted')
        and not exists (select 1 from blocks b where (b.blocker_id = $1 and b.blocked_id = t.user_id) or (b.blocker_id = t.user_id and b.blocked_id = $1))

@@ -17,6 +17,8 @@ export interface TripCard {
   imported: boolean;
   stats: PublicStats;
   views: number;
+  /** the route as others see it (ends trimmed), encoded polylines */
+  line?: string[];
   authorId?: string;
   author?: string | null;
 }

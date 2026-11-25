@@ -15,6 +15,7 @@ import {
   type TripCard,
 } from "../services/social";
 import { formatClock, formatKm } from "../utils/tripStats";
+import { RouteThumb } from "./RouteThumb";
 
 type Tab = "feed" | "leaderboard" | "people";
 
@@ -140,13 +141,16 @@ export function PeopleSheet({ signedIn, onRequestsChanged }: PeopleSheetProps) {
           )}
           {feed?.map((t) => (
             <li key={t.id}>
-              <a href={`/t/${t.id}`} className="block rounded-xl bg-gray-50 p-3">
-                <div className="truncate font-medium text-gray-900">{t.title}</div>
-                <div className="mt-0.5 text-xs text-gray-500">
-                  {t.author ?? "Someone"} · {formatKm(t.stats.distanceM)} km · {formatClock(t.stats.durationS)} ·{" "}
-                  {new Date(`${t.stats.date}T12:00:00Z`).toLocaleDateString([], { day: "numeric", month: "short" })}
-                  {t.visibility === "unlisted" ? " · for followers" : ""}
-                </div>
+              <a href={`/t/${t.id}`} className="flex items-center gap-3 rounded-xl bg-gray-50 p-3">
+                {!!t.line?.length && <RouteThumb lines={t.line} className="h-12 w-12 text-highway" />}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium text-gray-900">{t.title}</span>
+                  <span className="mt-0.5 block text-xs text-gray-500">
+                    {t.author ?? "Someone"} · {formatKm(t.stats.distanceM)} km · {formatClock(t.stats.durationS)} ·{" "}
+                    {new Date(`${t.stats.date}T12:00:00Z`).toLocaleDateString([], { day: "numeric", month: "short" })}
+                    {t.visibility === "unlisted" ? " · for followers" : ""}
+                  </span>
+                </span>
               </a>
             </li>
           ))}

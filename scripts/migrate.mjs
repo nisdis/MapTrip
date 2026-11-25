@@ -133,12 +133,15 @@ try {
   // Tracks stored as a table of points (api/_lib/trackFormat.ts), and the
   // finished route as encoded polylines. Converts trips saved in the old format.
   await pool.query("alter table trips add column if not exists polyline jsonb");
+  await pool.query("alter table trips add column if not exists share_polyline jsonb");
   try {
     const { register } = await import("tsx/esm/api");
     register();
     const { convertStoredTracks } = await import("../api/_lib/storedTrip.ts");
     const n = await convertStoredTracks(pool);
     console.log(`[migrate] track format ok (converted ${n} trips)`);
+    const { backfillShareGeometry } = await import("../api/_lib/shareGeometry.ts");
+    console.log(`[migrate] share lines ok (filled ${await backfillShareGeometry(pool)})`);
   } catch (error) {
     console.error("[migrate] track conversion skipped:", error);
   }
