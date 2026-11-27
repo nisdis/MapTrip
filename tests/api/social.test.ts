@@ -230,3 +230,78 @@ describe.skipIf(!hasDb)("explored map on profiles", async () => {
     expect(mine.settings.showExplored).toBe(true);
   });
 });
+
+describe.skipIf(!hasDb)("reactions, comments and notifications", async () => {
+  const auth = await import("../../api/auth");
+  const trips = await import("../../api/trips");
+  const pub = await import("../../api/public");
+  const social = await import("../../api/social");
+  const c: Record<string, string> = {};
+  const id: Record<string, string> = {};
+  const post = (body: unknown, who: string) => call(social.POST, "POST", "/api/social", body, c[who]);
+  const talk = async (trip: string, who?: string) => (await call(social.GET, "GET", `/api/social?talk=${trip}`, undefined, who ? c[who] : undefined)).json();
+  const pubT = { id: randomUUID(), name: "Coast road", kind: "recorded", createdAt: Date.now() - 3_600_000, track, distanceM: 3000, durationS: 600, photos: [] };
+  const unl = { ...pubT, id: randomUUID(), name: "Followers only" };
+  const priv = { ...pubT, id: randomUUID(), name: "Private" };
+
+  beforeAll(async () => {
+    for (const n of ["owner", "fan", "noname", "troll"]) {
+      c[n] = await signUp(auth.POST as never, `${n}-talk@test.com`);
+      id[n] = (await (await call(auth.GET as never, "GET", "/api/auth/get-session", undefined, c[n])).json()).user.id;
+      if (n !== "noname") await call(pub.POST, "POST", "/api/public", { action: "profile", displayName: n.toUpperCase() }, c[n]);
+    }
+    for (const t of [pubT, unl, priv]) await call(trips.POST as never, "POST", "/api/trips", t, c.owner);
+    await call(pub.POST, "POST", "/api/public", { action: "settings", trip: pubT.id, visibility: "public" }, c.owner);
+    await call(pub.POST, "POST", "/api/public", { action: "settings", trip: unl.id, visibility: "unlisted" }, c.owner);
+    await post({ action: "block", user: id.troll }, "owner");
+  });
+
+  it("react with one of five, change it, take it back; the owner gets one notification per person", async () => {
+    expect((await post({ action: "react", trip: pubT.id, emoji: "clap" }, "fan")).status).toBe(200);
+    expect((await post({ action: "react", trip: pubT.id, emoji: "fire" }, "fan")).status).toBe(200);
+    expect((await post({ action: "react", trip: pubT.id, emoji: "poop" }, "fan")).status).toBe(400);
+    let t = await talk(pubT.id, "fan");
+    expect(t.counts).toEqual({ clap: 0, heart: 0, wow: 0, laugh: 0, fire: 1 });
+    expect(t.mine).toBe("fire");
+    expect(t.people).toEqual([{ userId: id.fan, name: "FAN", emoji: "fire" }]);
+    const n = await (await call(social.GET, "GET", "/api/social?notifications=1", undefined, c.owner)).json();
+    expect(n.unread).toBe(1);
+    expect(n.items[0]).toMatchObject({ kind: "reaction", emoji: "fire", actor: { name: "FAN" }, trip: { title: "Coast road" } });
+    await post({ action: "react", trip: pubT.id, emoji: null }, "fan");
+    t = await talk(pubT.id);
+    expect(t.counts.fire).toBe(0);
+    expect(t.canTalk).toBe(false); // signed out: read only
+  });
+
+  it("comments: tidied, owner notified, author or owner can delete; reports reach admins", async () => {
+    const r = await (await post({ action: "comment", trip: pubT.id, body: "  Great views!\n\n\n\nWhere is this?  " }, "fan")).json();
+    expect(r.ok).toBe(true);
+    const t = await talk(pubT.id, "owner");
+    expect(t.comments).toEqual([expect.objectContaining({ body: "Great views!\n\nWhere is this?", author: { id: id.fan, name: "FAN" }, canDelete: true })]);
+    expect((await post({ action: "comment", trip: pubT.id, body: "   " }, "fan")).status).toBe(400);
+    const n = await (await call(social.GET, "GET", "/api/social?notifications=1", undefined, c.owner)).json();
+    expect(n.items[0]).toMatchObject({ kind: "comment", comment: "Great views!\n\nWhere is this?" });
+    await post({ action: "readNotifications" }, "owner");
+    expect((await (await call(social.GET, "GET", "/api/social?notifications=1", undefined, c.owner)).json()).unread).toBe(0);
+
+    expect((await post({ action: "reportComment", comment: r.id, reason: "spam" }, "owner")).status).toBe(200);
+    process.env.ADMIN_EMAILS = "owner-talk@test.com";
+    const rep = await (await call(pub.GET, "GET", "/api/public?reports=1", undefined, c.owner)).json();
+    expect(rep.comments[0]).toMatchObject({ id: r.id, count: 1, reasons: ["spam"] });
+    // Someone else can't delete it; the trip's owner can.
+    expect((await post({ action: "deleteComment", comment: r.id }, "troll")).status).toBe(404);
+    expect((await post({ action: "deleteComment", comment: r.id }, "owner")).status).toBe(200);
+    expect((await talk(pubT.id)).comments).toEqual([]);
+  });
+
+  it("who can: needs a public name; unlisted only for approved followers; never private or blocked", async () => {
+    expect((await post({ action: "react", trip: pubT.id, emoji: "clap" }, "noname")).status).toBe(409);
+    expect((await post({ action: "comment", trip: unl.id, body: "hi" }, "fan")).status).toBe(403);
+    await post({ action: "follow", user: id.owner }, "fan");
+    await post({ action: "respond", user: id.fan, accept: true }, "owner");
+    expect((await post({ action: "comment", trip: unl.id, body: "hi" }, "fan")).status).toBe(200);
+    expect((await post({ action: "react", trip: priv.id, emoji: "clap" }, "fan")).status).toBe(404);
+    expect((await talk(priv.id)).message).toBe("Trip not found");
+    expect((await post({ action: "react", trip: pubT.id, emoji: "clap" }, "troll")).status).toBe(404); // blocked
+  });
+});

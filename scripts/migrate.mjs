@@ -143,6 +143,48 @@ try {
   `);
   console.log("[migrate] usage table ok");
 
+  // Reactions, comments and the notifications about them (api/_lib/talk.ts).
+  await pool.query(`
+    create table if not exists trip_reactions (
+      trip_id uuid not null references trips (id) on delete cascade,
+      user_id text not null references "user" (id) on delete cascade,
+      emoji text not null,
+      created_at timestamptz not null default now(),
+      primary key (trip_id, user_id)
+    );
+    create table if not exists trip_comments (
+      id uuid primary key default gen_random_uuid(),
+      trip_id uuid not null references trips (id) on delete cascade,
+      user_id text not null references "user" (id) on delete cascade,
+      body text not null,
+      created_at timestamptz not null default now()
+    );
+    create index if not exists trip_comments_trip_idx on trip_comments (trip_id, created_at);
+    create index if not exists trip_comments_user_idx on trip_comments (user_id, created_at);
+    create table if not exists comment_reports (
+      comment_id uuid not null references trip_comments (id) on delete cascade,
+      reporter_id text not null references "user" (id) on delete cascade,
+      reason text not null,
+      created_at timestamptz not null default now(),
+      resolved_at timestamptz,
+      primary key (comment_id, reporter_id)
+    );
+    create table if not exists notifications (
+      id uuid primary key default gen_random_uuid(),
+      user_id text not null references "user" (id) on delete cascade,
+      kind text not null,
+      actor_id text not null references "user" (id) on delete cascade,
+      trip_id uuid not null references trips (id) on delete cascade,
+      comment_id uuid references trip_comments (id) on delete cascade,
+      emoji text,
+      created_at timestamptz not null default now(),
+      read_at timestamptz
+    );
+    create index if not exists notifications_user_idx on notifications (user_id, created_at desc);
+    create unique index if not exists notifications_reaction_once on notifications (user_id, actor_id, trip_id) where kind = 'reaction';
+  `);
+  console.log("[migrate] reactions and comments ok");
+
   // Tracks stored as a table of points (api/_lib/trackFormat.ts), and the
   // finished route as encoded polylines. Converts trips saved in the old format.
   await pool.query("alter table trips add column if not exists polyline jsonb");

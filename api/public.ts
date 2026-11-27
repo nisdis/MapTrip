@@ -1,6 +1,7 @@
 import { getAuth } from "./_lib/auth.js";
 import { getPool } from "./_lib/db.js";
 import { EVENTS, recordEvent, usageStats } from "./_lib/usage.js";
+import { moderateComment, reportedComments } from "./_lib/talk.js";
 import { rejectForeignOrigin } from "./_lib/origin.js";
 import { refreshShareGeometry } from "./_lib/shareGeometry.js";
 import { haversineM } from "./_lib/live.js";
@@ -195,7 +196,7 @@ async function reports(request: Request): Promise<Response> {
      group by t.id, p.display_name
      order by max(r.created_at) desc`,
   );
-  return json({ reports: rows });
+  return json({ reports: rows, comments: await reportedComments(getPool()) });
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -318,6 +319,11 @@ async function report(userId: string, body: Record<string, unknown>): Promise<Re
 
 async function moderate(email: string, body: Record<string, unknown>): Promise<Response> {
   if (!isAdmin(email)) return json({ message: "Not found" }, 404);
+  // A reported comment: remove it, or keep it (the reports are closed).
+  if (typeof body.comment === "string" && UUID.test(body.comment)) {
+    const e = await moderateComment(getPool(), body.comment, body.decision);
+    return e ? json({ message: e.message }, e.status) : json({ ok: true });
+  }
   const id = typeof body.trip === "string" && UUID.test(body.trip) ? body.trip : null;
   if (!id || (body.decision !== "restore" && body.decision !== "remove")) return json({ message: "Invalid request" }, 400);
   const pool = getPool();

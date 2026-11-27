@@ -5,6 +5,7 @@ import { achievementsFor, factsOf } from "./_lib/achievements.js";
 import { statsOf, pointsOf } from "./_lib/publicTrip.js";
 import { cellCenter } from "./_lib/explored.js";
 import { haversineM } from "./_lib/live.js";
+import { addComment, deleteComment, markAllRead, notificationsFor, react, reportComment, talkFor } from "./_lib/talk.js";
 
 /** Explored squares this close to someone's Home or Work never show on their profile. */
 const EXPLORED_HIDE_M = 1500;
@@ -26,6 +27,7 @@ const json = (body: unknown, status = 200, cache = "no-store") =>
   Response.json(body, { status, headers: { "Cache-Control": cache } });
 
 const ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FEED_LIMIT = 40;
 
 type Rel = "none" | "pending" | "approved";
@@ -165,6 +167,8 @@ async function people(me: string): Promise<Response> {
   return json({
     me: { userId: me, displayName: rows[0]?.display_name ?? null, leaderboard: rows[0]?.leaderboard ?? false, showAchievements: rows[0]?.show_achievements ?? false, showExplored: rows[0]?.show_explored ?? false },
     requests,
+    /** unread reactions and comments on your trips */
+    unread: (await pool.query<{ n: number }>("select count(*)::int as n from notifications where user_id = $1 and read_at is null", [me])).rows[0].n,
     followers,
     following,
     sent,
@@ -214,8 +218,17 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const p = url.searchParams.get("profile");
     if (p != null) return ID_RE.test(p) ? await profile(request, p) : json({ message: "No such profile" }, 404);
+    // Reactions and comments on a shared trip: anyone who can see it can read them.
+    const talk = url.searchParams.get("talk");
+    if (talk != null) {
+      if (!UUID_RE.test(talk)) return json({ message: "Trip not found" }, 404);
+      const viewer = request.headers.get("cookie") ? (await sessionUser(request))?.id ?? null : null;
+      const t = await talkFor(getPool(), talk, viewer);
+      return t ? json(t) : json({ message: "Trip not found" }, 404);
+    }
     const me = await sessionUser(request);
     if (!me) return json({ message: "Please sign in" }, 401);
+    if (url.searchParams.has("notifications")) return json(await notificationsFor(getPool(), me.id));
     if (url.searchParams.has("people")) return await people(me.id);
     if (url.searchParams.has("feed")) return await feed(me.id);
     const lb = url.searchParams.get("leaderboard");
@@ -242,6 +255,23 @@ export async function POST(request: Request): Promise<Response> {
       return json({ message: "Invalid request" }, 400);
     }
     const pool = getPool();
+
+    // Reactions and comments.
+    const fail = (e: { status: number; message: string } | null) => (e ? json({ message: e.message }, e.status) : json({ ok: true }));
+    const tripId = typeof body.trip === "string" && UUID_RE.test(body.trip) ? body.trip : null;
+    const commentId = typeof body.comment === "string" && UUID_RE.test(body.comment) ? body.comment : null;
+    if (body.action === "react") return tripId ? fail(await react(pool, me.id, tripId, body.emoji ?? null)) : json({ message: "Trip not found" }, 404);
+    if (body.action === "comment") {
+      if (!tripId) return json({ message: "Trip not found" }, 404);
+      const r = await addComment(pool, me.id, tripId, body.body);
+      return "error" in r && r.error ? fail(r.error) : json({ ok: true, id: (r as { id: string }).id });
+    }
+    if (body.action === "deleteComment") return commentId ? fail(await deleteComment(pool, me.id, commentId)) : json({ message: "Comment not found" }, 404);
+    if (body.action === "reportComment") return commentId ? fail(await reportComment(pool, me.id, commentId, body.reason)) : json({ message: "Comment not found" }, 404);
+    if (body.action === "readNotifications") {
+      await markAllRead(pool, me.id);
+      return json({ ok: true });
+    }
 
     if (body.action === "settings") {
       const has = await pool.query("select 1 from profiles where user_id = $1", [me.id]);

@@ -15,6 +15,9 @@ export const EVENTS = [
   "route_shown",
   "route_saved",
   "explore_opened",
+  "explored_opened",
+  "reaction_added",
+  "comment_added",
 ] as const;
 export type UsageEvent = (typeof EVENTS)[number];
 
