@@ -2,7 +2,7 @@ import { useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { MapContainer, Marker, Polyline, Popup } from "react-leaflet";
 import { NearbyMarkers } from "./components/NearbyMarkers";
 import { VectorBasemap } from "./components/VectorBasemap";
-import { Map as MapIcon, Wifi, WifiOff, UserRound, Menu } from "lucide-react";
+import { Map as MapIcon, Wifi, WifiOff, UserRound, Menu, X } from "lucide-react";
 import { MapControls } from "./components/MapControls";
 import { MapController } from "./components/MapController";
 import { RouteControl } from "./components/RouteControl";
@@ -61,6 +61,9 @@ import { BatteryGuide } from "./components/BatteryGuide";
 import { TripShareSheet } from "./components/TripShareSheet";
 import { ExploreSheet } from "./components/ExploreSheet";
 import { ExploreLayer } from "./components/ExploreLayer";
+import { ExploredLayer } from "./components/ExploredLayer";
+import { ExploredSheet } from "./components/ExploredSheet";
+import { useExplored } from "./hooks/useExplored";
 import { ExploreCard } from "./components/ExploreCard";
 import { OfflineMapsSheet } from "./components/OfflineMapsSheet";
 import { ReportsSheet } from "./components/ReportsSheet";
@@ -104,6 +107,8 @@ function App() {
   const [travelMode, setTravelMode] = useState<TravelMode>(loadTravelMode);
   // Photos/videos added during the recording in progress (kept across a reload).
   const [recordingMedia, setRecordingMedia] = useRecordingMedia();
+  // The Explored map: worked out when its panel opens; drawn while open, or after Show on map.
+  const [exploredOnMap, setExploredOnMap] = useState(false);
   // The photo or video open full screen.
   const [viewingMedia, setViewingMedia] = useState<{ items: TripPhoto[]; start: number } | null>(null);
   const openMedia = useCallback((items: TripPhoto[], start: number) => setViewingMedia({ items, start }), []);
@@ -263,6 +268,7 @@ function App() {
     remove: removeLocalTrip,
     refresh: refreshTrips,
   });
+  const explored = useExplored(trips, !!auth.user, showSheet && activeTab === "explored");
 
   // Planned trips from older versions are routes, not trips: move them to Saved
   // (same key as the server's own conversion, so no duplicates).
@@ -927,7 +933,31 @@ function App() {
 
       )}
 
-      {origin && destination && routeShown && !isRecorderActive && !showSheet && !placeLookup.target && !nearby.state && !exploring && (
+      {exploredOnMap && explored.data && !isRecorderActive && !showSheet && (
+        <section
+          aria-label="Explored map"
+          className="absolute bottom-[calc(7.5rem+env(safe-area-inset-bottom))] left-4 right-4 z-[500] flex items-center gap-3 rounded-2xl bg-white/95 p-3 shadow-lg backdrop-blur-sm md:left-auto md:w-96 dark:bg-[#1c2429]/95"
+        >
+          <button
+            type="button"
+            onClick={() => handleTabChange("explored")}
+            className="min-w-0 flex-1 text-left text-sm text-gray-700 dark:text-gray-200"
+          >
+            <span className="block font-semibold text-gray-900 dark:text-gray-100">Explored map</span>
+            {plural(explored.data.cells.length, "square")} · {plural(explored.data.countries.length, "country", "countries")} ·{" "}
+            {plural(explored.data.regionCount, "region")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setExploredOnMap(false)}
+            className="flex items-center gap-1 rounded-full bg-gray-900 px-3 py-2 text-xs font-medium text-white dark:bg-gray-100 dark:text-gray-900"
+          >
+            <X aria-hidden className="h-4 w-4" /> Close
+          </button>
+        </section>
+      )}
+
+      {origin && destination && routeShown && !isRecorderActive && !showSheet && !placeLookup.target && !nearby.state && !exploring && !exploredOnMap && (
         <RouteBar
           origin={origin}
           destination={destination}
@@ -976,6 +1006,9 @@ function App() {
           </Marker>
         )}
         <MapTapHandler disabled={isRecorderActive || exploring} onTap={handleMapTap} />
+        {!isRecorderActive && explored.data && (exploredOnMap || (showSheet && activeTab === "explored")) && (
+          <ExploredLayer cells={explored.data.cells} />
+        )}
         {exploring && !isRecorderActive && (
           <ExploreLayer
             trips={explore.trips ?? []}
@@ -1054,7 +1087,8 @@ function App() {
         />
       </MapContainer>
 
-      {!isRecorderActive && !placeLookup.target && !nearby.state && (
+      {/* Not under the route or Explored map bars (same spot). */}
+      {!isRecorderActive && !placeLookup.target && !nearby.state && !(exploredOnMap && !showSheet) && !(origin && destination && routeShown && !showSheet) && (
         <SpeedPill locationData={locationData} />
       )}
 
@@ -1451,6 +1485,18 @@ function App() {
             onDone={handleCloseSheet}
           />
         )}
+        {activeTab === "explored" && (
+          <ExploredSheet
+            data={explored.data}
+            loading={explored.loading}
+            error={explored.error}
+            signedIn={!!auth.user}
+            onShowOnMap={() => {
+              setExploredOnMap(true);
+              setShowSheet(false);
+            }}
+          />
+        )}
         {activeTab === "saved" && (
           <SavedSheet
             home={saved.home}
@@ -1471,6 +1517,11 @@ function App() {
       )}
     </div>
   );
+}
+
+/** "1 country", "3 countries" */
+function plural(n: number, one: string, many = `${one}s`) {
+  return `${n.toLocaleString()} ${n === 1 ? one : many}`;
 }
 
 export default App;
