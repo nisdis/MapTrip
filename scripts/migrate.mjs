@@ -130,6 +130,19 @@ try {
   `);
   console.log("[migrate] social tables ok");
 
+  // Anonymous usage counts (api/_lib/usage.ts).
+  await pool.query(`
+    create table if not exists usage_events (
+      day date not null,
+      name text not null,
+      actor text not null,
+      count int not null default 1,
+      primary key (day, name, actor)
+    );
+    create index if not exists usage_events_name_day_idx on usage_events (name, day);
+  `);
+  console.log("[migrate] usage table ok");
+
   // Tracks stored as a table of points (api/_lib/trackFormat.ts), and the
   // finished route as encoded polylines. Converts trips saved in the old format.
   await pool.query("alter table trips add column if not exists polyline jsonb");

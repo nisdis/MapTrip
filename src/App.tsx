@@ -64,6 +64,7 @@ import { ExploreLayer } from "./components/ExploreLayer";
 import { ExploreCard } from "./components/ExploreCard";
 import { OfflineMapsSheet } from "./components/OfflineMapsSheet";
 import { ReportsSheet } from "./components/ReportsSheet";
+import { StatsSheet } from "./components/StatsSheet";
 import { PeopleSheet } from "./components/PeopleSheet";
 import { getPeople } from "./services/social";
 import { exploreArea, getMe, type ExploreTrip, type NearestTrip } from "./services/publicTrips";
@@ -83,6 +84,7 @@ import "leaflet/dist/leaflet.css";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 import { LatLngTuple } from "leaflet";
 import { setUpdateBusy, useUpdateReady } from "./swUpdate";
+import { track } from "./services/usage";
 
 function App() {
   const [center, setCenter] = useState<LatLngTuple>([51.505, -0.09]);
@@ -144,6 +146,7 @@ function App() {
   const savedSync = useSavedSync(saved, auth.user?.id ?? null);
   const [shareTrip, setShareTrip] = useState<Trip | null>(null);
   const [showReports, setShowReports] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   // Follow requests waiting (badge on More); checked on sign-in and when the app comes back.
   const [requestCount, setRequestCount] = useState(0);
@@ -201,6 +204,7 @@ function App() {
     setExploreFocus({ bbox, key: Date.now() });
   }, []);
   const startExplore = useCallback(() => {
+    track("explore_opened");
     setShowMoreMenu(false);
     setExploring(true);
     setExploreSelected(null);
@@ -407,6 +411,7 @@ function App() {
         ...(recordingMedia.length ? { photos: placeMedia(recordingMedia, recorder.track) } : {}),
       };
       await persistTrip(trip);
+      track("trip_recorded");
       setRecordingMedia([]);
       recorder.reset();
       setViewTrip(trip);
@@ -426,7 +431,10 @@ function App() {
   const handleAddRecordingMedia = useCallback(
     async (files: File[]) => {
       const { added, errors } = await importAll(files, recorder.track);
-      if (added.length) setRecordingMedia((m) => [...m, ...added]);
+      if (added.length) {
+        setRecordingMedia((m) => [...m, ...added]);
+        track("media_added");
+      }
       if (errors.length) alert(errors.join("\n"));
     },
     [recorder.track, setRecordingMedia],
@@ -446,6 +454,7 @@ function App() {
   const handleSaveRoute = useCallback(async () => {
     if (!origin || !destination) return;
     await saved.saveRoute(savedRouteFrom(origin, destination, travelMode, foundRoute));
+    track("route_saved");
   }, [origin, destination, travelMode, foundRoute, saved]);
 
   // Is what Directions shows (both ends and the mode) already in Saved › Routes?
@@ -534,7 +543,10 @@ function App() {
   const handleAddPhoto = useCallback(
     async (trip: Trip, files: File[]) => {
       const { added, errors } = await importAll(files, trip.track ?? []);
-      if (added.length) await persistTrip({ ...trip, photos: [...(trip.photos ?? []), ...added] });
+      if (added.length) {
+        await persistTrip({ ...trip, photos: [...(trip.photos ?? []), ...added] });
+        track("media_added");
+      }
       if (errors.length) throw new Error(errors.join("\n"));
     },
     [persistTrip],
@@ -1297,6 +1309,7 @@ function App() {
 
       {shareTrip && <TripShareSheet trip={shareTrip} onClose={() => setShareTrip(null)} />}
       {showReports && <ReportsSheet onClose={() => setShowReports(false)} />}
+      {showStats && <StatsSheet onClose={() => setShowStats(false)} />}
 
       <BottomSheet
         isOpen={showSheet}
@@ -1315,6 +1328,7 @@ function App() {
             routeIsSaved={routeIsSaved}
             routeShown={routeShown}
             onShowRoute={() => {
+              track("route_shown");
               setRouteShown(true);
               setShowSheet(false); // see it on the map
             }}
@@ -1403,6 +1417,7 @@ function App() {
         {activeTab === "account" && (
           <AccountSheet
             onShowReports={isAdmin ? () => setShowReports(true) : undefined}
+            onShowStats={isAdmin ? () => setShowStats(true) : undefined}
             onDeleteAccount={async (password, alsoThisDevice) => {
               let res: Response;
               try {

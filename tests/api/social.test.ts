@@ -155,3 +155,38 @@ describe.skipIf(!hasDb)("social: follows, blocks, feed, leaderboard, achievement
     expect(await (await call(pub.GET, "GET", `/api/public?trip=${t.id}`)).json()).toMatchObject({ author: "ANA", authorId: id.ana });
   });
 });
+
+describe.skipIf(!hasDb)("usage counts", async () => {
+  const auth = await import("../../api/auth");
+  const pub = await import("../../api/public");
+  const { actorKey } = await import("../../api/_lib/usage");
+  const event = (name: string, device: string, cookie?: string) =>
+    call(pub.POST, "POST", "/api/public", { action: "event", name, device }, cookie);
+
+  it("counts known events by person per day, anonymously; only admins see the numbers", async () => {
+    const d1 = randomUUID();
+    const d2 = randomUUID();
+    for (let i = 0; i < 3; i++) expect((await event("app_open", d1)).status).toBe(200);
+    await event("app_open", d2);
+    await event("trip_recorded", d1);
+    expect((await event("stolen_secrets", d1)).status).toBe(400);
+    expect((await event("app_open", "not-a-uuid")).status).toBe(400);
+
+    process.env.ADMIN_EMAILS = "boss@test.com";
+    const boss = await signUp(auth.POST as never, "boss@test.com");
+    const stats = await (await call(pub.GET, "GET", "/api/public?stats=1", undefined, boss)).json();
+    expect(stats.active).toMatchObject({ d1: 2, d7: 2, d30: 2 });
+    expect(stats.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "app_open", d7: 4, p7: 2 }),
+        expect.objectContaining({ name: "trip_recorded", d7: 1, p7: 1 }),
+      ]),
+    );
+    expect((await call(pub.GET, "GET", "/api/public?stats=1")).status).toBe(404);
+    // The stored code isn't the device id, and changes month to month.
+    expect(actorKey("d:x", "2026-11")).not.toBe(actorKey("d:x", "2026-12"));
+    const id = "d:5d0c4a52-8a3e-4c1e-9f55-0a1b2c3d4e5f";
+    expect(actorKey(id, "2026-11")).not.toContain("5d0c4a52");
+    expect(actorKey(id, "2026-11")).toHaveLength(22);
+  });
+});

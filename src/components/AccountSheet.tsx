@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { UserRound, LogOut, Flag, Trash2 } from "lucide-react";
+import { UserRound, LogOut, Flag, Trash2, BarChart3 } from "lucide-react";
 import type { AuthMode } from "../hooks/useAuth";
 import { AuthForm } from "./AuthForm";
 
@@ -10,11 +10,13 @@ interface AccountSheetProps {
   onDone: () => void;
   /** admins: open the reported trips */
   onShowReports?: () => void;
+  /** admins: usage numbers */
+  onShowStats?: () => void;
   /** Deletes the account and everything in it; optionally this device's trips too. */
   onDeleteAccount: (password: string, alsoThisDevice: boolean) => Promise<void>;
 }
 
-export function AccountSheet({ userEmail, onAuthenticate, onSignOut, onDone, onShowReports, onDeleteAccount }: AccountSheetProps) {
+export function AccountSheet({ userEmail, onAuthenticate, onSignOut, onDone, onShowReports, onShowStats, onDeleteAccount }: AccountSheetProps) {
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(false);
 
@@ -55,6 +57,14 @@ export function AccountSheet({ userEmail, onAuthenticate, onSignOut, onDone, onS
               className="flex items-center justify-center gap-2 py-3 rounded-xl border border-red-200 text-red-700 font-medium"
             >
               <Flag className="w-4 h-4" /> Reported trips
+            </button>
+          )}
+          {onShowStats && (
+            <button
+              onClick={onShowStats}
+              className="flex items-center justify-center gap-2 py-3 rounded-xl border border-blue-200 text-blue-700 font-medium"
+            >
+              <BarChart3 className="w-4 h-4" /> Usage stats
             </button>
           )}
           <button

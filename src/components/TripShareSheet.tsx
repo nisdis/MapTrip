@@ -14,6 +14,7 @@ import {
   type ShareSettings,
   type Visibility,
 } from "../services/publicTrips";
+import { track } from "../services/usage";
 
 interface TripShareSheetProps {
   trip: Trip;
@@ -109,6 +110,7 @@ export function TripShareSheet({ trip, onClose }: TripShareSheetProps) {
         setNeedsName(false);
       }
       const s = await saveShareSettings(trip.id, { visibility, hideM, photos });
+      if (visibility !== "private") track("trip_shared");
       setLoaded({ ...loaded, ...s });
       if (s.visibility !== "private" && (s.visiblePoints ?? 0) < 2) {
         setNotice("This trip is shorter than the hidden start and end, so there's no route to show. Hide less, or keep it private.");

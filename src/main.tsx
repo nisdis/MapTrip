@@ -11,6 +11,8 @@ import './index.css';
 import './theme';
 import { registerServiceWorker } from './swUpdate';
 import { UpdateBanner } from './components/UpdateBanner';
+import { trackAppOpen } from "./services/usage";
+import { inject } from "@vercel/analytics";
 
 const container = document.getElementById('root')!;
 const root = createRoot(container);
@@ -31,3 +33,6 @@ root.render(
 );
 
 registerServiceWorker();
+trackAppOpen();
+// Vercel page-view analytics (cookie-free; only collects once switched on for the project).
+inject({ mode: import.meta.env.DEV ? "development" : "production" });

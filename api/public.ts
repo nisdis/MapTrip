@@ -1,5 +1,6 @@
 import { getAuth } from "./_lib/auth.js";
 import { getPool } from "./_lib/db.js";
+import { EVENTS, recordEvent, usageStats } from "./_lib/usage.js";
 import { rejectForeignOrigin } from "./_lib/origin.js";
 import { refreshShareGeometry } from "./_lib/shareGeometry.js";
 import { haversineM } from "./_lib/live.js";
@@ -207,6 +208,11 @@ export async function GET(request: Request): Promise<Response> {
     const settings = url.searchParams.get("settings");
     if (settings != null) return UUID.test(settings) ? await mySettings(request, settings) : json({ message: "Not found" }, 404);
     if (url.searchParams.has("reports")) return await reports(request);
+    if (url.searchParams.has("stats")) {
+      const s = await session(request);
+      if (!s || !isAdmin(s.user.email)) return json({ message: "Not found" }, 404);
+      return json(await usageStats(getPool()));
+    }
     return json({ message: "Not found" }, 404);
   } catch (error) {
     console.error("Public trips error:", error);
@@ -338,6 +344,15 @@ export async function POST(request: Request): Promise<Response> {
       return json({ message: "Invalid JSON" }, 400);
     }
     if (!body || typeof body !== "object") return json({ message: "Invalid request" }, 400);
+    // Anonymous usage counts: the account if signed in, else this device's random id.
+    if (body.action === "event") {
+      const name = EVENTS.find((e) => e === body.name);
+      const device = typeof body.device === "string" && /^[0-9a-f-]{36}$/i.test(body.device) ? body.device : null;
+      if (!name || !device) return json({ ok: false }, 400);
+      const s = request.headers.get("cookie") ? await session(request) : null;
+      await recordEvent(getPool(), name, s ? `u:${s.user.id}` : `d:${device}`);
+      return json({ ok: true });
+    }
     if (body.action === "view") {
       return typeof body.trip === "string" && UUID.test(body.trip) ? await view(request, body.trip) : json({ ok: false }, 400);
     }

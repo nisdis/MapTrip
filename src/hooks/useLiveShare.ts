@@ -15,6 +15,7 @@ import {
   type LiveStats,
   type ShareDuration,
 } from "../services/liveShare";
+import { track as trackUsage } from "../services/usage";
 
 /** How often the trail and stats are uploaded while sharing. */
 export const LIVE_UPDATE_MS = 20_000;
@@ -195,6 +196,7 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
     async (duration: ShareDuration) => {
       setEndedNotice(null);
       const res = await startLiveShare(duration, startedAt);
+      trackUsage("live_share_started");
       sentT.current = -Infinity;
       remember(res.token);
       setShare({ token: res.token, url: liveUrl(res.token), expiresAt: res.expiresAt, atLimit: false });
