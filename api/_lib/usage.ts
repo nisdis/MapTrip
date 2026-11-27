@@ -18,6 +18,7 @@ export const EVENTS = [
   "explored_opened",
   "reaction_added",
   "comment_added",
+  "challenges_opened",
 ] as const;
 export type UsageEvent = (typeof EVENTS)[number];
 

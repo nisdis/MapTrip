@@ -192,6 +192,8 @@ try {
   await pool.query("alter table trips add column if not exists cells jsonb");
   await pool.query("alter table trips add column if not exists share_cells jsonb");
   await pool.query("alter table profiles add column if not exists show_explored boolean not null default false");
+  // Time zone (IANA name), for weeks and months in streaks and challenges.
+  await pool.query("alter table profiles add column if not exists tz text");
   try {
     const { register } = await import("tsx/esm/api");
     register();

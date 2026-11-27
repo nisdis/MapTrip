@@ -13,7 +13,8 @@ export type UsageEvent =
   | "explore_opened"
   | "explored_opened"
   | "reaction_added"
-  | "comment_added";
+  | "comment_added"
+  | "challenges_opened";
 
 const DEVICE_KEY = "usageDevice";
 const OPENED_KEY = "usageOpenedOn";

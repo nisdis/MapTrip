@@ -305,3 +305,50 @@ describe.skipIf(!hasDb)("reactions, comments and notifications", async () => {
     expect((await post({ action: "react", trip: pubT.id, emoji: "clap" }, "troll")).status).toBe(404); // blocked
   });
 });
+
+describe.skipIf(!hasDb)("streaks and challenges", async () => {
+  const auth = await import("../../api/auth");
+  const trips = await import("../../api/trips");
+  const pub = await import("../../api/public");
+  const social = await import("../../api/social");
+  const c: Record<string, string> = {};
+  const id: Record<string, string> = {};
+  const save = (who: string, daysAgo: number, km: number) =>
+    call(trips.POST as never, "POST", "/api/trips", {
+      id: randomUUID(), name: "Ride", kind: "recorded", createdAt: Date.now() - daysAgo * 86_400_000,
+      track: Array.from({ length: 20 }, (_, i) => ({ lat: 12.9 + i * 0.001, lng: 77.6, t: Date.now() - daysAgo * 86_400_000 + i * 1000, speed: 8 })),
+      distanceM: km * 1000, durationS: 600, photos: [],
+    }, c[who]);
+  const get = async (who: string) => (await call(social.GET, "GET", "/api/social?challenges=1&tz=Asia/Kolkata", undefined, c[who])).json();
+
+  beforeAll(async () => {
+    for (const n of ["sam", "pal", "shy"]) {
+      c[n] = await signUp(auth.POST as never, `${n}-ch@test.com`);
+      id[n] = (await (await call(auth.GET as never, "GET", "/api/auth/get-session", undefined, c[n])).json()).user.id;
+      await call(pub.POST, "POST", "/api/public", { action: "profile", displayName: n.toUpperCase() }, c[n]);
+    }
+    await save("sam", 0, 12);
+    await save("sam", 7, 8);
+    await save("sam", 14, 0.5); // too short: doesn't count
+    await save("pal", 0, 30);
+    await save("shy", 0, 30);
+    for (const f of ["pal", "shy"]) {
+      await call(social.POST, "POST", "/api/social", { action: "follow", user: id[f] }, c.sam);
+      await call(social.POST, "POST", "/api/social", { action: "respond", user: id.sam, accept: true }, c[f]);
+    }
+    await call(social.POST, "POST", "/api/social", { action: "settings", leaderboard: true }, c.pal);
+  });
+
+  it("your streak and this month's three challenges", async () => {
+    const r = await get("sam");
+    expect(r.streak).toMatchObject({ current: 2, thisWeek: true });
+    expect(r.challenges).toHaveLength(3);
+    expect(r.month).toMatch(/^\d{4}-\d{2}$/);
+  });
+
+  it("people you follow show only if they joined the leaderboard", async () => {
+    const r = await get("sam");
+    expect(r.friends.map((f: { name: string }) => f.name)).toEqual(["PAL"]);
+    expect(r.friends[0].progress).toHaveLength(3);
+  });
+});

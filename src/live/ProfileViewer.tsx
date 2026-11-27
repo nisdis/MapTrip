@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Award, Ban, Check, Lock, Route, Share2, UserMinus, UserPlus, UserRound, Users, Grid3x3 } from "lucide-react";
+import { Award, Ban, Check, Lock, Route, Share2, UserMinus, UserPlus, UserRound, Users, Grid3x3, Medal } from "lucide-react";
 import { AuthForm } from "../components/AuthForm";
 import { useAuth } from "../hooks/useAuth";
 import { shareLink } from "../services/appBridge";
@@ -257,6 +257,24 @@ export default function ProfileViewer({ userId }: { userId: string }) {
         )}
 
         {profile.explored && profile.explored.length > 0 && <ProfileExplored cells={profile.explored} />}
+
+        {!!profile.badges?.length && (
+          <section className="mt-6" aria-label="Challenge badges">
+            <h2 className="flex items-center gap-2 text-lg font-bold">
+              <Medal className="h-5 w-5 text-[#9a6700]" /> Challenges completed
+            </h2>
+            <ul className="mt-2 grid grid-cols-2 gap-2">
+              {profile.badges.map((b) => (
+                <li key={`${b.month}-${b.id}`} className="rounded-xl bg-milestone/25 p-3">
+                  <div className="text-sm font-bold">{b.title}</div>
+                  <div className="text-xs text-asphalt/60">
+                    {new Date(`${b.month}-15T12:00:00Z`).toLocaleDateString([], { month: "long", year: "numeric" })}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {profile.achievements && profile.achievements.length > 0 && (
           <section className="mt-6">

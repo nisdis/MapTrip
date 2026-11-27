@@ -6,6 +6,7 @@ import { statsOf, pointsOf } from "./_lib/publicTrip.js";
 import { cellCenter } from "./_lib/explored.js";
 import { haversineM } from "./_lib/live.js";
 import { addComment, deleteComment, markAllRead, notificationsFor, react, reportComment, talkFor } from "./_lib/talk.js";
+import { badgesFor, monthOf, progressFor, streakOf, type TripFact } from "./_lib/challenges.js";
 
 /** Explored squares this close to someone's Home or Work never show on their profile. */
 const EXPLORED_HIDE_M = 1500;
@@ -115,10 +116,13 @@ async function profile(request: Request, userId: string): Promise<Response> {
     [userId, canSeeUnlisted, isMe],
   );
   let achievements = null;
+  let badges: ReturnType<typeof badgesFor> | null = null;
   if (isMe || p.show_achievements) {
     const all = await pool.query<{ data: Record<string, unknown> }>("select data from trips where user_id = $1 and data->>'kind' = 'recorded'", [userId]);
     achievements = achievementsFor(all.rows.map((r) => factsOf(r.data)));
     if (!isMe) achievements = achievements.filter((a) => a.earned);
+    const tz = (await pool.query<{ tz: string | null }>("select tz from profiles where user_id = $1", [userId])).rows[0]?.tz;
+    badges = badgesFor((await factsFor([userId])).get(userId) ?? [], Date.now(), tz);
   }
   // Explored map, if they chose to show it: only from trips this viewer may
   // see, as shared (start and end trimmed), never near their Home or Work.
@@ -150,6 +154,8 @@ async function profile(request: Request, userId: string): Promise<Response> {
     relationship: rel,
     trips: trips.rows.map(tripCard),
     achievements,
+    /** monthly challenges completed (shown with achievements) */
+    badges,
     settings: isMe ? { leaderboard: p.leaderboard, showAchievements: p.show_achievements, showExplored: p.show_explored } : undefined,
   });
 }
@@ -202,6 +208,65 @@ async function feed(me: string): Promise<Response> {
   return json({ trips: rows.map((r) => ({ ...tripCard(r), authorId: r.user_id, author: r.display_name })) });
 }
 
+/** Trips as the streak and challenge rules need them. */
+async function factsFor(userIds: string[]) {
+  const { rows } = await getPool().query<{ user_id: string; created_at: Date; distance: number | null; kind: string | null; imported: boolean | null; media: number; cells: string[] | null }>(
+    `select user_id, created_at, (data->>'distanceM')::float as distance, data->>'kind' as kind,
+            (data->>'imported')::boolean as imported, coalesce(jsonb_array_length(data->'photos'), 0) as media, cells
+     from trips where user_id = any($1)`,
+    [userIds],
+  );
+  const by = new Map<string, TripFact[]>();
+  for (const r of rows) {
+    const f: TripFact = { createdAt: r.created_at.getTime(), distanceM: r.distance ?? 0, kind: r.kind ?? "recorded", imported: !!r.imported, media: r.media, cells: r.cells ?? [] };
+    by.set(r.user_id, [...(by.get(r.user_id) ?? []), f]);
+  }
+  return by;
+}
+
+const validTz = (tz: unknown): string | null => {
+  if (typeof tz !== "string" || tz.length > 64) return null;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: tz });
+    return tz;
+  } catch {
+    return null;
+  }
+};
+
+/** Your streak, this month's challenges, earlier badges; and people you follow who joined the leaderboard. */
+async function challenges(me: string, tzParam: unknown): Promise<Response> {
+  const pool = getPool();
+  const tz = validTz(tzParam);
+  if (tz) await pool.query("update profiles set tz = $2 where user_id = $1 and tz is distinct from $2", [me, tz]);
+  const now = Date.now();
+  const month = monthOf(now, tz);
+  const mine = (await factsFor([me])).get(me) ?? [];
+  const p = (await pool.query<{ leaderboard: boolean }>("select leaderboard from profiles where user_id = $1", [me])).rows[0];
+  const friendsRows = (
+    await pool.query<{ user_id: string; display_name: string; tz: string | null }>(
+      `select p.user_id, p.display_name, p.tz from follows f join profiles p on p.user_id = f.followee_id
+       where f.follower_id = $1 and f.status = 'approved' and p.leaderboard`,
+      [me],
+    )
+  ).rows;
+  const theirs = await factsFor(friendsRows.map((f) => f.user_id));
+  const friends = friendsRows.map((f) => {
+    const t = theirs.get(f.user_id) ?? [];
+    const progress = progressFor(t, month, f.tz);
+    return { userId: f.user_id, name: f.display_name, done: progress.filter((x) => x.done).length, progress, streak: streakOf(t, now, f.tz).current };
+  });
+  return json({
+    month,
+    challenges: progressFor(mine, month, tz),
+    streak: streakOf(mine, now, tz),
+    badges: badgesFor(mine, now, tz),
+    /** your own progress is shown to followers only if you joined the leaderboard */
+    sharing: p?.leaderboard ?? false,
+    friends: friends.sort((a, b) => b.done - a.done || b.streak - a.streak),
+  });
+}
+
 async function leaderboard(me: string, period: string): Promise<Response> {
   const days = period === "month" ? 30 : 7;
   const pool = getPool();
@@ -243,6 +308,7 @@ export async function GET(request: Request): Promise<Response> {
     const me = await sessionUser(request);
     if (!me) return json({ message: "Please sign in" }, 401);
     if (url.searchParams.has("notifications")) return json(await notificationsFor(getPool(), me.id));
+    if (url.searchParams.has("challenges")) return await challenges(me.id, url.searchParams.get("tz"));
     if (url.searchParams.has("people")) return await people(me.id);
     if (url.searchParams.has("feed")) return await feed(me.id);
     const lb = url.searchParams.get("leaderboard");

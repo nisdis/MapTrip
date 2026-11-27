@@ -17,6 +17,10 @@ const LABELS: Record<string, string> = {
   route_shown: "Showed a route",
   route_saved: "Saved a route",
   explore_opened: "Opened Explore",
+  explored_opened: "Opened the Explored map",
+  reaction_added: "Reacted to a trip",
+  comment_added: "Commented on a trip",
+  challenges_opened: "Opened Challenges",
 };
 
 /** Admins: how the app is used (anonymous counts; people = devices or accounts). */

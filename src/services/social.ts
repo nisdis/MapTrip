@@ -43,6 +43,8 @@ export interface Profile {
   trips: TripCard[];
   achievements: Achievement[] | null;
   settings?: { leaderboard: boolean; showAchievements: boolean; showExplored: boolean };
+  /** monthly challenges they completed (shown with achievements) */
+  badges?: { month: string; id: string; title: string }[] | null;
   /** their Explored map's squares, if they show it (from trips you may see) */
   explored?: string[] | null;
 }

@@ -18,6 +18,7 @@ import {
   Users,
   X,
   Grid3x3,
+  Trophy,
   type LucideIcon,
 } from "lucide-react";
 
@@ -95,6 +96,7 @@ export function SideMenu({
         {item("directions", Navigation, "Directions", () => onOpen("directions"))}
         {item("trips", Route, "Trips", () => onOpen("trips"))}
         {item("explored", Grid3x3, "Explored map", () => onOpen("explored"))}
+        {item("challenges", Trophy, "Challenges", () => onOpen("challenges"))}
         {item("saved", Star, "Saved", () => onOpen("saved"))}
         <div className="my-2 border-t border-gray-100" />
         {item("explore", Compass, "Explore trips", onExplore)}

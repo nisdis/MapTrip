@@ -63,6 +63,7 @@ import { ExploreSheet } from "./components/ExploreSheet";
 import { ExploreLayer } from "./components/ExploreLayer";
 import { ExploredLayer } from "./components/ExploredLayer";
 import { ExploredSheet } from "./components/ExploredSheet";
+import { ChallengesSheet } from "./components/ChallengesSheet";
 import { useExplored } from "./hooks/useExplored";
 import { ExploreCard } from "./components/ExploreCard";
 import { OfflineMapsSheet } from "./components/OfflineMapsSheet";
@@ -1485,6 +1486,7 @@ function App() {
             onDone={handleCloseSheet}
           />
         )}
+        {activeTab === "challenges" && <ChallengesSheet trips={trips} signedIn={!!auth.user} />}
         {activeTab === "explored" && (
           <ExploredSheet
             data={explored.data}
