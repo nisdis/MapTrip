@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Trip } from "../types/trip";
+import { track } from "../services/usage";
 import { accountCells, localCells, summarize, type Explored } from "../services/explored";
 
 /**
@@ -29,6 +30,9 @@ export function useExplored(trips: Trip[], signedIn: boolean, active: boolean) {
   useEffect(() => {
     if (active) void refresh();
   }, [active, refresh]);
+  useEffect(() => {
+    if (active) track("explored_opened");
+  }, [active]);
 
   return { data, error, loading, refresh };
 }

@@ -19,6 +19,8 @@ export interface TripCard {
   views: number;
   /** the route as others see it (ends trimmed), encoded polylines */
   line?: string[];
+  reactions?: number;
+  comments?: number;
   authorId?: string;
   author?: string | null;
 }
@@ -52,6 +54,8 @@ export interface Person {
 }
 
 export interface People {
+  /** unread reactions and comments on your trips */
+  unread: number;
   me: { userId: string; displayName: string | null; leaderboard: boolean; showAchievements: boolean; showExplored: boolean };
   requests: Person[];
   followers: Person[];
@@ -105,3 +109,43 @@ export const block = (user: string) => post({ action: "block", user });
 export const unblock = (user: string) => post({ action: "unblock", user });
 export const saveSocialSettings = (s: { leaderboard?: boolean; showAchievements?: boolean; showExplored?: boolean }) =>
   post({ action: "settings", ...s });
+
+// ---------------------------------------------------------------- reactions and comments
+
+export const REACTIONS = [
+  { id: "clap", emoji: "👏", label: "Applause" },
+  { id: "heart", emoji: "❤️", label: "Love it" },
+  { id: "wow", emoji: "😮", label: "Wow" },
+  { id: "laugh", emoji: "😂", label: "Haha" },
+  { id: "fire", emoji: "🔥", label: "Fire" },
+] as const;
+export type ReactionId = (typeof REACTIONS)[number]["id"];
+export const emojiFor = (id: string | null) => REACTIONS.find((r) => r.id === id)?.emoji ?? "";
+
+export interface TripTalk {
+  counts: Record<ReactionId, number>;
+  mine: ReactionId | null;
+  people: { userId: string; name: string; emoji: ReactionId }[];
+  comments: { id: string; author: { id: string; name: string }; body: string; createdAt: number; canDelete: boolean }[];
+  canTalk: boolean;
+  isOwner: boolean;
+}
+
+export interface Notification {
+  id: string;
+  kind: "reaction" | "comment";
+  actor: { id: string; name: string };
+  trip: { id: string; title: string };
+  emoji: ReactionId | null;
+  comment: string | null;
+  at: number;
+  read: boolean;
+}
+
+export const getTalk = (tripId: string) => request<TripTalk>(`/api/social?talk=${encodeURIComponent(tripId)}`);
+export const setReaction = (trip: string, emoji: ReactionId | null) => post({ action: "react", trip, emoji });
+export const addComment = (trip: string, body: string) => post<{ ok: true; id: string }>({ action: "comment", trip, body });
+export const deleteComment = (comment: string) => post({ action: "deleteComment", comment });
+export const reportComment = (comment: string, reason: string) => post({ action: "reportComment", comment, reason });
+export const getNotifications = () => request<{ unread: number; items: Notification[] }>("/api/social?notifications=1");
+export const readNotifications = () => post({ action: "readNotifications" });

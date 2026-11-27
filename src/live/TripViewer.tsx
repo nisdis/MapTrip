@@ -5,6 +5,7 @@ import "leaflet/dist/leaflet.css";
 import { VectorBasemap } from "../components/VectorBasemap";
 import { TripLayer } from "../components/TripLayer";
 import { AuthForm } from "../components/AuthForm";
+import { TripTalk } from "../components/TripTalk";
 import { useAuth } from "../hooks/useAuth";
 import type { TrackPoint } from "../types/trip";
 import {
@@ -122,6 +123,7 @@ export default function TripViewer({ id }: { id: string }) {
   const [missing, setMissing] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [photo, setPhoto] = useState<string | null>(null);
+  const auth = useAuth();
 
   useEffect(() => {
     let cancelled = false;
@@ -225,6 +227,7 @@ export default function TripViewer({ id }: { id: string }) {
                 ? `The first and last ${trip.hideM >= 1000 ? `${trip.hideM / 1000} km` : `${trip.hideM} m`} aren't shown.`
                 : "Shown in full by its owner."}
             </p>
+            <TripTalk tripId={trip.id} signedIn={!!auth.user} onAuthenticate={auth.authenticate} />
             <a href="/" className="mt-2 mb-1 inline-block text-sm font-bold text-highway underline">
               Open Map Trip
             </a>

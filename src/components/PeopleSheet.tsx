@@ -13,15 +13,19 @@ import {
   type People,
   type Person,
   type TripCard,
+  emojiFor,
+  getNotifications,
+  readNotifications,
+  type Notification,
 } from "../services/social";
 import { formatClock, formatKm } from "../utils/tripStats";
 import { RouteThumb } from "./RouteThumb";
 
-type Tab = "feed" | "leaderboard" | "people";
+type Tab = "feed" | "activity" | "leaderboard" | "people";
 
 interface PeopleSheetProps {
   signedIn: boolean;
-  /** pending follow requests changed (for the badge) */
+  /** things waiting for you changed (follow requests + unread reactions/comments; for the badge) */
   onRequestsChanged: (n: number) => void;
 }
 
@@ -35,14 +39,16 @@ export function PeopleSheet({ signedIn, onRequestsChanged }: PeopleSheetProps) {
   const [period, setPeriod] = useState<"week" | "month">("week");
   const [board, setBoard] = useState<Leaderboard | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activity, setActivity] = useState<Notification[] | null>(null);
 
   const loadPeople = useCallback(
     () =>
       getPeople()
         .then((p) => {
           setPeople(p);
-          onRequestsChanged(p.requests.length);
-          if (p.requests.length) setTab((t) => (t === "feed" ? "people" : t));
+          onRequestsChanged(p.requests.length + p.unread);
+          if (p.unread) setTab((t) => (t === "feed" ? "activity" : t));
+          else if (p.requests.length) setTab((t) => (t === "feed" ? "people" : t));
         })
         .catch((e) => setError(e.message)),
     [onRequestsChanged],
@@ -54,6 +60,22 @@ export function PeopleSheet({ signedIn, onRequestsChanged }: PeopleSheetProps) {
       .then((f) => setFeed(f.trips))
       .catch((e) => setError(e.message));
   }, [signedIn, loadPeople]);
+  // Activity: reactions and comments on your trips; opening it marks them read.
+  useEffect(() => {
+    if (!signedIn || tab !== "activity") return;
+    getNotifications()
+      .then((n) => {
+        setActivity(n.items);
+        if (n.unread) {
+          void readNotifications().then(() => {
+            setPeople((p) => (p ? { ...p, unread: 0 } : p));
+            onRequestsChanged(people?.requests.length ?? 0);
+          });
+        }
+      })
+      .catch((e) => setError(e.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signedIn, tab]);
   useEffect(() => {
     if (!signedIn || tab !== "leaderboard") return;
     getLeaderboard(period)
@@ -105,10 +127,11 @@ export function PeopleSheet({ signedIn, onRequestsChanged }: PeopleSheetProps) {
         )}
       </div>
 
-      <div role="tablist" className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
+      <div role="tablist" className="grid grid-cols-4 gap-1 rounded-lg bg-gray-100 p-1">
         {(
           [
             ["feed", "Following"],
+            ["activity", `Activity${people?.unread ? ` (${people.unread})` : ""}`],
             ["leaderboard", "Leaderboard"],
             ["people", `People${people?.requests.length ? ` (${people.requests.length})` : ""}`],
           ] as [Tab, string][]
@@ -150,7 +173,47 @@ export function PeopleSheet({ signedIn, onRequestsChanged }: PeopleSheetProps) {
                     {new Date(`${t.stats.date}T12:00:00Z`).toLocaleDateString([], { day: "numeric", month: "short" })}
                     {t.visibility === "unlisted" ? " · for followers" : ""}
                   </span>
+                  {(!!t.reactions || !!t.comments) && (
+                    <span className="mt-0.5 block text-xs text-gray-500">
+                      {t.reactions ? `👏 ${t.reactions}` : ""}
+                      {t.reactions && t.comments ? " · " : ""}
+                      {t.comments ? `💬 ${t.comments}` : ""}
+                    </span>
+                  )}
                 </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {tab === "activity" && (
+        <ul className="space-y-2 pb-20" aria-label="Activity">
+          {activity === null && <li className="py-6 text-center text-sm text-gray-500">Loading…</li>}
+          {activity?.length === 0 && (
+            <li className="py-6 text-center text-sm text-gray-500">
+              Nothing yet. Reactions and comments on your shared trips show up here.
+            </li>
+          )}
+          {activity?.map((n) => (
+            <li key={n.id}>
+              <a href={`/t/${n.trip.id}`} className={`block rounded-xl p-3 ${n.read ? "bg-gray-50" : "bg-blue-50"}`}>
+                <div className="text-sm text-gray-900">
+                  <span className="font-semibold">{n.actor.name}</span>{" "}
+                  {n.kind === "reaction" ? (
+                    <>
+                      reacted {emojiFor(n.emoji)} to <span className="font-medium">{n.trip.title}</span>
+                    </>
+                  ) : (
+                    <>
+                      commented on <span className="font-medium">{n.trip.title}</span>
+                    </>
+                  )}
+                </div>
+                {n.comment && <p className="mt-0.5 line-clamp-2 text-sm text-gray-600">“{n.comment}”</p>}
+                <div className="mt-0.5 text-xs text-gray-500">
+                  {new Date(n.at).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                </div>
               </a>
             </li>
           ))}

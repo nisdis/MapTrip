@@ -302,6 +302,8 @@ export default function ProfileViewer({ userId }: { userId: string }) {
                         {new Date(`${t.stats.date}T12:00:00Z`).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })}
                         {t.visibility === "unlisted" ? " · followers & link" : ""}
                         {t.imported ? " · imported" : ""}
+                        {t.reactions ? ` · 👏 ${t.reactions}` : ""}
+                        {t.comments ? ` · 💬 ${t.comments}` : ""}
                       </span>
                     </span>
                   </a>

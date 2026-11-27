@@ -1,18 +1,22 @@
 import { useEffect, useState } from "react";
 import { ExternalLink, Flag, X } from "lucide-react";
-import { REPORT_REASONS, getReports, moderate, type ReportedTrip } from "../services/publicTrips";
+import { REPORT_REASONS, getReports, moderate, moderateComment, type ReportedComment, type ReportedTrip } from "../services/publicTrips";
 
 const reasonLabel = (id: string) => REPORT_REASONS.find((r) => r.id === id)?.label ?? id;
 
 /** Admins: reported trips, to restore (back into Explore) or take down (made private). */
 export function ReportsSheet({ onClose }: { onClose: () => void }) {
   const [items, setItems] = useState<ReportedTrip[] | null>(null);
+  const [comments, setComments] = useState<ReportedComment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = () =>
     getReports()
-      .then((r) => setItems(r.reports))
+      .then((r) => {
+        setItems(r.reports);
+        setComments(r.comments ?? []);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "Couldn't load reports"));
   useEffect(() => {
     void load();
@@ -49,7 +53,9 @@ export function ReportsSheet({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-        {items && items.length === 0 && <p className="py-6 text-center text-sm text-gray-500">Nothing to review.</p>}
+        {items && items.length === 0 && comments.length === 0 && (
+          <p className="py-6 text-center text-sm text-gray-500">Nothing to review.</p>
+        )}
         <ul className="mt-3 space-y-3">
           {(items ?? []).map((r) => (
             <li key={r.id} className="rounded-xl border border-gray-200 p-3">
@@ -94,6 +100,51 @@ export function ReportsSheet({ onClose }: { onClose: () => void }) {
             </li>
           ))}
         </ul>
+        {comments.length > 0 && (
+          <>
+            <h3 className="mt-5 text-sm font-semibold text-gray-700">Reported comments</h3>
+            <ul className="mt-2 space-y-3" aria-label="Reported comments">
+              {comments.map((c) => (
+                <li key={c.id} className="rounded-xl border border-gray-200 p-3">
+                  <div className="flex items-start gap-2">
+                    <p className="min-w-0 flex-1 whitespace-pre-line break-words text-sm">“{c.body}”</p>
+                    <a href={`/t/${c.trip_id}`} target="_blank" rel="noreferrer" className="p-1 text-gray-500" aria-label="Open trip">
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    by {c.author ?? "No name"} · {c.count} report{c.count === 1 ? "" : "s"}: {c.reasons.join(", ")}
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    {(["keep", "remove"] as const).map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        disabled={busy === c.id}
+                        onClick={async () => {
+                          setBusy(c.id);
+                          try {
+                            await moderateComment(c.id, d);
+                            await load();
+                          } catch (e) {
+                            setError(e instanceof Error ? e.message : "Couldn't save");
+                          } finally {
+                            setBusy(null);
+                          }
+                        }}
+                        className={`flex-1 rounded-lg py-2 text-sm font-medium ${
+                          d === "remove" ? "bg-red-600 text-white" : "border border-gray-300"
+                        }`}
+                      >
+                        {d === "remove" ? "Remove comment" : "Keep it"}
+                      </button>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </section>
     </div>
   );

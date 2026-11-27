@@ -104,7 +104,7 @@ export function SideMenu({
           "People",
           onPeople,
           peopleBadge > 0 && (
-            <span className="rounded-full bg-signal px-2 py-0.5 text-xs font-bold text-white" aria-label={`${peopleBadge} follow requests`}>
+            <span className="rounded-full bg-signal px-2 py-0.5 text-xs font-bold text-white" aria-label={`${peopleBadge} new`}>
               {peopleBadge}
             </span>
           ),

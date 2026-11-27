@@ -162,7 +162,7 @@ function App() {
     }
     const check = () =>
       getPeople()
-        .then((p) => setRequestCount(p.requests.length))
+        .then((p) => setRequestCount(p.requests.length + p.unread))
         .catch(() => undefined);
     void check();
     const onVisible = () => document.visibilityState === "visible" && void check();

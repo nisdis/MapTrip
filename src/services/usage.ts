@@ -10,7 +10,10 @@ export type UsageEvent =
   | "media_added"
   | "route_shown"
   | "route_saved"
-  | "explore_opened";
+  | "explore_opened"
+  | "explored_opened"
+  | "reaction_added"
+  | "comment_added";
 
 const DEVICE_KEY = "usageDevice";
 const OPENED_KEY = "usageOpenedOn";

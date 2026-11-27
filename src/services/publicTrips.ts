@@ -124,5 +124,16 @@ export const exploreArea = (b: { south: number; west: number; north: number; eas
     `/api/public?explore=1&s=${b.south.toFixed(4)}&w=${b.west.toFixed(4)}&n=${b.north.toFixed(4)}&e=${b.east.toFixed(4)}`,
     { signal },
   );
-export const getReports = () => request<{ reports: ReportedTrip[] }>("/api/public?reports=1");
+export interface ReportedComment {
+  id: string;
+  trip_id: string;
+  body: string;
+  author: string | null;
+  count: number;
+  reasons: string[];
+}
+
+export const getReports = () => request<{ reports: ReportedTrip[]; comments: ReportedComment[] }>("/api/public?reports=1");
+export const moderateComment = (comment: string, decision: "keep" | "remove") =>
+  post<{ ok: true }>({ action: "moderate", comment, decision });
 export const moderate = (trip: string, decision: "restore" | "remove") => post<{ ok: true }>({ action: "moderate", trip, decision });

@@ -61,7 +61,7 @@ test("follow by request: request, approve, then the follower sees unlisted trips
   await ana.page.reload();
   await ana.page.waitForSelector(".leaflet-container");
   await ana.page.getByRole("button", { name: "Menu", exact: true }).click();
-  await expect(ana.page.getByLabel("1 follow requests")).toBeVisible();
+  await expect(ana.page.getByLabel("1 new")).toBeVisible();
   await ana.page.getByRole("button", { name: /^People/ }).click();
   await ana.page.getByRole("button", { name: "Approve Ben K" }).click();
   await expect(ana.page.getByRole("list", { name: "Follow requests" })).toContainText("None.");
