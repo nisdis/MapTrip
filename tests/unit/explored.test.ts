@@ -67,6 +67,19 @@ describe("countries and regions from the bundled borders", () => {
     expect(await placeAt(0, -30)).toEqual({ country: null, region: null }); // mid-Atlantic
   });
 
+  it("waterfront squares count as the land next to them (borders' coasts are approximate)", async () => {
+    const { placeOfCell } = await import("../../src/services/explored");
+    for (const [lat, lng, code, region] of [
+      [18.9067, 72.8147, "IND", "Maharashtra"], // Colaba, Mumbai
+      [9.9816, 76.2759, "IND", "Kerala"], // Marine Drive, Kochi
+      [45.4408, 12.3155, "ITA", "Venezia"],
+    ] as const) {
+      expect(await placeOfCell(cellOf(lat, lng))).toMatchObject({ country: { code }, region: { name: region } });
+    }
+    // Far out at sea: nothing.
+    expect(await placeOfCell(cellOf(15, 68))).toEqual({ country: null, region: null });
+  });
+
   it("summarizes squares into countries and regions", async () => {
     const { summarize } = await import("../../src/services/explored");
     const s = await summarize([cellOf(35.0037, 135.7788), cellOf(35.01, 135.76), cellOf(12.9716, 77.5946), cellOf(0, -30)]);

@@ -1,4 +1,5 @@
 import localforage from "localforage";
+import { feature } from "topojson-client";
 import type { Trip } from "../types/trip";
 import { cellCenter, cellsOfTrack } from "../../api/_lib/explored";
 
@@ -17,8 +18,8 @@ interface Area {
   polygons: Ring[][]; // each: outer ring, then holes ([lng, lat])
 }
 
-const BORDERS_VERSION = 1;
-let borders: Promise<{ countries: Area[]; regions: Map<string, Area[]> }> | null = null;
+const BORDERS_VERSION = 2;
+let borders: Promise<{ countries: Area[]; regions: Area[]; names: Map<string, string> }> | null = null;
 
 function toAreas(geojson: { features: { properties: Record<string, string>; geometry: { type: string; coordinates: unknown } | null }[] }): Area[] {
   const out: Area[] = [];
@@ -43,12 +44,12 @@ export function loadBorders() {
     const get = async (name: string) => {
       const res = await fetch(`/borders/${name}.json?v=${BORDERS_VERSION}`);
       if (!res.ok) throw new Error("Couldn't download the world borders");
-      return toAreas(await res.json());
+      // TopoJSON (shared borders stored once: about half the download).
+      const topo = (await res.json()) as Parameters<typeof feature>[0];
+      return toAreas(feature(topo, topo.objects[Object.keys(topo.objects)[0]]) as unknown as Parameters<typeof toAreas>[0]);
     };
-    const [countries, regionList] = await Promise.all([get("countries"), get("regions")]);
-    const regions = new Map<string, Area[]>();
-    for (const r of regionList) regions.set(r.country ?? "", [...(regions.get(r.country ?? "") ?? []), r]);
-    return { countries, regions };
+    const [countries, regions] = await Promise.all([get("countries"), get("regions")]);
+    return { countries, regions, names: new Map(countries.map((c) => [c.code, c.name])) };
   })().catch((e) => {
     borders = null; // try again next time (offline the first time)
     throw e;
@@ -79,10 +80,61 @@ export interface Place {
 
 /** The country and region a point is in (null at sea, or between simplified borders). */
 export async function placeAt(lat: number, lng: number): Promise<Place> {
-  const { countries, regions } = await loadBorders();
-  const c = countries.find((a) => contains(a, lat, lng)) ?? null;
-  const r = c ? (regions.get(c.code) ?? []).find((a) => contains(a, lat, lng)) ?? null : null;
-  return { country: c && { code: c.code, name: c.name }, region: r && { code: r.code, name: r.name } };
+  const { countries, regions, names } = await loadBorders();
+  // States/provinces are the more detailed borders, so they decide the country too.
+  const r = regions.find((a) => contains(a, lat, lng));
+  if (r?.country) return { country: { code: r.country, name: names.get(r.country) ?? r.country }, region: { code: r.code, name: r.name } };
+  const c = countries.find((a) => contains(a, lat, lng));
+  return { country: c ? { code: c.code, name: c.name } : null, region: null };
+}
+
+/** How close to a border's coastline a square on "sea" still counts as that land. */
+const COAST_M = 3000;
+
+/** Metres from a point to the nearest edge of an area (flat approximation; fine at this scale). */
+function distanceTo(a: Area, lat: number, lng: number): number {
+  const kx = 111_320 * Math.cos((lat * Math.PI) / 180);
+  const ky = 110_574;
+  let best = Infinity;
+  for (const poly of a.polygons)
+    for (const ring of poly)
+      for (let i = 1; i < ring.length; i++) {
+        const ax = (ring[i - 1][0] - lng) * kx, ay = (ring[i - 1][1] - lat) * ky;
+        const bx = (ring[i][0] - lng) * kx, by = (ring[i][1] - lat) * ky;
+        const dx = bx - ax, dy = by - ay;
+        const len2 = dx * dx + dy * dy;
+        const t = len2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2)) : 0;
+        best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy));
+      }
+  return best;
+}
+
+/**
+ * A square's place: where its middle is; on a coast, the nearest land within
+ * ~3 km. The borders' coastlines are approximate (to about a kilometre), and
+ * a waterfront walk shouldn't read as "at sea".
+ */
+export async function placeOfCell(id: string): Promise<Place> {
+  const [lat, lng] = cellCenter(id);
+  const here = await placeAt(lat, lng);
+  if (here.country) return here;
+  const { regions, names } = await loadBorders();
+  const dLat = COAST_M / 110_574;
+  const dLng = COAST_M / (111_320 * Math.cos((lat * Math.PI) / 180));
+  let best: Area | null = null;
+  let bestD = COAST_M;
+  for (const r of regions) {
+    const [w, s, e, n] = r.bbox;
+    if (lng < w - dLng || lng > e + dLng || lat < s - dLat || lat > n + dLat) continue;
+    const d = distanceTo(r, lat, lng);
+    if (d < bestD) {
+      bestD = d;
+      best = r;
+    }
+  }
+  return best?.country
+    ? { country: { code: best.country, name: names.get(best.country) ?? best.country }, region: { code: best.code, name: best.name } }
+    : here;
 }
 
 // Each square's place, worked out once.
@@ -118,8 +170,7 @@ export async function summarize(cells: string[]): Promise<Explored> {
   for (const id of cells) {
     let p = await placeStore.getItem<Place>(id).catch(() => null);
     if (!p) {
-      const [lat, lng] = cellCenter(id);
-      p = await placeAt(lat, lng);
+      p = await placeOfCell(id);
       void placeStore.setItem(id, p).catch(() => undefined);
     }
     if (!p.country) continue;
