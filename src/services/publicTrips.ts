@@ -33,9 +33,11 @@ export interface PublicTrip {
   imported?: boolean;
   hideM: number;
   stats: PublicStats;
-  /** [lat, lng, t, speed, gap] */
-  points: [number, number, number, number | null, 0 | 1][];
+  /** [lat, lng, t, speed, gap, alt] (alt missing from older answers) */
+  points: [number, number, number, number | null, 0 | 1, (number | null)?][];
   photos: string[];
+  /** when shared photos were taken (epoch ms), for those inside the shown part */
+  photoAt?: Record<string, number>;
   views: number;
 }
 

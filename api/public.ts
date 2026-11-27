@@ -52,6 +52,21 @@ async function session(request: Request) {
   return getAuth().api.getSession({ headers: request.headers });
 }
 
+/**
+ * When each shared photo was taken, for the replay to show it at that moment.
+ * Only times inside the part of the trip that is shown.
+ */
+function photoTimesOf(data: Record<string, unknown>, ids: string[], from: number, to: number): Record<string, number> {
+  const photos = Array.isArray(data.photos) ? data.photos : [];
+  const out: Record<string, number> = {};
+  for (const p of photos) {
+    if (!p || typeof p !== "object") continue;
+    const { id, takenAt } = p as { id?: unknown; takenAt?: unknown };
+    if (typeof id === "string" && ids.includes(id) && typeof takenAt === "number" && takenAt >= from && takenAt <= to) out[id] = takenAt;
+  }
+  return out;
+}
+
 function photoIdsOf(data: Record<string, unknown>): string[] {
   const photos = Array.isArray(data.photos) ? data.photos : [];
   return photos
@@ -77,6 +92,7 @@ async function publicTrip(id: string): Promise<Response> {
   const all = pointsOf(row.data);
   const visible = simplify(trimEnds(all, hideM), MAX_POINTS);
   const allowed = photoIdsOf(row.data);
+  const photos = (row.share?.photos ?? []).filter((p) => allowed.includes(p));
   return json(
     {
       id: row.id,
@@ -87,8 +103,10 @@ async function publicTrip(id: string): Promise<Response> {
       imported: row.data.imported === true,
       hideM,
       stats: statsOf(row.data, all),
-      points: visible.map((p) => [p.lat, p.lng, p.t, p.speed, p.gap ? 1 : 0]),
-      photos: (row.share?.photos ?? []).filter((p) => allowed.includes(p)),
+      // [lat, lng, t, speed, gap, alt]: altitude last, so older readers still work.
+      points: visible.map((p) => [p.lat, p.lng, p.t, p.speed, p.gap ? 1 : 0, p.alt != null ? Math.round(p.alt) : null]),
+      photos,
+      photoAt: visible.length ? photoTimesOf(row.data, photos, visible[0].t, visible[visible.length - 1].t) : {},
       views: row.views,
     },
     200,

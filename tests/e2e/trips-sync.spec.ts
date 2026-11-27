@@ -63,6 +63,8 @@ async function record(page: Page, name: string, lat0: number) {
   await hold(page, 'button[aria-label^="Finish trip"]');
   await page.fill("#trip-name", name);
   await page.getByRole("button", { name: "Save trip" }).click();
+  // The saved trip opens with its replay; close it to record the next one.
+  await page.getByRole("button", { name: "Close trip" }).click();
 }
 
 /** The Trips list's text (opens and closes the panel). */

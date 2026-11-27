@@ -83,12 +83,16 @@ import {
 } from "./services/tripStore";
 import { deleteCloudTrip, fetchCloudTrip, queueDelete, saveTripToCloud } from "./services/cloudTrips";
 import { deletePhotoBlob } from "./services/photoStore";
-import type { Trip, TripPhoto } from "./types/trip";
+import { usesRoad, type Trip, type TripPhoto } from "./types/trip";
 import "leaflet/dist/leaflet.css";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 import { LatLngTuple } from "leaflet";
 import { setUpdateBusy, useUpdateReady } from "./swUpdate";
 import { track } from "./services/usage";
+import { TripView } from "./components/TripView";
+import { ReplayLayer } from "./components/ReplayLayer";
+import { useReplay } from "./hooks/useReplay";
+import { buildTimeline } from "./utils/replay";
 
 function App() {
   const [center, setCenter] = useState<LatLngTuple>([51.505, -0.09]);
@@ -124,6 +128,19 @@ function App() {
   const hasCenteredOnUser = useRef(false);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [viewTrip, setViewTrip] = useState<Trip | null>(null);
+  // Replay of the open trip. Rebuilt only when its track changes (not when a photo is added).
+  const viewTimeline = useMemo(
+    () =>
+      viewTrip?.track && viewTrip.track.length > 1
+        ? buildTimeline(
+            viewTrip.track,
+            new Map((viewTrip.gaps ?? []).map((g) => [g.index, usesRoad(g) ? g.routeM! : g.straightM])),
+          )
+        : null,
+    [viewTrip?.track, viewTrip?.gaps],
+  );
+  const replay = useReplay(viewTimeline);
+  const [tripPanelHeight, setTripPanelHeight] = useState(0);
   const recorder = useTripRecorder(subscribe);
   const placeLookup = usePlaceLookup();
   const saved = useSaved();
@@ -874,6 +891,21 @@ function App() {
   const handleShoeRouteItems = useCallback(() => {
     setIsVisible((visible) => !visible);
   }, []);
+  // The open trip's panel (totals and replay), when nothing else is using the bottom of the screen.
+  const showTripView =
+    !!viewTimeline &&
+    !isRecorderActive &&
+    !showSheet &&
+    !placeLookup.target &&
+    !nearby.state &&
+    !(origin && destination && routeShown) &&
+    !exploring &&
+    !exploredOnMap;
+  const pauseReplay = replay.pause;
+  useEffect(() => {
+    if (!showTripView) pauseReplay();
+  }, [showTripView, pauseReplay]);
+
   if (!isMapReady) {
     return null;
   }
@@ -1058,9 +1090,16 @@ function App() {
           />
         ) : (
           viewTrip?.track && (
-            <TripLayer track={viewTrip.track} gaps={viewTrip.gaps} fitKey={viewTrip.id} showEnds />
+            <TripLayer
+              track={viewTrip.track}
+              gaps={viewTrip.gaps}
+              fitKey={viewTrip.id}
+              showEnds
+              bottomInset={showTripView ? tripPanelHeight : 0}
+            />
           )
         )}
+        {showTripView && <ReplayLayer replay={replay} bottomInset={tripPanelHeight} />}
         {isRecorderActive ? (
           <MediaPins media={placeMedia(recordingMedia, recorder.track)} onOpen={openMedia} />
         ) : (
@@ -1090,7 +1129,7 @@ function App() {
 
       {/* Not under the route or Explored map bars (same spot). */}
       {!isRecorderActive && !placeLookup.target && !nearby.state && !(exploredOnMap && !showSheet) && !(origin && destination && routeShown && !showSheet) && (
-        <SpeedPill locationData={locationData} />
+        !showTripView && <SpeedPill locationData={locationData} />
       )}
 
       {!isRecorderActive && (
@@ -1121,7 +1160,18 @@ function App() {
         />
       )}
 
-      {!isRecorderActive && <RecordButton onRecord={handleStartRecording} />}
+      {!isRecorderActive && !showTripView && <RecordButton onRecord={handleStartRecording} />}
+
+      {showTripView && viewTrip && viewTimeline && (
+        <TripView
+          trip={viewTrip}
+          timeline={viewTimeline}
+          replay={replay}
+          onClose={() => setViewTrip(null)}
+          onOpenMedia={openMedia}
+          onHeight={setTripPanelHeight}
+        />
+      )}
 
       {placeLookup.target && !isRecorderActive && placeLookup.status !== "idle" && (
         <PlaceSheet

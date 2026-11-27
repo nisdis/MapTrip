@@ -72,6 +72,28 @@ describe.skipIf(!hasDb)("shared trips API", async () => {
     expect(ex.trips.map((x: { id: string }) => x.id)).not.toContain(t.id);
   });
 
+  it("gives the replay altitude, and when shown photos were taken (only inside the shown part)", async () => {
+    const T0 = 1_800_000_000_000;
+    const withAlt = track.map((p, i) => ({ ...p, alt: 30 + i * 2.4 }));
+    const { Pool } = await import("pg");
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+    const uid = (await pool.query(`select id from "user" where email = 'alice@test.com'`)).rows[0].id;
+    await pool.end();
+    const photo = (id: string, takenAt: number) => ({ id, addedAt: T0, cloudPath: `trips/${uid}/${id}.jpg`, kind: "photo", takenAt });
+    const [mid, start, unticked] = [randomUUID(), randomUUID(), randomUUID()];
+    const t = await save(
+      users.alice,
+      trip({ track: withAlt, photos: [photo(mid, T0 + 150_000), photo(start, T0 + 5_000), photo(unticked, T0 + 150_000)] }),
+    );
+    await post({ action: "settings", trip: t.id, visibility: "unlisted", hideM: 500, photos: [mid, start] }, users.alice);
+    const view = await (await get(`trip=${t.id}`)).json();
+    const midPoint = view.points.find((p: number[]) => p[2] === T0 + 150_000);
+    expect(midPoint[5]).toBe(Math.round(30 + 15 * 2.4)); // altitude, last in each point
+    expect(view.photos).toEqual([mid, start]);
+    // "start" was taken in the hidden first 500 m: no time for it.
+    expect(view.photoAt).toEqual({ [mid]: T0 + 150_000 });
+  });
+
   it("public: in Explore for the areas it passes through, and only those", async () => {
     const t = await save(users.alice);
     await post({ action: "settings", trip: t.id, visibility: "public", hideM: 300 }, users.alice);

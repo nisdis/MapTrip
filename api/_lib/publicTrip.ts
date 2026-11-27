@@ -17,6 +17,8 @@ export interface SharePoint {
   lng: number;
   t: number;
   speed: number | null;
+  /** metres, when the device gave it */
+  alt?: number | null;
   gap?: boolean;
 }
 
@@ -38,11 +40,12 @@ export function cleanSettings(raw: unknown, photoIds: string[]): ShareSettings {
 
 /** Points from the stored trip, validated (the data comes from the owner's device). */
 export function pointsOf(data: unknown): SharePoint[] {
-  return decodeTrack((data as { track?: unknown })?.track).map(({ lat, lng, t, speed, gap }) => ({
+  return decodeTrack((data as { track?: unknown })?.track).map(({ lat, lng, t, speed, alt, gap }) => ({
     lat,
     lng,
     t,
     speed,
+    alt: alt ?? null,
     ...(gap ? { gap: true } : {}),
   }));
 }

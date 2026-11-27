@@ -6,6 +6,11 @@ import { VectorBasemap } from "../components/VectorBasemap";
 import { TripLayer } from "../components/TripLayer";
 import { AuthForm } from "../components/AuthForm";
 import { TripTalk } from "../components/TripTalk";
+import { ReplayLayer } from "../components/ReplayLayer";
+import { ReplayControls, StatGrid, type ReplayMedia } from "../components/ReplayControls";
+import { useReplay } from "../hooks/useReplay";
+import { useReportHeight } from "../hooks/useReportHeight";
+import { buildTimeline, msAtClock } from "../utils/replay";
 import { useAuth } from "../hooks/useAuth";
 import type { TrackPoint } from "../types/trip";
 import {
@@ -19,7 +24,7 @@ import {
 import { formatClock, formatKm, formatSpeedKmh } from "../utils/tripStats";
 
 const toTrack = (pts: PublicTrip["points"]): TrackPoint[] =>
-  pts.map(([lat, lng, t, speed, gap]) => ({ lat, lng, t, speed, ...(gap ? { gap: true } : {}) }));
+  pts.map(([lat, lng, t, speed, gap, alt]) => ({ lat, lng, t, speed, alt: alt ?? null, ...(gap ? { gap: true } : {}) }));
 
 function ReportSheet({ tripId, onClose }: { tripId: string; onClose: () => void }) {
   const auth = useAuth();
@@ -141,6 +146,27 @@ export default function TripViewer({ id }: { id: string }) {
   }, [id]);
 
   const track = useMemo(() => (trip ? toTrack(trip.points) : []), [trip]);
+  const timeline = useMemo(() => (track.length > 1 ? buildTimeline(track) : null), [track]);
+  const replay = useReplay(timeline);
+  const [panelHeight, setPanelHeight] = useState(0);
+  const panelRef = useReportHeight(setPanelHeight);
+  const media = useMemo<ReplayMedia[]>(() => {
+    if (!trip || !timeline) return [];
+    return trip.photos.flatMap((p) => {
+      const at = trip.photoAt?.[p];
+      const ms = at != null ? msAtClock(timeline, at) : null;
+      return ms == null
+        ? []
+        : [
+            {
+              id: p,
+              ms,
+              thumb: <img src={sharedPhotoUrl(trip.id, p)} alt="" className="h-full w-full object-cover" />,
+              onOpen: () => setPhoto(p),
+            },
+          ];
+    });
+  }, [trip, timeline]);
 
   if (missing) return <NotShared />;
 
@@ -148,15 +174,25 @@ export default function TripViewer({ id }: { id: string }) {
   // An average above the top speed means the times don't add up: don't show nonsense.
   const avg = s && s.durationS > 0 ? s.distanceM / s.durationS : 0;
   const avgOk = !!s && avg > 0 && (s.maxSpeedMs === 0 || avg <= s.maxSpeedMs * 1.05);
+  const summaryCells = s
+    ? [
+        { label: "Distance", value: formatKm(s.distanceM), unit: "km" },
+        { label: "Time", value: formatClock(s.durationS) },
+        { label: "Average", value: avgOk ? formatSpeedKmh(avg) : "–", unit: avgOk ? "km/h" : undefined },
+        { label: "Max", value: formatSpeedKmh(s.maxSpeedMs), unit: "km/h" },
+      ]
+    : [];
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-paper font-hud text-asphalt">
       <MapContainer center={[20, 78]} zoom={4} className="h-full w-full" zoomControl={false} minZoom={2}>
         <VectorBasemap />
         <TripLayer track={track} fitKey={track.length > 1 ? "trip" : null} bottomInset={260} />
+        <ReplayLayer replay={replay} bottomInset={panelHeight} />
       </MapContainer>
 
       <section
+        ref={panelRef}
         aria-label="Trip"
         className="absolute inset-x-0 bottom-0 z-[1000] max-h-[60vh] overflow-y-auto rounded-t-[22px] bg-paper px-4 pt-3 shadow-[0_-10px_36px_rgba(31,42,48,0.22)] pb-[max(0.75rem,env(safe-area-inset-bottom))]"
       >
@@ -197,21 +233,18 @@ export default function TripViewer({ id }: { id: string }) {
                 <Flag aria-hidden className="h-3.5 w-3.5" /> Report
               </button>
             </div>
-            <div className="mt-3 grid grid-cols-4 border-y border-asphalt/15 text-center">
-              {[
-                ["Distance", formatKm(trip.stats.distanceM), "km"],
-                ["Time", formatClock(trip.stats.durationS), ""],
-                ["Average", avgOk ? formatSpeedKmh(avg) : "–", avgOk ? "km/h" : ""],
-                ["Max", formatSpeedKmh(trip.stats.maxSpeedMs), "km/h"],
-              ].map(([label, value, unit]) => (
-                <div key={label} className="py-2">
-                  <div className="text-[11px] text-asphalt/60">{label}</div>
-                  <div className="text-lg font-bold tabular-nums">
-                    {value}
-                    {unit && <span className="ml-0.5 text-[11px] font-normal text-asphalt/60">{unit}</span>}
-                  </div>
-                </div>
-              ))}
+            <div className="mt-3">
+              {timeline ? (
+                <ReplayControls
+                  timeline={timeline}
+                  replay={replay}
+                  media={media}
+                  popupBottom={panelHeight}
+                  summary={<StatGrid cells={summaryCells} />}
+                />
+              ) : (
+                <StatGrid cells={summaryCells} />
+              )}
             </div>
             {trip.photos.length > 0 && (
               <div className="mt-3 flex gap-2 overflow-x-auto pb-1" aria-label="Photos">
