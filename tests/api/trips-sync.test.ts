@@ -117,4 +117,26 @@ describe.skipIf(!hasDb)("trips on every device, deleting, saved routes", async (
     const gone = await (await call(saved.POST, "POST", "/api/saved", { entries: [{ ...good, deleted: true, updatedAt: 2 }] }, bo)).json();
     expect(gone.entries.find((e: { key: string }) => e.key === good.key).deleted).toBe(true);
   });
+
+  it("keeps photos and videos with their time and place; never someone else's files", async () => {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+    const uid = (await pool.query(`select id from "user" where email = 'ann@test.com'`)).rows[0].id;
+    const [p1, v1, bad, theirs] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+    const t = recorded({
+      photos: [
+        { id: p1, addedAt: 1, cloudPath: `trips/${uid}/${p1}.jpg`, kind: "photo", takenAt: 1_800_000_050_000, lat: 34.985, lng: 135.76 },
+        { id: v1, addedAt: 2, cloudPath: `trips/${uid}/${v1}.mp4`, kind: "video", mime: "video/mp4", durationS: 12, takenAt: 1_800_000_100_000, lat: 34.99, lng: 135.76 },
+        { id: bad, addedAt: 3, cloudPath: `trips/${uid}/${bad}.exe`, kind: "photo" },
+        { id: theirs, addedAt: 4, cloudPath: `trips/someone-else/${theirs}.jpg`, kind: "photo" },
+        { id: randomUUID(), addedAt: 5, cloudPath: "x", lat: 999 },
+      ],
+    });
+    expect((await save(t, ann)).status).toBe(200);
+    const stored = (await pool.query("select data from trips where id = $1", [t.id])).rows[0].data;
+    expect(stored.photos).toEqual([
+      { id: p1, addedAt: 1, cloudPath: `trips/${uid}/${p1}.jpg`, kind: "photo", takenAt: 1_800_000_050_000, lat: 34.985, lng: 135.76 },
+      { id: v1, addedAt: 2, cloudPath: `trips/${uid}/${v1}.mp4`, kind: "video", mime: "video/mp4", durationS: 12, takenAt: 1_800_000_100_000, lat: 34.99, lng: 135.76 },
+    ]);
+    await pool.end();
+  });
 });

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Where the camera puts a photo/video taken from the page's "Add photo or
+     video" (the web view's file chooser), so it can be handed back to the page. -->
+<paths>
+    <external-files-path name="captures" path="." />
+</paths>

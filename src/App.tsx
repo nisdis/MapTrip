@@ -7,6 +7,11 @@ import { MapControls } from "./components/MapControls";
 import { MapController } from "./components/MapController";
 import { RouteControl } from "./components/RouteControl";
 import { RouteBar } from "./components/RouteBar";
+import { importAll } from "./services/mediaImport";
+import { placeMedia } from "./utils/media";
+import { useRecordingMedia } from "./hooks/useRecordingMedia";
+import { MediaPins } from "./components/MediaPins";
+import { MediaViewer } from "./components/MediaViewer";
 import type { DeleteScope } from "./components/DeleteTripDialog";
 import { loadTravelMode, saveTravelMode, type TravelMode } from "./services/travelMode";
 import { endResult, pathCoords, savedRouteFrom, type FoundRoute } from "./services/savedRoutes";
@@ -72,12 +77,8 @@ import {
   saveTripLocally,
 } from "./services/tripStore";
 import { deleteCloudTrip, fetchCloudTrip, queueDelete, saveTripToCloud } from "./services/cloudTrips";
-import {
-  deletePhotoBlob,
-  prepareImage,
-  savePhotoBlob,
-} from "./services/photoStore";
-import type { Trip } from "./types/trip";
+import { deletePhotoBlob } from "./services/photoStore";
+import type { Trip, TripPhoto } from "./types/trip";
 import "leaflet/dist/leaflet.css";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 import { LatLngTuple } from "leaflet";
@@ -99,6 +100,11 @@ function App() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [origin, setOrigin] = useState<SearchResult | null>(null);
   const [travelMode, setTravelMode] = useState<TravelMode>(loadTravelMode);
+  // Photos/videos added during the recording in progress (kept across a reload).
+  const [recordingMedia, setRecordingMedia] = useRecordingMedia();
+  // The photo or video open full screen.
+  const [viewingMedia, setViewingMedia] = useState<{ items: TripPhoto[]; start: number } | null>(null);
+  const openMedia = useCallback((items: TripPhoto[], start: number) => setViewingMedia({ items, start }), []);
   // The route Directions found (to save it), and a saved route's stored path,
   // drawn until a fresh route arrives (or for good, offline).
   const [foundRoute, setFoundRoute] = useState<FoundRoute | null>(null);
@@ -397,18 +403,34 @@ function App() {
         // measured part can always be told apart.
         distanceM: stats.distanceM + gapDistance(recorder.gaps),
         durationS: recorder.activeSeconds,
+        // Ones added before their place on the route was recorded get it now.
+        ...(recordingMedia.length ? { photos: placeMedia(recordingMedia, recorder.track) } : {}),
       };
       await persistTrip(trip);
+      setRecordingMedia([]);
       recorder.reset();
       setViewTrip(trip);
     },
-    [recorder, persistTrip, auth.user],
+    [recorder, persistTrip, auth.user, recordingMedia, setRecordingMedia],
   );
 
   const handleDiscardRecordedTrip = useCallback(() => {
     setPocket(false);
+    void Promise.all(recordingMedia.map((m) => deletePhotoBlob(m.id)));
+    setRecordingMedia([]);
     recorder.reset();
-  }, [recorder]);
+  }, [recorder, recordingMedia, setRecordingMedia]);
+
+  // Photos and videos while recording: pinned where you are (or, from the
+  // gallery, where the route was when they were taken).
+  const handleAddRecordingMedia = useCallback(
+    async (files: File[]) => {
+      const { added, errors } = await importAll(files, recorder.track);
+      if (added.length) setRecordingMedia((m) => [...m, ...added]);
+      if (errors.length) alert(errors.join("\n"));
+    },
+    [recorder.track, setRecordingMedia],
+  );
 
   const handleFinishRecording = useCallback(() => {
     setPocket(false);
@@ -508,12 +530,12 @@ function App() {
     [persistTrip],
   );
 
+  // Photos and videos added to a saved trip: pinned on its route by when they were taken.
   const handleAddPhoto = useCallback(
-    async (trip: Trip, file: File) => {
-      const blob = await prepareImage(file);
-      const photo = { id: newTripId(), addedAt: Date.now() };
-      await savePhotoBlob(photo.id, blob);
-      await persistTrip({ ...trip, photos: [...(trip.photos ?? []), photo] });
+    async (trip: Trip, files: File[]) => {
+      const { added, errors } = await importAll(files, trip.track ?? []);
+      if (added.length) await persistTrip({ ...trip, photos: [...(trip.photos ?? []), ...added] });
+      if (errors.length) throw new Error(errors.join("\n"));
     },
     [persistTrip],
   );
@@ -993,6 +1015,11 @@ function App() {
             <TripLayer track={viewTrip.track} gaps={viewTrip.gaps} fitKey={viewTrip.id} showEnds />
           )
         )}
+        {isRecorderActive ? (
+          <MediaPins media={placeMedia(recordingMedia, recorder.track)} onOpen={openMedia} />
+        ) : (
+          !!viewTrip?.photos?.length && <MediaPins media={viewTrip.photos} onOpen={openMedia} />
+        )}
         {origin && destination && routeShown && storedPath && (
           <Polyline positions={storedPath} pathOptions={{ color: "#2E75CC", opacity: 0.6, weight: 4, dashArray: "6 6" }} />
         )}
@@ -1106,6 +1133,8 @@ function App() {
           sharing={!!liveShare.share}
           onShare={() => setShowLiveShare(true)}
           onBatteryHelp={batteryRestricted ? () => setShowBattery(true) : undefined}
+          mediaCount={recordingMedia.length}
+          onAddMedia={(files) => void handleAddRecordingMedia(files)}
         />
       )}
 
@@ -1319,6 +1348,7 @@ function App() {
             onDelete={handleDeleteTrip}
             onAddPhoto={handleAddPhoto}
             onRemovePhoto={handleRemovePhoto}
+            onOpenMedia={openMedia}
             onSaveToCloud={handleSaveToCloud}
             onShare={setShareTrip}
             autoSync={{ ...tripSync, isOnline }}
@@ -1421,6 +1451,9 @@ function App() {
           />
         )}
       </BottomSheet>
+      {viewingMedia && (
+        <MediaViewer items={viewingMedia.items} start={viewingMedia.start} onClose={() => setViewingMedia(null)} />
+      )}
     </div>
   );
 }

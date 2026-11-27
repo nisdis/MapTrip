@@ -92,21 +92,34 @@ async function handle(request: Request): Promise<Response> {
         return json({ syncedAt: Date.now() });
       }
 
-      // Only keep photo references that point at this user's own files.
+      // Only keep photo/video references that point at this user's own files,
+      // with their time and place on the route (checked, numbers only).
+      const VIDEO_MIMES = ["video/mp4", "video/quicktime", "video/webm"];
+      const n = (v: unknown, min: number, max: number) =>
+        typeof v === "number" && Number.isFinite(v) && v >= min && v <= max ? v : undefined;
       const photos = Array.isArray((trip as { photos?: unknown }).photos)
-        ? ((trip as { photos: unknown[] }).photos.slice(0, 30) as {
-            id?: unknown;
-            addedAt?: unknown;
-            cloudPath?: unknown;
-          }[])
+        ? ((trip as { photos: unknown[] }).photos.slice(0, 100) as Record<string, unknown>[])
             .filter(
               (p) =>
                 typeof p?.id === "string" &&
                 UUID.test(p.id) &&
                 typeof p.cloudPath === "string" &&
-                p.cloudPath === `trips/${userId}/${p.id}.jpg`,
+                new RegExp(`^trips/${userId.replace(/[^a-zA-Z0-9_-]/g, "")}/${p.id}\\.(jpg|mp4|mov|webm)$`).test(p.cloudPath),
             )
-            .map((p) => ({ id: p.id, addedAt: Number(p.addedAt) || 0, cloudPath: p.cloudPath }))
+            .map((p) => {
+              const video = p.kind === "video" && typeof p.mime === "string" && VIDEO_MIMES.includes(p.mime);
+              const lat = n(p.lat, -90, 90);
+              const lng = n(p.lng, -180, 180);
+              return {
+                id: p.id as string,
+                addedAt: Number(p.addedAt) || 0,
+                cloudPath: p.cloudPath as string,
+                kind: video ? ("video" as const) : ("photo" as const),
+                ...(video ? { mime: p.mime as string, durationS: n(p.durationS, 0, 60) } : {}),
+                takenAt: n(p.takenAt, 0, 1e14) ?? null,
+                ...(lat != null && lng != null ? { lat, lng } : {}),
+              };
+            })
         : [];
 
       const syncedAt = Date.now();

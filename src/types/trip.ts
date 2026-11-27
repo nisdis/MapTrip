@@ -24,12 +24,26 @@ export interface TrackPoint {
   speedAccuracy?: number | null;
 }
 
+/** A photo or video on a trip (older trips: photos only, without the extra fields). */
 export interface TripPhoto {
   id: string;
   addedAt: number;
   /** Set once uploaded to the private cloud store. */
   cloudPath?: string;
+  /** missing on older trips: a photo */
+  kind?: "photo" | "video";
+  /** videos: their type (video/mp4, video/quicktime, video/webm) */
+  mime?: string;
+  /** when it was taken (epoch ms): the photo's own date, else the file's */
+  takenAt?: number | null;
+  /** where on the route it was taken; missing when it's from outside the trip's time */
+  lat?: number;
+  lng?: number;
+  /** videos: length in seconds */
+  durationS?: number;
 }
+
+export const isVideo = (m: TripPhoto) => m.kind === "video";
 
 /**
  * A stretch with no GPS (usually the screen was off and the browser paused

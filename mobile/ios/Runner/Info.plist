@@ -76,6 +76,8 @@
 		<string>Take photos to add to your trips.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Choose photos to add to your trips.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>Record sound with videos you add to a trip.</string>
 		<key>UIStatusBarHidden</key>
 		<false/>
 	</dict>

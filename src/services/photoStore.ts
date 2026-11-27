@@ -45,23 +45,32 @@ export async function deletePhotoBlob(id: string): Promise<void> {
 }
 
 /**
- * Where to show a trip photo from: this device if it's here, else the account
- * (a trip recorded on another device). null while loading or if neither has it.
+ * Where to show a trip photo or video from: this device if it's here, else
+ * the account (recorded on another device). Videos from the account are
+ * downloaded whole first (so they play without the server streaming them).
+ * null while loading or if neither has it.
  */
-export function usePhotoUrl(photo: { id: string; cloudPath?: string }): string | null {
+export function usePhotoUrl(photo: { id: string; cloudPath?: string; kind?: string }): string | null {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     let objectUrl: string | null = null;
     let cancelled = false;
-    void getPhotoBlob(photo.id).then((blob) => {
+    const show = (blob: Blob) => {
+      if (!cancelled) setUrl((objectUrl = URL.createObjectURL(blob)));
+    };
+    void getPhotoBlob(photo.id).then(async (blob) => {
       if (cancelled) return;
-      if (blob) setUrl((objectUrl = URL.createObjectURL(blob)));
-      else if (photo.cloudPath) setUrl(`/api/photo?path=${encodeURIComponent(photo.cloudPath)}`);
+      if (blob) return show(blob);
+      if (!photo.cloudPath) return;
+      const remote = `/api/photo?path=${encodeURIComponent(photo.cloudPath)}`;
+      if (photo.kind !== "video") return setUrl(remote);
+      const res = await fetch(remote).catch(() => null);
+      if (res?.ok) show(await res.blob());
     });
     return () => {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [photo.id, photo.cloudPath]);
+  }, [photo.id, photo.cloudPath, photo.kind]);
   return url;
 }

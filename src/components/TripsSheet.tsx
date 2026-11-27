@@ -18,7 +18,7 @@ import { RouteThumb } from "./RouteThumb";
 import { DeleteTripDialog, type DeleteScope } from "./DeleteTripDialog";
 import { PhotoThumb } from "./PhotoThumb";
 import { hasUnsyncedPhotos } from "../services/cloudTrips";
-import type { Trip } from "../types/trip";
+import type { Trip, TripPhoto } from "../types/trip";
 import { formatDistance, formatDuration } from "../utils/geo";
 import type { AuthMode } from "../hooks/useAuth";
 import { AuthForm } from "./AuthForm";
@@ -35,8 +35,11 @@ interface TripsSheetProps {
   onStart: () => void;
   onView: (trip: Trip) => void;
   onDelete: (trip: Trip, scope: DeleteScope) => void;
-  onAddPhoto: (trip: Trip, file: File) => Promise<void>;
+  /** photos and videos, several at once */
+  onAddPhoto: (trip: Trip, files: File[]) => Promise<void>;
   onRemovePhoto: (trip: Trip, photoId: string) => void;
+  /** opens one of a trip's photos/videos (stepping through the rest) */
+  onOpenMedia: (items: TripPhoto[], start: number) => void;
   onSaveToCloud: (trip: Trip) => Promise<void>;
   /** recorded trips saved to the cloud: who can see them */
   onShare: (trip: Trip) => void;
@@ -57,6 +60,7 @@ export function TripsSheet({
   onDelete,
   onAddPhoto,
   onRemovePhoto,
+  onOpenMedia,
   onSaveToCloud,
   onShare,
   onExportGpx,
@@ -217,27 +221,28 @@ export function TripsSheet({
                   <PhotoThumb
                     key={photo.id}
                     photo={photo}
+                    onOpen={() => onOpenMedia(trip.photos ?? [], (trip.photos ?? []).indexOf(photo))}
                     onRemove={() => onRemovePhoto(trip, photo.id)}
                   />
                 ))}
                 {!trip.summaryOnly && (
                 <label className="w-16 h-16 flex-shrink-0 flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 text-gray-400 text-[10px] cursor-pointer">
                   <ImagePlus className="w-5 h-5" />
-                  Add photo
+                  Photo / video
                   <input
                     type="file"
-                    accept="image/*"
-                    className="hidden"
+                    accept="image/*,video/*"
+                    multiple
+                    className="sr-only"
                     onChange={async (e) => {
-                      const file = e.target.files?.[0];
+                      const files = Array.from(e.target.files ?? []);
                       e.target.value = "";
-                      if (!file) return;
+                      if (!files.length) return;
+                      setMessage(null);
                       try {
-                        await onAddPhoto(trip, file);
+                        await onAddPhoto(trip, files);
                       } catch (err) {
-                        setMessage(
-                          err instanceof Error ? err.message : "Couldn't add photo",
-                        );
+                        setMessage(err instanceof Error ? err.message : "Couldn't add it");
                       }
                     }}
                   />

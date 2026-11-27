@@ -43,7 +43,7 @@ export async function GET(request: Request): Promise<Response> {
 
     const path = new URL(request.url).searchParams.get("path") ?? "";
     const prefix = `trips/${session.user.id}/`;
-    if (!path.startsWith(prefix) || path.includes("..") || !/\.jpg$/i.test(path)) {
+    if (!path.startsWith(prefix) || path.includes("..") || !/\.(jpg|mp4|mov|webm)$/i.test(path)) {
       return Response.json({ message: "Not found" }, { status: 404 });
     }
 

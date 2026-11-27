@@ -1,5 +1,6 @@
 import { upload } from "@vercel/blob/client";
-import type { Trip, TripPhoto } from "../types/trip";
+import { isVideo, type Trip, type TripPhoto } from "../types/trip";
+import { videoExt } from "../utils/media";
 import { getPhotoBlob } from "./photoStore";
 import { fromStoredTrip, toStoredTrip, type StoredTrip } from "./tripStore";
 
@@ -19,8 +20,7 @@ async function tripBody(trip: Trip): Promise<{ body: BodyInit; type: string }> {
   return { body: await new Response(stream).blob(), type: "application/gzip" };
 }
 
-export const cloudPhotoPath = (userId: string, photoId: string) =>
-  `trips/${userId}/${photoId}.jpg`;
+export const cloudPhotoPath = (userId: string, photoId: string, ext = "jpg") => `trips/${userId}/${photoId}.${ext}`;
 
 /** True if the trip has photos that aren't in the cloud yet. */
 export function hasUnsyncedPhotos(trip: Trip): boolean {
@@ -36,11 +36,14 @@ async function uploadPhotos(userId: string, photos: TripPhoto[]): Promise<TripPh
     }
     const blob = await getPhotoBlob(photo.id);
     if (!blob) continue; // photo no longer on this device; skip it
-    const path = cloudPhotoPath(userId, photo.id);
+    const video = isVideo(photo) && !!photo.mime;
+    const path = cloudPhotoPath(userId, photo.id, video ? videoExt(photo.mime!) : "jpg");
     await upload(path, blob, {
       access: "private",
-      contentType: "image/jpeg",
+      contentType: video ? photo.mime : "image/jpeg",
       handleUploadUrl: "/api/photos/upload",
+      // Videos are large: send them in parts (retried separately).
+      multipart: video,
     });
     result.push({ ...photo, cloudPath: path });
   }

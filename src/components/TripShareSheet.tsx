@@ -70,7 +70,8 @@ export function TripShareSheet({ trip, onClose }: TripShareSheetProps) {
   const [notice, setNotice] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const cloudPhotos = (trip.photos ?? []).filter((p) => p.cloudPath);
+  // Photos only: videos stay private for now.
+  const cloudPhotos = (trip.photos ?? []).filter((p) => p.cloudPath && p.kind !== "video");
   const url = tripUrl(trip.id);
 
   useEffect(() => {
