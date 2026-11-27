@@ -1,14 +1,19 @@
 import { upload } from "@vercel/blob/client";
 import type { Trip, TripPhoto } from "../types/trip";
 import { getPhotoBlob } from "./photoStore";
-import { toStoredTrip } from "./tripStore";
+import { fromStoredTrip, toStoredTrip, type StoredTrip } from "./tripStore";
 
 /**
  * The trip as the request body: gzipped where the browser can (a long trip is
  * several MB of JSON, more than a request may carry; gzip makes it ~5x smaller).
  */
 async function tripBody(trip: Trip): Promise<{ body: BodyInit; type: string }> {
-  const json = JSON.stringify(toStoredTrip(trip));
+  // This device's bookkeeping stays on this device.
+  const rest: Trip = { ...trip };
+  delete rest.ownerId;
+  delete rest.summaryOnly;
+  delete rest.line;
+  const json = JSON.stringify(toStoredTrip(rest));
   if (typeof CompressionStream === "undefined") return { body: json, type: "application/json" };
   const stream = new Blob([json]).stream().pipeThrough(new CompressionStream("gzip"));
   return { body: await new Response(stream).blob(), type: "application/gzip" };
@@ -74,3 +79,59 @@ export async function saveTripToCloud(trip: Trip, userId: string): Promise<Trip>
   if (!response.ok) throw new Error(body.message || "Failed to save to cloud");
   return { ...toSave, cloudSyncedAt: body.syncedAt as number };
 }
+
+/** Every trip in the account, without tracks (to list them on any device). */
+export async function listCloudTrips(): Promise<Trip[]> {
+  const res = await fetch("/api/trips");
+  if (!res.ok) throw new Error("Couldn't load your trips");
+  const body = (await res.json()) as { trips: Trip[] };
+  return body.trips.map((t) => ({ ...t, summaryOnly: true }));
+}
+
+/** One trip in full, to open it on this device. */
+export async function fetchCloudTrip(id: string): Promise<Trip> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/trips?id=${encodeURIComponent(id)}`);
+  } catch {
+    throw new Error("Connect to the internet to open this trip the first time.");
+  }
+  if (res.status === 404) throw new Error("This trip is no longer in your account.");
+  if (!res.ok) throw new Error("Couldn't download the trip");
+  const { trip } = (await res.json()) as { trip: StoredTrip };
+  const full = fromStoredTrip(trip);
+  delete full.summaryOnly;
+  delete full.line;
+  return full;
+}
+
+/** Removes a trip from the account (and so from its share link, Explore and other devices). */
+export async function deleteCloudTrip(id: string): Promise<void> {
+  const res = await fetch(`/api/trips?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+  // Already gone counts as done.
+  if (!res.ok && res.status !== 404) throw new Error("Couldn't delete the trip from your account");
+}
+
+// Deletions made offline, sent when the connection is back (so the trip
+// doesn't stay in the account, on its share link, or come back on sync).
+const DELETES_KEY = "pendingTripDeletes";
+
+export function pendingDeletes(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(DELETES_KEY) ?? "[]");
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function setPendingDeletes(ids: string[]) {
+  try {
+    localStorage.setItem(DELETES_KEY, JSON.stringify(ids));
+  } catch {
+    /* storage unavailable: the delete is retried from the trip's next sync */
+  }
+}
+
+export const queueDelete = (id: string) => setPendingDeletes([...new Set([...pendingDeletes(), id])]);
+export const unqueueDelete = (id: string) => setPendingDeletes(pendingDeletes().filter((x) => x !== id));

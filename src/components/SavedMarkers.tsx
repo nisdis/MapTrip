@@ -28,6 +28,7 @@ export function SavedMarkers({ entries, selectedId, onSelect }: SavedMarkersProp
   return (
     <>
       {entries.map((e) => {
+        if (e.kind === "route") return null; // routes aren't pins
         const selected = e.place.id === selectedId;
         const label = e.kind === "favourite" ? e.place.name ?? "Favourite" : SAVED_STYLE[e.kind].label;
         return (

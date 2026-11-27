@@ -10,15 +10,30 @@ export interface SavedPlaceSnapshot {
   countryCode: string | null;
 }
 
-export type SavedKind = "favourite" | "home" | "work";
+export type SavedKind = "favourite" | "home" | "work" | "route";
+
+/** A route saved from Directions (not a trip: it was worked out, not travelled). */
+export interface SavedRoute {
+  name: string;
+  from: SavedPlaceSnapshot;
+  to: SavedPlaceSnapshot;
+  mode: "car" | "bike" | "foot";
+  /** the route as drawn when saved (encoded polyline), shown at once and offline */
+  path: string | null;
+  distanceM: number | null;
+  durationS: number | null;
+}
 
 export interface SavedEntry {
-  /** "fav:<place id>", "home" or "work" — one record per key */
+  /** "fav:<place id>", "route:<uuid>", "home" or "work" — one record per key */
   key: string;
   kind: SavedKind;
-  /** Always "favourites" for now; kept so lists can be added later without migrating data. */
+  /** "favourites", "routes", or null for Home/Work */
   list: string | null;
+  /** the place; for a route, its destination */
   place: SavedPlaceSnapshot;
+  /** routes only */
+  route?: SavedRoute;
   note: string | null;
   createdAt: number;
   updatedAt: number;
@@ -27,3 +42,4 @@ export interface SavedEntry {
 }
 
 export const favouriteKey = (placeId: string) => `fav:${placeId}`;
+export const routeKey = (id: string) => `route:${id}`;

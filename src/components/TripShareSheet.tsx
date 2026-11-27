@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, Globe2, Link2, Lock, Share2, AlertTriangle, X } from "lucide-react";
-import type { Trip } from "../types/trip";
-import { getPhotoBlob } from "../services/photoStore";
+import type { Trip, TripPhoto } from "../types/trip";
+import { usePhotoUrl } from "../services/photoStore";
 import { shareLink } from "../services/appBridge";
 import {
   HIDE_OPTIONS,
@@ -28,19 +28,8 @@ const VIS: { id: Visibility; label: string; note: string; Icon: typeof Lock }[] 
 
 const hideLabel = (m: number) => (m === 0 ? "Off" : m >= 1000 ? `${m / 1000} km` : `${m} m`);
 
-function LocalPhoto({ id, ticked, onToggle }: { id: string; ticked: boolean; onToggle: () => void }) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    let u: string | null = null;
-    let cancelled = false;
-    void getPhotoBlob(id).then((b) => {
-      if (b && !cancelled) setUrl((u = URL.createObjectURL(b)));
-    });
-    return () => {
-      cancelled = true;
-      if (u) URL.revokeObjectURL(u);
-    };
-  }, [id]);
+function LocalPhoto({ photo, ticked, onToggle }: { photo: TripPhoto; ticked: boolean; onToggle: () => void }) {
+  const url = usePhotoUrl(photo);
   return (
     <button
       type="button"
@@ -231,7 +220,7 @@ export function TripShareSheet({ trip, onClose }: TripShareSheetProps) {
                       {cloudPhotos.map((p) => (
                         <LocalPhoto
                           key={p.id}
-                          id={p.id}
+                          photo={p}
                           ticked={photos.includes(p.id)}
                           onToggle={() => setPhotos((ps) => (ps.includes(p.id) ? ps.filter((x) => x !== p.id) : [...ps, p.id]))}
                         />

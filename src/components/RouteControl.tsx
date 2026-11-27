@@ -5,12 +5,15 @@ import { useMap } from "react-leaflet";
 import type { SearchResult } from "../services/searchService";
 import { saveRouteToHistory } from "../services/routeHistoryService";
 import { routerFor, type TravelMode } from "../services/travelMode";
+import type { FoundRoute } from "../services/savedRoutes";
 
 interface RouteControlProps {
   origin: SearchResult;
   destination: SearchResult;
   isVisible: boolean;
   mode: TravelMode;
+  /** the route found (to save it), or null while there's none */
+  onRoute?: (route: FoundRoute | null) => void;
 }
 
 export function RouteControl({
@@ -18,7 +21,10 @@ export function RouteControl({
   destination,
   isVisible,
   mode,
+  onRoute,
 }: RouteControlProps) {
+  const onRouteRef = useRef(onRoute);
+  onRouteRef.current = onRoute;
   const map = useMap();
   const controlRef = useRef<L.Routing.Control | null>(null);
   const isVisibleRef = useRef(isVisible);
@@ -66,8 +72,19 @@ export function RouteControl({
     }
 
     // Remember the route (start and end only) once one is found.
-    routingControl.on("routesfound", () => {
+    onRouteRef.current?.(null);
+    routingControl.on("routesfound", (e: { routes: L.Routing.IRoute[] }) => {
       saveRouteToHistory(origin, destination);
+      const r = e.routes[0];
+      onRouteRef.current?.(
+        r
+          ? {
+              coordinates: (r.coordinates ?? []).map((c) => [c.lat, c.lng] as [number, number]),
+              distanceM: r.summary?.totalDistance ?? 0,
+              durationS: r.summary?.totalTime ?? 0,
+            }
+          : null,
+      );
     });
     routingControl.on("routingerror", (e) => {
       console.error("Routing failed:", e);

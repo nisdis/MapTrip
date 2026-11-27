@@ -12,14 +12,15 @@ import {
   Share2,
   Upload,
   FileDown,
+  DownloadCloud,
 } from "lucide-react";
+import { RouteThumb } from "./RouteThumb";
 import { PhotoThumb } from "./PhotoThumb";
 import { hasUnsyncedPhotos } from "../services/cloudTrips";
 import type { Trip } from "../types/trip";
 import { formatDistance, formatDuration } from "../utils/geo";
 import type { AuthMode } from "../hooks/useAuth";
 import { AuthForm } from "./AuthForm";
-import type { RouteHistoryItem } from "../services/routeHistoryService";
 
 function maxKmh(trip: Trip): number {
   const max = (trip.track ?? []).reduce((m, p) => Math.max(m, p.speed ?? 0), 0);
@@ -44,8 +45,6 @@ interface TripsSheetProps {
   autoSync?: { syncing: boolean; pendingCount: number; failed: Record<string, string>; isOnline: boolean };
   onAuthenticate: (mode: AuthMode, email: string, password: string) => Promise<void>;
   onSignOut: () => void;
-  routeHistory: RouteHistoryItem[];
-  onSelectRoute: (item: RouteHistoryItem) => void;
 }
 
 export function TripsSheet({
@@ -64,8 +63,6 @@ export function TripsSheet({
   autoSync,
   onAuthenticate,
   onSignOut,
-  routeHistory,
-  onSelectRoute,
 }: TripsSheetProps) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -177,7 +174,7 @@ export function TripsSheet({
           <MapPinned className="w-12 h-12 text-gray-300 mb-3" />
           <p className="text-gray-500">No trips saved yet</p>
           <p className="text-sm text-gray-400">
-            Record a trip, or save a route from Directions.
+            Record a trip, or import a GPX file.
           </p>
         </div>
       ) : (
@@ -189,7 +186,9 @@ export function TripsSheet({
                 className="w-full text-left"
               >
                 <div className="flex items-center gap-2 font-medium text-gray-900">
-                  {trip.kind === "recorded" ? (
+                  {trip.summaryOnly && trip.line?.length ? (
+                    <RouteThumb lines={trip.line} className="h-8 w-8 text-purple-600" />
+                  ) : trip.kind === "recorded" ? (
                     <Route className="w-4 h-4 text-purple-600" />
                   ) : (
                     <MapPinned className="w-4 h-4 text-blue-600" />
@@ -202,17 +201,24 @@ export function TripsSheet({
                 <div className="text-xs text-gray-500 mt-1">
                   {new Date(trip.createdAt).toLocaleString()}
                   {trip.kind === "recorded" &&
-                    ` · ${formatDistance(trip.distanceM)}${trip.gaps?.length ? " (incl. estimate)" : ""} · ${formatDuration(trip.durationS)} · max ${maxKmh(trip)} km/h`}
+                    ` · ${formatDistance(trip.distanceM)}${trip.gaps?.length ? " (incl. estimate)" : ""} · ${formatDuration(trip.durationS)}`}
+                  {trip.track && ` · max ${maxKmh(trip)} km/h`}
                 </div>
+                {trip.summaryOnly && (
+                  <div className="mt-1 flex items-center gap-1 text-xs text-blue-700">
+                    <DownloadCloud aria-hidden className="h-3 w-3" /> From another device · opens from your account
+                  </div>
+                )}
               </button>
               <div className="flex items-center gap-2 mt-2 overflow-x-auto">
                 {(trip.photos ?? []).map((photo) => (
                   <PhotoThumb
                     key={photo.id}
-                    photoId={photo.id}
+                    photo={photo}
                     onRemove={() => onRemovePhoto(trip, photo.id)}
                   />
                 ))}
+                {!trip.summaryOnly && (
                 <label className="w-16 h-16 flex-shrink-0 flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 text-gray-400 text-[10px] cursor-pointer">
                   <ImagePlus className="w-5 h-5" />
                   Add photo
@@ -234,6 +240,7 @@ export function TripsSheet({
                     }}
                   />
                 </label>
+                )}
               </div>
               <div className="flex items-center justify-between mt-2">
                 {trip.cloudSyncedAt && !hasUnsyncedPhotos(trip) ? (
@@ -254,7 +261,7 @@ export function TripsSheet({
                     {trip.cloudSyncedAt ? "Update cloud copy" : "Save to cloud"}
                   </button>
                 )}
-                {trip.kind === "recorded" && (
+                {trip.kind === "recorded" && !trip.summaryOnly && (
                   <button
                     onClick={() => onExportGpx(trip)}
                     className="ml-auto flex items-center gap-1 text-xs font-medium text-gray-700"
@@ -274,8 +281,11 @@ export function TripsSheet({
                 )}
                 <button
                   onClick={() => {
-                    if (window.confirm(`Delete “${trip.name}” from this device?`))
-                      onDelete(trip);
+                    const everywhere = !!userEmail && !!trip.cloudSyncedAt;
+                    const where = everywhere
+                      ? "everywhere: this device, your account, your other devices, and its share link if it has one"
+                      : "from this device";
+                    if (window.confirm(`Delete “${trip.name}” ${where}?`)) onDelete(trip);
                   }}
                   className="p-1 text-gray-400 hover:text-red-600"
                   aria-label="Delete trip"
@@ -288,27 +298,6 @@ export function TripsSheet({
         </ul>
       )}
 
-      {routeHistory.length > 0 && (
-        <section className="pb-20">
-          <h2 className="mb-2 font-semibold text-lg text-gray-800">Recent routes</h2>
-          <ul className="space-y-2">
-            {routeHistory.slice(0, 10).map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelectRoute(item)}
-                  className="w-full rounded-xl bg-gray-50 p-3 text-left hover:bg-gray-100"
-                >
-                  <div className="truncate font-medium text-gray-900">{item.origin.name}</div>
-                  <div className="truncate text-sm text-gray-500">
-                    to {item.destination.name} · {new Date(item.timestamp).toLocaleDateString()}
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Navigation, Crosshair, Loader2, Car, Bike, Footprints, TrainFront, ExternalLink } from "lucide-react";
+import { Navigation, Crosshair, Loader2, Car, Bike, Footprints, TrainFront, ExternalLink, Bookmark, Check } from "lucide-react";
+import type { RouteHistoryItem } from "../services/routeHistoryService";
 import { TRAVEL_MODES, transitUrl, type TravelMode } from "../services/travelMode";
 import type { SearchResult } from "../services/searchService";
 import { searchPlaces } from "../services/searchService";
@@ -13,7 +14,11 @@ interface DirectionsSheetProps {
   onSelectOrigin: (result: SearchResult) => void;
   onSelectDestination: (result: SearchResult) => void;
   onClearDirections: () => void;
-  onSaveTrip?: () => void;
+  /** Saves the route to Saved (synced like Favourites) */
+  onSaveRoute?: () => Promise<void>;
+  /** Routes looked up recently on this device */
+  routeHistory?: RouteHistoryItem[];
+  onSelectRoute?: (item: RouteHistoryItem) => void;
   /** One-tap destinations */
   shortcuts?: { label: string; onPick: () => void }[];
   mode: TravelMode;
@@ -29,7 +34,9 @@ export function DirectionsSheet({
   onSelectDestination,
   onClearDirections,
   locationData,
-  onSaveTrip,
+  onSaveRoute,
+  routeHistory = [],
+  onSelectRoute,
   shortcuts = [],
   mode,
   onModeChange,
@@ -43,6 +50,9 @@ export function DirectionsSheet({
   const [showOriginResults, setShowOriginResults] = useState(false);
   const [showDestinationResults, setShowDestinationResults] = useState(false);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+  // "Saved" until the route changes (another end or mode).
+  const [savedKey, setSavedKey] = useState<string | null>(null);
+  const routeKeyNow = origin && destination ? `${origin.location}|${destination.location}|${mode}` : null;
 
   useEffect(() => {
     // Fill each field as soon as its place is set (e.g. a destination tapped on the map).
@@ -317,12 +327,24 @@ export function DirectionsSheet({
               <Loader2 className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 animate-spin" />
             )}
           </div>
-          {origin && destination && onSaveTrip && (
+          {origin && destination && onSaveRoute && (
             <button
-              onClick={onSaveTrip}
-              className="mt-4 w-full py-3 rounded-xl bg-blue-600 text-white font-medium"
+              onClick={async () => {
+                await onSaveRoute();
+                setSavedKey(routeKeyNow);
+              }}
+              disabled={savedKey === routeKeyNow}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 font-medium text-white disabled:bg-green-700"
             >
-              Save as trip
+              {savedKey === routeKeyNow ? (
+                <>
+                  <Check aria-hidden className="h-4 w-4" /> Saved to Saved › Routes
+                </>
+              ) : (
+                <>
+                  <Bookmark aria-hidden className="h-4 w-4" /> Save route
+                </>
+              )}
             </button>
           )}
           {showDestinationResults && destinationResults.length > 0 && (
@@ -343,6 +365,27 @@ export function DirectionsSheet({
           )}
         </div>
       </div>
+      {!destination && routeHistory.length > 0 && onSelectRoute && (
+        <section className="mt-6 pb-20">
+          <h2 className="mb-2 font-semibold text-gray-800">Recent routes</h2>
+          <ul className="space-y-2">
+            {routeHistory.slice(0, 10).map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelectRoute(item)}
+                  className="w-full rounded-xl bg-gray-50 p-3 text-left hover:bg-gray-100"
+                >
+                  <div className="truncate font-medium text-gray-900">{item.origin.name}</div>
+                  <div className="truncate text-sm text-gray-500">
+                    to {item.destination.name} · {new Date(item.timestamp).toLocaleDateString()}
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

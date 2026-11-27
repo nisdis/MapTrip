@@ -1,4 +1,4 @@
-import { Briefcase, Home, MapPin, Star, Cloud, CloudOff } from "lucide-react";
+import { Briefcase, Home, MapPin, Star, Cloud, CloudOff, Car, Bike, Footprints, Navigation, Trash2 } from "lucide-react";
 import type { SavedEntry } from "../types/saved";
 import { haversine } from "../utils/geo";
 
@@ -6,6 +6,8 @@ interface SavedSheetProps {
   home: SavedEntry | null;
   work: SavedEntry | null;
   favourites: SavedEntry[];
+  /** routes saved from Directions */
+  routes: SavedEntry[];
   userPosition: [number, number] | null;
   showOnMap: boolean;
   syncStatus: { signedIn: boolean; state: "idle" | "syncing" | "synced" | "error"; error: string | null };
@@ -124,6 +126,52 @@ export function SavedSheet(props: SavedSheetProps) {
                 }
               />
             ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <h3 className="mb-1 flex items-center gap-2 font-medium text-gray-800">
+          <Navigation aria-hidden className="h-4 w-4 text-blue-600" /> Routes
+          <span className="text-sm font-normal text-gray-500">{props.routes.length}</span>
+        </h3>
+        {props.routes.length === 0 ? (
+          <p className="py-6 text-center text-sm text-gray-500">
+            No routes yet. Plan one in Directions and tap Save route.
+          </p>
+        ) : (
+          <ul className="divide-y divide-gray-100">
+            {props.routes.map((e) => {
+              const r = e.route!;
+              const Icon = r.mode === "bike" ? Bike : r.mode === "foot" ? Footprints : Car;
+              const facts = [
+                r.mode === "bike" ? "Bike" : r.mode === "foot" ? "Walk" : "Car",
+                r.distanceM != null ? fmt(r.distanceM) : null,
+                r.durationS != null ? `${Math.max(1, Math.round(r.durationS / 60))} min` : null,
+              ].filter(Boolean);
+              return (
+                <Row
+                  key={e.key}
+                  icon={Icon}
+                  title={r.name}
+                  sub={facts.join(" · ")}
+                  dist={null}
+                  onOpen={() => props.onOpen(e)}
+                  action={
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`Remove the route “${r.name}”?`)) props.onRemove(e);
+                      }}
+                      aria-label={`Remove route ${r.name}`}
+                      className="mt-2 rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-red-600"
+                    >
+                      <Trash2 aria-hidden className="h-5 w-5" />
+                    </button>
+                  }
+                />
+              );
+            })}
           </ul>
         )}
       </section>

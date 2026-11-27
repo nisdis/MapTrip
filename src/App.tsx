@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from "react";
-import { MapContainer, Marker, Popup } from "react-leaflet";
+import { MapContainer, Marker, Polyline, Popup } from "react-leaflet";
 import { NearbyMarkers } from "./components/NearbyMarkers";
 import { VectorBasemap } from "./components/VectorBasemap";
 import { Map as MapIcon, Wifi, WifiOff, Car, UserRound, Menu } from "lucide-react";
@@ -7,6 +7,8 @@ import { MapControls } from "./components/MapControls";
 import { MapController } from "./components/MapController";
 import { RouteControl } from "./components/RouteControl";
 import { loadTravelMode, saveTravelMode, type TravelMode } from "./services/travelMode";
+import { endResult, pathCoords, savedRouteFrom, type FoundRoute } from "./services/savedRoutes";
+import { routeFromPlanned } from "../api/_lib/plannedRoute";
 import { CurrentLocationMarker } from "./components/CurrentLocationMarker";
 import { SpeedPill } from "./components/SpeedPill";
 import { useLocationTracking } from "./hooks/useLocationTracking";
@@ -59,7 +61,7 @@ import { PeopleSheet } from "./components/PeopleSheet";
 import { getPeople } from "./services/social";
 import { exploreArea, getMe, type ExploreTrip, type NearestTrip } from "./services/publicTrips";
 import { useAuth } from "./hooks/useAuth";
-import { useTripSync } from "./hooks/useTripSync";
+import { needsSync, useTripSync } from "./hooks/useTripSync";
 import { authClient } from "./services/authClient";
 import {
   deleteLocalTrip,
@@ -67,7 +69,7 @@ import {
   newTripId,
   saveTripLocally,
 } from "./services/tripStore";
-import { saveTripToCloud } from "./services/cloudTrips";
+import { deleteCloudTrip, fetchCloudTrip, queueDelete, saveTripToCloud } from "./services/cloudTrips";
 import {
   deletePhotoBlob,
   prepareImage,
@@ -95,6 +97,10 @@ function App() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [origin, setOrigin] = useState<SearchResult | null>(null);
   const [travelMode, setTravelMode] = useState<TravelMode>(loadTravelMode);
+  // The route Directions found (to save it), and a saved route's stored path,
+  // drawn until a fresh route arrives (or for good, offline).
+  const [foundRoute, setFoundRoute] = useState<FoundRoute | null>(null);
+  const [storedPath, setStoredPath] = useState<[number, number][] | null>(null);
   const [destination, setDestination] = useState<SearchResult | null>(null);
   const { locationData, error, subscribe, attachApp } = useLocationTracking();
   const hasCenteredOnUser = useRef(false);
@@ -231,8 +237,50 @@ function App() {
     [refreshTrips],
   );
 
-  // Signed in: trips back up to the account by themselves (Phase 4).
-  const tripSync = useTripSync(trips, auth.user?.id ?? null, persistTrip);
+  // Removes a trip from this device only (with its photos).
+  const removeLocalTrip = useCallback(async (trip: Trip) => {
+    await Promise.all((trip.photos ?? []).map((p) => deletePhotoBlob(p.id)));
+    await deleteLocalTrip(trip.id);
+  }, []);
+
+  // Signed in: the Trips list is the account's, on every device (up and down).
+  const tripSync = useTripSync(trips, auth.user?.id ?? null, {
+    save: saveTripLocally,
+    remove: removeLocalTrip,
+    refresh: refreshTrips,
+  });
+
+  // Planned trips from older versions are routes, not trips: move them to Saved
+  // (same key as the server's own conversion, so no duplicates).
+  const movingPlanned = useRef(false);
+  useEffect(() => {
+    const planned = trips.filter((t) => t.kind === "planned");
+    if (!saved.loaded || !planned.length || movingPlanned.current) return;
+    movingPlanned.current = true;
+    void (async () => {
+      for (const t of planned) {
+        const entry = routeFromPlanned(t);
+        if (entry) await saved.saveRoute(entry.route, t.id);
+        await removeLocalTrip(t);
+      }
+      await refreshTrips();
+      movingPlanned.current = false;
+    })();
+  }, [trips, saved, removeLocalTrip, refreshTrips]);
+
+  // Signing out: trips already safe in the account leave this device (they
+  // come back on sign-in), so the next person using it doesn't see them.
+  // Trips not uploaded yet stay, still marked as this account's.
+  const signOut = useCallback(async () => {
+    const me = auth.user?.id;
+    await auth.signOut();
+    if (!me) return;
+    for (const t of await listLocalTrips()) {
+      if (t.ownerId === me && t.cloudSyncedAt && !needsSync(t)) await removeLocalTrip(t);
+    }
+    setViewTrip(null);
+    await refreshTrips();
+  }, [auth, removeLocalTrip, refreshTrips]);
 
   const isRecorderActive = recorder.status !== "idle";
   const isLive = recorder.status === "recording" || recorder.status === "paused";
@@ -338,6 +386,7 @@ function App() {
         name,
         kind: "recorded",
         createdAt: recorder.startedAt,
+        ...(auth.user ? { ownerId: auth.user.id } : {}),
         track: recorder.track,
         gaps: recorder.gaps,
         // Total includes the estimated stretches; they're kept in `gaps` so the
@@ -349,7 +398,7 @@ function App() {
       recorder.reset();
       setViewTrip(trip);
     },
-    [recorder, persistTrip],
+    [recorder, persistTrip, auth.user],
   );
 
   const handleDiscardRecordedTrip = useCallback(() => {
@@ -367,41 +416,69 @@ function App() {
     recorder.finish();
   }, [recorder]);
 
-  const handleSavePlannedTrip = useCallback(async () => {
+  // Directions → Saved (a route isn't a trip: it was worked out, not travelled).
+  const handleSaveRoute = useCallback(async () => {
     if (!origin || !destination) return;
-    await persistTrip({
-      id: newTripId(),
-      name: `${origin.name} → ${destination.name}`,
-      kind: "planned",
-      createdAt: Date.now(),
-      origin,
-      destination,
-      distanceM: 0,
-      durationS: 0,
-    });
-    setActiveTab("trips");
-  }, [origin, destination, persistTrip]);
+    await saved.saveRoute(savedRouteFrom(origin, destination, travelMode, foundRoute));
+  }, [origin, destination, travelMode, foundRoute, saved]);
 
-  const handleViewTrip = useCallback((trip: Trip) => {
-    if (trip.kind === "planned" && trip.origin && trip.destination) {
-      setViewTrip(null);
-      setOrigin(trip.origin);
-      setDestination(trip.destination);
-      setActiveTab("directions");
-    } else {
-      setViewTrip(trip);
-      setShowSheet(false);
-    }
+  const handleOpenRoute = useCallback((entry: SavedEntry) => {
+    const r = entry.route;
+    if (!r) return;
+    setViewTrip(null);
+    setOrigin(endResult(r.from));
+    setDestination(endResult(r.to));
+    setTravelMode(r.mode);
+    const coords = pathCoords(r.path);
+    setStoredPath(coords.length >= 2 ? coords : null);
+    setCenter([r.from.lat, r.from.lng]);
+    setActiveTab("directions");
+    setShowSheet(true);
   }, []);
 
+  const handleViewTrip = useCallback(
+    async (trip: Trip) => {
+      if (trip.kind === "planned" && trip.origin && trip.destination) {
+        setViewTrip(null);
+        setOrigin(trip.origin);
+        setDestination(trip.destination);
+        setActiveTab("directions");
+        return;
+      }
+      if (trip.summaryOnly) {
+        // From another device: download it once; then it's on this one too.
+        try {
+          const full = { ...(await fetchCloudTrip(trip.id)), ownerId: trip.ownerId };
+          await persistTrip(full);
+          trip = full;
+        } catch (e) {
+          alert(e instanceof Error ? e.message : "Couldn't open the trip");
+          return;
+        }
+      }
+      setViewTrip(trip);
+      setShowSheet(false);
+    },
+    [persistTrip],
+  );
+
+  // Deleting is everywhere: this device, the account, other devices, the
+  // share link and Explore. Offline, the account part is sent later.
   const handleDeleteTrip = useCallback(
     async (trip: Trip) => {
-      await Promise.all((trip.photos ?? []).map((p) => deletePhotoBlob(p.id)));
-      await deleteLocalTrip(trip.id);
+      const inAccount = !!trip.cloudSyncedAt && !!auth.user && (!trip.ownerId || trip.ownerId === auth.user.id);
+      if (inAccount) {
+        try {
+          await deleteCloudTrip(trip.id);
+        } catch {
+          queueDelete(trip.id);
+        }
+      }
+      await removeLocalTrip(trip);
       setViewTrip((v) => (v?.id === trip.id ? null : v));
       await refreshTrips();
     },
-    [refreshTrips],
+    [auth.user, removeLocalTrip, refreshTrips],
   );
 
   const handleSaveToCloud = useCallback(
@@ -622,13 +699,14 @@ function App() {
 
   const handleOpenSaved = useCallback(
     (entry: SavedEntry) => {
+      if (entry.kind === "route") return handleOpenRoute(entry);
       setShowSheet(false);
       nearby.clear();
       placeLookup.openKnown(entry.place);
       setCenter([entry.place.lat, entry.place.lng]);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeLookup.openKnown, nearby.clear],
+    [placeLookup.openKnown, nearby.clear, handleOpenRoute],
   );
 
   const shortcutFor = useCallback(
@@ -677,12 +755,14 @@ function App() {
   }, [locationData]);
 
   const handleSelectOrigin = useCallback((result: SearchResult) => {
+    setStoredPath(null);
     setOrigin(result);
     setCenter(result?.location);
     setZoom(15);
   }, []);
 
   const handleSelectDestination = useCallback((result: SearchResult) => {
+    setStoredPath(null);
     setDestination(result);
     setCenter(result?.location);
     setZoom(15);
@@ -691,10 +771,12 @@ function App() {
   const handleClearDirections = useCallback(() => {
     setOrigin(null);
     setDestination(null);
+    setStoredPath(null);
   }, []);
 
   const handleSelectHistoryRoute = useCallback(
     (historyItem: RouteHistoryItem) => {
+      setStoredPath(null);
       setOrigin(historyItem.origin);
       setDestination(historyItem.destination);
       setCenter(historyItem.origin.location);
@@ -707,7 +789,7 @@ function App() {
   const closePlace = placeLookup.close;
   const handleTabChange = useCallback((tab: string) => {
     closePlace();
-    if (tab === "trips") {
+    if (tab === "directions") {
       // Routes are saved asynchronously once found, so re-read when viewing.
       setRouteHistory(getRouteHistory());
     }
@@ -898,12 +980,19 @@ function App() {
             <TripLayer track={viewTrip.track} gaps={viewTrip.gaps} fitKey={viewTrip.id} showEnds />
           )
         )}
+        {origin && destination && storedPath && (
+          <Polyline positions={storedPath} pathOptions={{ color: "#2E75CC", opacity: 0.6, weight: 4, dashArray: "6 6" }} />
+        )}
         {origin && destination && (
           <RouteControl
             origin={origin}
             destination={destination}
             isVisible={isVisible}
             mode={travelMode}
+            onRoute={(r) => {
+              setFoundRoute(r);
+              if (r) setStoredPath(null); // a fresh route replaces the saved one
+            }}
           />
         )}
         <MapControls
@@ -1180,7 +1269,9 @@ function App() {
             onSelectOrigin={handleSelectOrigin}
             onSelectDestination={handleSelectDestination}
             onClearDirections={handleClearDirections}
-            onSaveTrip={handleSavePlannedTrip}
+            onSaveRoute={handleSaveRoute}
+            routeHistory={routeHistory}
+            onSelectRoute={handleSelectHistoryRoute}
             shortcuts={[shortcutFor(saved.home, "Home"), shortcutFor(saved.work, "Work")].filter(
               (s): s is { label: string; onPick: () => void } => s !== null,
             )}
@@ -1208,15 +1299,14 @@ function App() {
             onExportGpx={(trip) => void saveTextFile(gpxFileName(trip), "application/gpx+xml", toGpx(trip))}
             onImportGpx={async (file) => {
               if (file.size > 30_000_000) throw new Error("That file is too large to import.");
-              const trip = parseGpx(await file.text(), file.name, newTripId());
+              const parsed = parseGpx(await file.text(), file.name, newTripId());
+              const trip = auth.user ? { ...parsed, ownerId: auth.user.id } : parsed;
               await persistTrip(trip);
               setShowSheet(false);
               setViewTrip(trip);
             }}
             onAuthenticate={auth.authenticate}
-            onSignOut={auth.signOut}
-            routeHistory={routeHistory}
-            onSelectRoute={handleSelectHistoryRoute}
+            onSignOut={signOut}
           />
         )}
         {activeTab === "people" && <PeopleSheet signedIn={!!auth.user} onRequestsChanged={setRequestCount} />}
@@ -1286,7 +1376,7 @@ function App() {
             }}
             userEmail={auth.user?.email ?? null}
             onAuthenticate={auth.authenticate}
-            onSignOut={auth.signOut}
+            onSignOut={signOut}
             onDone={handleCloseSheet}
           />
         )}
@@ -1295,6 +1385,7 @@ function App() {
             home={saved.home}
             work={saved.work}
             favourites={saved.favourites}
+            routes={saved.routes}
             userPosition={locationData ? [locationData.position[0], locationData.position[1]] : null}
             showOnMap={showSavedOnMap}
             syncStatus={{ signedIn: !!auth.user, state: savedSync.state, error: savedSync.error }}

@@ -84,4 +84,17 @@ export interface Trip {
   cloudSyncedAt?: number;
   /** came from a GPX file rather than being recorded in the app */
   imported?: boolean;
+  /**
+   * The account this trip belongs to: set when it's recorded while signed in,
+   * uploaded, or downloaded. Missing: recorded while signed out (it joins the
+   * next account that signs in on this device).
+   */
+  ownerId?: string;
+  /**
+   * In the account but not downloaded to this device yet (from another device):
+   * everything except the track, which is fetched when the trip is opened.
+   */
+  summaryOnly?: boolean;
+  /** summaryOnly trips: the route's shape, as encoded polylines */
+  line?: string[];
 }

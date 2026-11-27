@@ -105,8 +105,13 @@ describe.skipIf(!hasDb)("shared trips API", async () => {
   });
 
   it("only recorded trips can be shared; going private hides it again", async () => {
-    const planned = await save(users.alice, trip({ kind: "planned", track: undefined }));
-    expect((await post({ action: "settings", trip: planned.id, visibility: "public" }, users.alice)).status).toBe(400);
+    // A planned trip (older app versions) is a route: it goes to Saved, there's no trip to share.
+    const end = (name: string, lat: number) => ({ id: 1, name, displayName: name, location: [lat, 135.76], type: "x", importance: 1 });
+    const planned = await save(
+      users.alice,
+      trip({ kind: "planned", track: undefined, origin: end("Station", 34.98), destination: end("Gion", 35.0) }),
+    );
+    expect((await post({ action: "settings", trip: planned.id, visibility: "public" }, users.alice)).status).toBe(404);
     const t = await save(users.alice);
     await post({ action: "settings", trip: t.id, visibility: "public" }, users.alice);
     await post({ action: "settings", trip: t.id, visibility: "private" }, users.alice);

@@ -1,29 +1,14 @@
-import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { getPhotoBlob } from "../services/photoStore";
+import { usePhotoUrl } from "../services/photoStore";
+import type { TripPhoto } from "../types/trip";
 
 interface PhotoThumbProps {
-  photoId: string;
+  photo: TripPhoto;
   onRemove: () => void;
 }
 
-export function PhotoThumb({ photoId, onRemove }: PhotoThumbProps) {
-  const [url, setUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let objectUrl: string | null = null;
-    let cancelled = false;
-    getPhotoBlob(photoId).then((blob) => {
-      if (blob && !cancelled) {
-        objectUrl = URL.createObjectURL(blob);
-        setUrl(objectUrl);
-      }
-    });
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [photoId]);
+export function PhotoThumb({ photo, onRemove }: PhotoThumbProps) {
+  const url = usePhotoUrl(photo);
 
   return (
     <div className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-gray-200">

@@ -140,6 +140,8 @@ try {
     const { convertStoredTracks } = await import("../api/_lib/storedTrip.ts");
     const n = await convertStoredTracks(pool);
     console.log(`[migrate] track format ok (converted ${n} trips)`);
+    const { convertPlannedTrips } = await import("../api/_lib/storedTrip.ts");
+    console.log(`[migrate] planned trips moved to saved routes: ${await convertPlannedTrips(pool)}`);
     const { backfillShareGeometry } = await import("../api/_lib/shareGeometry.ts");
     console.log(`[migrate] share lines ok (filled ${await backfillShareGeometry(pool)})`);
   } catch (error) {

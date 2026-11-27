@@ -4,6 +4,7 @@ import { getPool } from "./_lib/db.js";
 import { rejectForeignOrigin } from "./_lib/origin.js";
 import { refreshShareGeometry } from "./_lib/shareGeometry.js";
 import { toStored } from "./_lib/storedTrip.js";
+import { routeFromPlanned } from "./_lib/plannedRoute.js";
 import { gunzipSync } from "node:zlib";
 
 const UUID =
@@ -41,11 +42,23 @@ async function handle(request: Request): Promise<Response> {
     const pool = getPool();
 
     if (request.method === "GET") {
-      const { rows } = await pool.query(
-        "select data from trips where user_id = $1 order by created_at desc limit 200",
+      // One trip, in full (opened on another device).
+      const id = new URL(request.url).searchParams.get("id");
+      if (id != null) {
+        if (!UUID.test(id)) return json({ message: "Invalid trip id" }, 400);
+        const { rows } = await pool.query("select data from trips where id = $1 and user_id = $2", [id, userId]);
+        if (!rows[0]) return json({ message: "Not found" }, 404);
+        return json({ trip: rows[0].data });
+      }
+      // All of them, without their tracks: enough to list them and draw their
+      // shape (the full route, as encoded polylines; the owner may see it).
+      const { rows } = await pool.query<{ data: Record<string, unknown>; polyline: string[] | null }>(
+        `select data - 'track' as data, polyline from trips
+         where user_id = $1 and data->>'kind' = 'recorded'
+         order by created_at desc limit 2000`,
         [userId],
       );
-      return json({ trips: rows.map((r) => r.data) });
+      return json({ trips: rows.map((r) => ({ ...r.data, line: r.polyline ?? [] })) });
     }
 
     if (request.method === "POST") {
@@ -65,6 +78,19 @@ async function handle(request: Request): Promise<Response> {
         return json({ message: "Invalid trip kind" }, 400);
       const createdAt = Number(trip.createdAt);
       if (!Number.isFinite(createdAt)) return json({ message: "Invalid createdAt" }, 400);
+
+      // Older app versions still save Directions routes as "planned trips":
+      // they're routes, so they go to Saved instead (synced like Favourites).
+      if (trip.kind === "planned") {
+        const entry = routeFromPlanned(trip as Record<string, unknown>);
+        if (!entry) return json({ message: "Invalid route" }, 400);
+        await pool.query(
+          `insert into saved_places (user_id, key, data, updated_at) values ($1, $2, $3::jsonb, $4)
+           on conflict (user_id, key) do nothing`,
+          [userId, entry.key, JSON.stringify(entry), entry.updatedAt],
+        );
+        return json({ syncedAt: Date.now() });
+      }
 
       // Only keep photo references that point at this user's own files.
       const photos = Array.isArray((trip as { photos?: unknown }).photos)

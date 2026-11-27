@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { favouriteKey, type SavedEntry, type SavedKind, type SavedPlaceSnapshot } from "../types/saved";
+import {
+  favouriteKey,
+  routeKey,
+  type SavedEntry,
+  type SavedKind,
+  type SavedPlaceSnapshot,
+  type SavedRoute,
+} from "../types/saved";
 import { listSavedEntries, putSavedEntries } from "../services/savedStore";
 import type { PlaceDetails } from "../services/placeService";
 
@@ -51,6 +58,10 @@ export function useSaved() {
     () => live.filter((e) => e.kind === "favourite").sort((a, b) => b.createdAt - a.createdAt),
     [live],
   );
+  const routes = useMemo(
+    () => live.filter((e) => e.kind === "route" && e.route).sort((a, b) => b.createdAt - a.createdAt),
+    [live],
+  );
   const home = live.find((e) => e.kind === "home") ?? null;
   const work = live.find((e) => e.kind === "work") ?? null;
 
@@ -66,7 +77,7 @@ export function useSaved() {
       const next: SavedEntry = {
         key,
         kind,
-        list: kind === "favourite" ? "favourites" : null,
+        list: kind === "favourite" ? "favourites" : kind === "route" ? "routes" : null,
         place,
         note: existing && !existing.deleted ? existing.note : null,
         createdAt: existing && !existing.deleted ? existing.createdAt : now,
@@ -104,6 +115,16 @@ export function useSaved() {
     [remove, upsert],
   );
 
+  /** Saves a route from Directions; returns its key. */
+  const saveRoute = useCallback(
+    async (route: SavedRoute, id: string = crypto.randomUUID()) => {
+      const key = routeKey(id);
+      await upsert(key, "route", route.to, { route });
+      return key;
+    },
+    [upsert],
+  );
+
   const setNote = useCallback(
     (key: string, note: string) => {
       const existing = entriesRef.current.find((e) => e.key === key && !e.deleted);
@@ -121,6 +142,8 @@ export function useSaved() {
     /** Every record, including deletions (for sync). */
     all: entries,
     favourites,
+    routes,
+    saveRoute,
     home,
     work,
     revision,

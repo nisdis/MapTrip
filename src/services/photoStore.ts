@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import localforage from "localforage";
 
 // Photos live in the browser (IndexedDB) until a trip is saved to the cloud.
@@ -41,4 +42,26 @@ export async function getPhotoBlob(id: string): Promise<Blob | null> {
 
 export async function deletePhotoBlob(id: string): Promise<void> {
   await store.removeItem(id);
+}
+
+/**
+ * Where to show a trip photo from: this device if it's here, else the account
+ * (a trip recorded on another device). null while loading or if neither has it.
+ */
+export function usePhotoUrl(photo: { id: string; cloudPath?: string }): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    void getPhotoBlob(photo.id).then((blob) => {
+      if (cancelled) return;
+      if (blob) setUrl((objectUrl = URL.createObjectURL(blob)));
+      else if (photo.cloudPath) setUrl(`/api/photo?path=${encodeURIComponent(photo.cloudPath)}`);
+    });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [photo.id, photo.cloudPath]);
+  return url;
 }
