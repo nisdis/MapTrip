@@ -27,11 +27,20 @@ interface NominatimResponse {
  */
 export const SEARCH_COUNTRIES = ["in", "jp"] as const;
 
-export async function searchPlaces(query: string): Promise<SearchResult[]> {
+/** How far around `near` counts as nearby (degrees; ~30 km). */
+const NEAR_DEG = 0.25;
+
+/**
+ * Places matching `query`. With `near`, places around that point come first
+ * (only those, when there are any), closest first; otherwise anywhere in the
+ * supported countries.
+ */
+export async function searchPlaces(query: string, near?: [number, number] | null): Promise<SearchResult[]> {
   // Check cache first
   // The country list is part of the cache key, so adding a country can't
   // surface stale results from before it was supported.
-  const cacheKey = `search/${SEARCH_COUNTRIES.join("-")}/${encodeURIComponent(query)}`;
+  const area = near ? `@${near[0].toFixed(1)},${near[1].toFixed(1)}` : "";
+  const cacheKey = `search/${SEARCH_COUNTRIES.join("-")}/${encodeURIComponent(query)}${area}`;
   const cachedResults = await getCachedResults(cacheKey);
   if (cachedResults) {
     return cachedResults;
@@ -40,9 +49,19 @@ export async function searchPlaces(query: string): Promise<SearchResult[]> {
   try {
     // Shared, rate-limited client (search, directions fields and place lookups
     // all share Nominatim's one-request-per-second allowance).
-    const data = await nominatimGet<NominatimResponse[]>(
-      `/search?countrycodes=${SEARCH_COUNTRIES.join(",")}&format=json&q=${encodeURIComponent(query)}&limit=5`,
-    );
+    const base = `/search?countrycodes=${SEARCH_COUNTRIES.join(",")}&format=json&q=${encodeURIComponent(query)}&limit=5`;
+    let data: NominatimResponse[] = [];
+    if (near) {
+      const [lat, lng] = near;
+      const box = [lng - NEAR_DEG, lat + NEAR_DEG, lng + NEAR_DEG, lat - NEAR_DEG].map((v) => v.toFixed(4)).join(",");
+      data = await nominatimGet<NominatimResponse[]>(`${base}&viewbox=${box}&bounded=1`);
+    }
+    // Nothing nearby (or no reference point): anywhere.
+    if (!data.length) data = await nominatimGet<NominatimResponse[]>(base);
+    if (near) {
+      const d = (i: NominatimResponse) => (parseFloat(i.lat) - near[0]) ** 2 + ((parseFloat(i.lon) - near[1]) * Math.cos((near[0] * Math.PI) / 180)) ** 2;
+      data = [...data].sort((a, b) => d(a) - d(b));
+    }
 
     const results = data.map((item) => ({
       id: item.place_id,

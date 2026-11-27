@@ -15,6 +15,7 @@ import {
   DownloadCloud,
 } from "lucide-react";
 import { RouteThumb } from "./RouteThumb";
+import { DeleteTripDialog, type DeleteScope } from "./DeleteTripDialog";
 import { PhotoThumb } from "./PhotoThumb";
 import { hasUnsyncedPhotos } from "../services/cloudTrips";
 import type { Trip } from "../types/trip";
@@ -33,7 +34,7 @@ interface TripsSheetProps {
   userEmail: string | null;
   onStart: () => void;
   onView: (trip: Trip) => void;
-  onDelete: (trip: Trip) => void;
+  onDelete: (trip: Trip, scope: DeleteScope) => void;
   onAddPhoto: (trip: Trip, file: File) => Promise<void>;
   onRemovePhoto: (trip: Trip, photoId: string) => void;
   onSaveToCloud: (trip: Trip) => Promise<void>;
@@ -65,6 +66,7 @@ export function TripsSheet({
   onSignOut,
 }: TripsSheetProps) {
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<Trip | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   // Trip waiting for the user to sign in before it is saved to the cloud.
   const [needsLoginFor, setNeedsLoginFor] = useState<Trip | null>(null);
@@ -281,11 +283,7 @@ export function TripsSheet({
                 )}
                 <button
                   onClick={() => {
-                    const everywhere = !!userEmail && !!trip.cloudSyncedAt;
-                    const where = everywhere
-                      ? "everywhere: this device, your account, your other devices, and its share link if it has one"
-                      : "from this device";
-                    if (window.confirm(`Delete “${trip.name}” ${where}?`)) onDelete(trip);
+                    setDeleting(trip);
                   }}
                   className="p-1 text-gray-400 hover:text-red-600"
                   aria-label="Delete trip"
@@ -298,6 +296,17 @@ export function TripsSheet({
         </ul>
       )}
 
+      {deleting && (
+        <DeleteTripDialog
+          trip={deleting}
+          inAccount={!!userEmail && !!deleting.cloudSyncedAt}
+          onChoose={(scope) => {
+            onDelete(deleting, scope);
+            setDeleting(null);
+          }}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
     </div>
   );
 }

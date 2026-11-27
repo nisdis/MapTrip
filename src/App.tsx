@@ -1,11 +1,13 @@
-import { useCallback, useState, useEffect, useRef } from "react";
+import { useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { MapContainer, Marker, Polyline, Popup } from "react-leaflet";
 import { NearbyMarkers } from "./components/NearbyMarkers";
 import { VectorBasemap } from "./components/VectorBasemap";
-import { Map as MapIcon, Wifi, WifiOff, Car, UserRound, Menu } from "lucide-react";
+import { Map as MapIcon, Wifi, WifiOff, UserRound, Menu } from "lucide-react";
 import { MapControls } from "./components/MapControls";
 import { MapController } from "./components/MapController";
 import { RouteControl } from "./components/RouteControl";
+import { RouteBar } from "./components/RouteBar";
+import type { DeleteScope } from "./components/DeleteTripDialog";
 import { loadTravelMode, saveTravelMode, type TravelMode } from "./services/travelMode";
 import { endResult, pathCoords, savedRouteFrom, type FoundRoute } from "./services/savedRoutes";
 import { routeFromPlanned } from "../api/_lib/plannedRoute";
@@ -100,6 +102,8 @@ function App() {
   // The route Directions found (to save it), and a saved route's stored path,
   // drawn until a fresh route arrives (or for good, offline).
   const [foundRoute, setFoundRoute] = useState<FoundRoute | null>(null);
+  // Directions only asks the routing server once you tap Show route.
+  const [routeShown, setRouteShown] = useState(false);
   const [storedPath, setStoredPath] = useState<[number, number][] | null>(null);
   const [destination, setDestination] = useState<SearchResult | null>(null);
   const { locationData, error, subscribe, attachApp } = useLocationTracking();
@@ -422,6 +426,16 @@ function App() {
     await saved.saveRoute(savedRouteFrom(origin, destination, travelMode, foundRoute));
   }, [origin, destination, travelMode, foundRoute, saved]);
 
+  // Is what Directions shows (both ends and the mode) already in Saved › Routes?
+  const routeIsSaved = useMemo(() => {
+    if (!origin || !destination) return false;
+    const near = (a: { lat: number; lng: number }, b: LatLngTuple) =>
+      Math.abs(a.lat - b[0]) < 1e-5 && Math.abs(a.lng - b[1]) < 1e-5;
+    return saved.routes.some(
+      (e) => e.route && e.route.mode === travelMode && near(e.route.from, origin.location) && near(e.route.to, destination.location),
+    );
+  }, [saved.routes, origin, destination, travelMode]);
+
   const handleOpenRoute = useCallback((entry: SavedEntry) => {
     const r = entry.route;
     if (!r) return;
@@ -431,6 +445,7 @@ function App() {
     setTravelMode(r.mode);
     const coords = pathCoords(r.path);
     setStoredPath(coords.length >= 2 ? coords : null);
+    setRouteShown(true);
     setCenter([r.from.lat, r.from.lng]);
     setActiveTab("directions");
     setShowSheet(true);
@@ -462,12 +477,12 @@ function App() {
     [persistTrip],
   );
 
-  // Deleting is everywhere: this device, the account, other devices, the
-  // share link and Explore. Offline, the account part is sent later.
+  // Delete from this phone only, or everywhere: the account, other devices,
+  // the share link and Explore (offline, the account part is sent later).
   const handleDeleteTrip = useCallback(
-    async (trip: Trip) => {
+    async (trip: Trip, scope: DeleteScope) => {
       const inAccount = !!trip.cloudSyncedAt && !!auth.user && (!trip.ownerId || trip.ownerId === auth.user.id);
-      if (inAccount) {
+      if (inAccount && scope === "everywhere") {
         try {
           await deleteCloudTrip(trip.id);
         } catch {
@@ -756,6 +771,7 @@ function App() {
 
   const handleSelectOrigin = useCallback((result: SearchResult) => {
     setStoredPath(null);
+    setRouteShown(false);
     setOrigin(result);
     setCenter(result?.location);
     setZoom(15);
@@ -763,6 +779,7 @@ function App() {
 
   const handleSelectDestination = useCallback((result: SearchResult) => {
     setStoredPath(null);
+    setRouteShown(false);
     setDestination(result);
     setCenter(result?.location);
     setZoom(15);
@@ -772,11 +789,15 @@ function App() {
     setOrigin(null);
     setDestination(null);
     setStoredPath(null);
+    setRouteShown(false);
+    setFoundRoute(null);
+    setIsVisible(false);
   }, []);
 
   const handleSelectHistoryRoute = useCallback(
     (historyItem: RouteHistoryItem) => {
       setStoredPath(null);
+      setRouteShown(true);
       setOrigin(historyItem.origin);
       setDestination(historyItem.destination);
       setCenter(historyItem.origin.location);
@@ -872,26 +893,18 @@ function App() {
 
       )}
 
-      {origin && destination && !isRecorderActive && (
-        <div className="absolute bottom-48 left-4 right-4 md:left-auto md:right-4 md:w-80 z-10 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-3 w-16">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex-1 min-w-0 hidden md:block">
-              <div className="truncate text-sm font-medium text-gray-900">
-                From: {origin.name}
-              </div>
-              <div className="truncate text-sm font-medium text-gray-900">
-                To: {destination.name}
-              </div>
-            </div>
-            <button
-              onClick={handleShoeRouteItems}
-              className="p-2 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors"
-              aria-label="Show route details"
-            >
-              <Car className="w-5 h-5 text-blue-600" />
-            </button>
-          </div>
-        </div>
+      {origin && destination && routeShown && !isRecorderActive && !showSheet && !placeLookup.target && !nearby.state && !exploring && (
+        <RouteBar
+          origin={origin}
+          destination={destination}
+          mode={travelMode}
+          found={foundRoute}
+          stepsShown={isVisible}
+          onToggleSteps={handleShoeRouteItems}
+          onClear={handleClearDirections}
+          isSaved={routeIsSaved}
+          onSave={() => void handleSaveRoute()}
+        />
       )}
 
       <MapContainer
@@ -980,10 +993,10 @@ function App() {
             <TripLayer track={viewTrip.track} gaps={viewTrip.gaps} fitKey={viewTrip.id} showEnds />
           )
         )}
-        {origin && destination && storedPath && (
+        {origin && destination && routeShown && storedPath && (
           <Polyline positions={storedPath} pathOptions={{ color: "#2E75CC", opacity: 0.6, weight: 4, dashArray: "6 6" }} />
         )}
-        {origin && destination && (
+        {origin && destination && routeShown && (
           <RouteControl
             origin={origin}
             destination={destination}
@@ -1270,6 +1283,19 @@ function App() {
             onSelectDestination={handleSelectDestination}
             onClearDirections={handleClearDirections}
             onSaveRoute={handleSaveRoute}
+            routeIsSaved={routeIsSaved}
+            routeShown={routeShown}
+            onShowRoute={() => {
+              setRouteShown(true);
+              setShowSheet(false); // see it on the map
+            }}
+            near={
+              locationData
+                ? [locationData.position[0], locationData.position[1]]
+                : boundsRef.current
+                  ? [(boundsRef.current.south + boundsRef.current.north) / 2, (boundsRef.current.west + boundsRef.current.east) / 2]
+                  : [center[0], center[1]]
+            }
             routeHistory={routeHistory}
             onSelectRoute={handleSelectHistoryRoute}
             shortcuts={[shortcutFor(saved.home, "Home"), shortcutFor(saved.work, "Work")].filter(

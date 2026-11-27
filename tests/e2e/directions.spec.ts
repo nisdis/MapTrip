@@ -35,9 +35,11 @@ const osrm = (minutes: number) => ({
 });
 
 test("directions: car, bike or walk from the right router; public transport opens Google Maps", async ({ page }) => {
-  await page.route(/nominatim\.openstreetmap\.org\/search/, (r) =>
-    r.fulfill({ json: r.request().url().includes("Gion") ? [GION] : [STATION] }),
-  );
+  const searches: string[] = [];
+  await page.route(/nominatim\.openstreetmap\.org\/search/, (r) => {
+    searches.push(decodeURIComponent(r.request().url()));
+    return r.fulfill({ json: r.request().url().includes("Gion") ? [GION] : [STATION] });
+  });
   const asked: string[] = [];
   await page.route(/router\.project-osrm\.org\/route\/v1\/driving\//, (r) => {
     asked.push("car");
@@ -60,9 +62,21 @@ test("directions: car, bike or walk from the right router; public transport open
   await page.getByRole("button", { name: /Kyoto Station/ }).first().click();
   await page.getByPlaceholder("Enter destination").fill("Gion");
   await page.getByRole("button", { name: /^Gion/ }).first().click();
+  // The destination was searched near the start (Kyoto Station), not anywhere.
+  expect(searches.at(-1)).toMatch(/viewbox=135\.5088,35\.2358,136\.0088,34\.7358&bounded=1/);
+
+  // Nothing is routed until you ask.
+  await page.waitForTimeout(500);
+  expect(asked).toEqual([]);
+  await page.getByRole("button", { name: "Show route" }).click();
   await expect.poll(() => asked).toEqual(["car"]);
   await expect(page.locator(".leaflet-overlay-pane path")).not.toHaveCount(0); // the route is drawn
+  const bar = page.getByRole("region", { name: "Route" });
+  await expect(bar).toContainText("Kyoto Station → Gion");
+  await expect(bar).toContainText("9 min");
 
+  // Changing the mode re-routes straight away.
+  await openMenu(page, "Directions");
   await modes.getByRole("radio", { name: "Walk" }).click();
   await expect.poll(() => asked).toEqual(["car", "foot"]);
   await modes.getByRole("radio", { name: "Bike" }).click();
@@ -78,6 +92,12 @@ test("directions: car, bike or walk from the right router; public transport open
     travelmode: "transit",
   });
   await expect(transit).toHaveAttribute("target", "_blank");
+
+  // Clear route, from the map.
+  await page.locator('button[aria-label="Close"]').first().click();
+  await bar.getByRole("button", { name: "Clear route" }).click();
+  await expect(bar).toHaveCount(0);
+  await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(0);
 
   // The choice is remembered.
   await page.reload();

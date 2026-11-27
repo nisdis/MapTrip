@@ -16,6 +16,8 @@ interface DirectionsSheetProps {
   onClearDirections: () => void;
   /** Saves the route to Saved (synced like Favourites) */
   onSaveRoute?: () => Promise<void>;
+  /** these ends and this mode are already in Saved › Routes */
+  routeIsSaved?: boolean;
   /** Routes looked up recently on this device */
   routeHistory?: RouteHistoryItem[];
   onSelectRoute?: (item: RouteHistoryItem) => void;
@@ -23,6 +25,11 @@ interface DirectionsSheetProps {
   shortcuts?: { label: string; onPick: () => void }[];
   mode: TravelMode;
   onModeChange: (mode: TravelMode) => void;
+  /** the route is on the map (after Show route) */
+  routeShown: boolean;
+  onShowRoute: () => void;
+  /** where searches are near when neither end is set: you, or the map's middle */
+  near: [number, number] | null;
 }
 
 const MODE_ICON = { car: Car, bike: Bike, foot: Footprints } as const;
@@ -35,12 +42,22 @@ export function DirectionsSheet({
   onClearDirections,
   locationData,
   onSaveRoute,
+  routeIsSaved = false,
   routeHistory = [],
   onSelectRoute,
   shortcuts = [],
   mode,
   onModeChange,
+  routeShown,
+  onShowRoute,
+  near,
 }: DirectionsSheetProps) {
+  // Each end's search is near the other end, once that's set; otherwise near you.
+  const nearRef = React.useRef({ origin: near, destination: near });
+  nearRef.current = {
+    origin: destination?.location ? [destination.location[0], destination.location[1]] : near,
+    destination: origin?.location ? [origin.location[0], origin.location[1]] : near,
+  };
   const [originInput, setOriginInput] = useState(origin?.name || "");
   const [destinationInput, setDestinationInput] = useState(destination?.name || "");
   const [originResults, setOriginResults] = useState<SearchResult[]>([]);
@@ -50,9 +67,6 @@ export function DirectionsSheet({
   const [showOriginResults, setShowOriginResults] = useState(false);
   const [showDestinationResults, setShowDestinationResults] = useState(false);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
-  // "Saved" until the route changes (another end or mode).
-  const [savedKey, setSavedKey] = useState<string | null>(null);
-  const routeKeyNow = origin && destination ? `${origin.location}|${destination.location}|${mode}` : null;
 
   useEffect(() => {
     // Fill each field as soon as its place is set (e.g. a destination tapped on the map).
@@ -71,7 +85,7 @@ export function DirectionsSheet({
         }
         setIsLoadingOrigin(true);
         try {
-          const results = await searchPlaces(query);
+          const results = await searchPlaces(query, nearRef.current.origin);
           setOriginResults(results);
         } catch (error) {
           console.error("Failed to search origin:", error);
@@ -92,7 +106,7 @@ export function DirectionsSheet({
         }
         setIsLoadingDestination(true);
         try {
-          const results = await searchPlaces(query);
+          const results = await searchPlaces(query, nearRef.current.destination);
           setDestinationResults(results);
         } catch (error) {
           console.error("Failed to search destination:", error);
@@ -327,16 +341,21 @@ export function DirectionsSheet({
               <Loader2 className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 animate-spin" />
             )}
           </div>
-          {origin && destination && onSaveRoute && (
+          {origin && destination && !routeShown && (
             <button
-              onClick={async () => {
-                await onSaveRoute();
-                setSavedKey(routeKeyNow);
-              }}
-              disabled={savedKey === routeKeyNow}
+              onClick={onShowRoute}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 font-medium text-white"
+            >
+              <Navigation aria-hidden className="h-4 w-4" /> Show route
+            </button>
+          )}
+          {origin && destination && routeShown && onSaveRoute && (
+            <button
+              onClick={() => void onSaveRoute()}
+              disabled={routeIsSaved}
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 font-medium text-white disabled:bg-green-700"
             >
-              {savedKey === routeKeyNow ? (
+              {routeIsSaved ? (
                 <>
                   <Check aria-hidden className="h-4 w-4" /> Saved to Saved › Routes
                 </>

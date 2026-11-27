@@ -93,13 +93,17 @@ test("trips follow the account to every device; delete is everywhere; sign-out c
   await b.getByRole("button", { name: /^Kyoto loop/ }).click();
   await expect(b.locator(".leaflet-overlay-pane path")).not.toHaveCount(0);
 
-  // Deleting it on this phone deletes it everywhere.
+  // Deleting asks where. This phone only: it stays in the account and comes back as a summary.
   await openMenu(b, "Trips");
-  b.once("dialog", (d) => {
-    expect(d.message()).toContain("everywhere");
-    void d.accept();
-  });
   await b.locator("li", { hasText: "Kyoto loop" }).getByRole("button", { name: "Delete trip" }).click();
+  await b.getByRole("dialog", { name: "Delete trip" }).getByRole("button", { name: /This phone only/ }).click();
+  await b.locator('button[aria-label="Close"]').first().click();
+  await expect.poll(() => tripsText(b), { timeout: 15_000 }).toMatch(/Kyoto loop[\s\S]*From another device/);
+
+  // Everywhere: gone from the account and the other phone.
+  await openMenu(b, "Trips");
+  await b.locator("li", { hasText: "Kyoto loop" }).getByRole("button", { name: "Delete trip" }).click();
+  await b.getByRole("dialog", { name: "Delete trip" }).getByRole("button", { name: /Everywhere/ }).click();
   await b.locator('button[aria-label="Close"]').first().click();
   await expect.poll(() => tripsText(a), { timeout: 15_000 }).not.toContain("Kyoto loop");
   expect(await tripsText(a)).toContain("Second ride");
@@ -119,16 +123,18 @@ test("Directions: Save route puts it in Saved › Routes (not Trips), on every d
   await a.getByPlaceholder("Enter destination").fill("Gion");
   await a.getByRole("button", { name: /^Gion/ }).first().click();
   await a.getByRole("radiogroup", { name: "Travel mode" }).getByRole("radio", { name: "Car" }).click();
+  await a.getByRole("button", { name: "Show route" }).click();
   await expect(a.locator(".leaflet-overlay-pane path")).not.toHaveCount(0);
-  await a.getByRole("button", { name: "Save route" }).click();
-  await expect(a.getByRole("button", { name: /Saved to Saved › Routes/ })).toBeVisible();
-  await a.locator('button[aria-label="Close"]').first().click();
+  const bar = a.getByRole("region", { name: "Route" });
+  await bar.getByRole("button", { name: "Save route" }).click();
+  await expect(bar.getByRole("button", { name: "Route saved" })).toBeVisible();
   expect(await tripsText(a)).not.toContain("Gion");
 
   const b = await device(browser);
   await signIn(b, "signin", "routes@test.com");
   const savedText = async () => {
     await openMenu(b, "Saved");
+    await b.getByRole("tab", { name: /Routes/ }).click();
     const t = await b.locator(".overflow-y-auto").last().innerText();
     await b.locator('button[aria-label="Close"]').first().click();
     return t;
@@ -138,6 +144,7 @@ test("Directions: Save route puts it in Saved › Routes (not Trips), on every d
 
   // Opening it fills Directions in, with the route drawn.
   await openMenu(b, "Saved");
+  await b.getByRole("tab", { name: /Routes/ }).click();
   await b.getByRole("button", { name: /^Kyoto Station → Gion/ }).click();
   await expect(b.getByPlaceholder("Enter destination")).toHaveValue("Gion");
   await expect(b.getByPlaceholder("Enter starting point")).toHaveValue("Kyoto Station");
@@ -169,6 +176,7 @@ test("a planned trip already on the phone (older version) moves to Saved › Rou
   await page.waitForSelector(".leaflet-container");
   await expect.poll(async () => {
     await openMenu(page, "Saved");
+    await page.getByRole("tab", { name: /Routes/ }).click();
     const t = await page.locator(".overflow-y-auto").last().innerText();
     await page.locator('button[aria-label="Close"]').first().click();
     return t;
