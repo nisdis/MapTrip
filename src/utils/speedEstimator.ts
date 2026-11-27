@@ -24,7 +24,8 @@ const WINDOW_MS = 10000; // fit velocity over this much recent history
 const MIN_SPAN_MS = 2000; // need at least this much time to measure
 const MAX_ACCURACY_M = 60; // fixes worse than this are too vague to measure with
 const STOPPED_MS = 0.5; // below ~2 km/h counts as stopped
-const MAX_PLAUSIBLE_MS = 100; // 360 km/h: faster is a GPS glitch
+/** 340 m/s, about 1,220 km/h: a jet's ground speed with a strong tailwind. Faster is a GPS glitch. */
+export const MAX_PLAUSIBLE_MS = 340;
 const HOLD_MS = 4000; // keep the last speed this long when fixes carry no information
 const SMOOTHING = 0.6; // 0 = frozen, 1 = no smoothing
 const MAX_ACCEL = 8; // m/s² — hard braking/acceleration; bigger jumps need a second reading to confirm

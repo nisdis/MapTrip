@@ -108,7 +108,7 @@ describe.skipIf(!hasDb)("live share API", async () => {
     );
     const body = await (await view(token)).json();
     expect(body.total).toBe(1);
-    expect(body.stats).toMatchObject({ maxSpeedMs: 150, distanceM: 0 });
+    expect(body.stats).toMatchObject({ maxSpeedMs: 340, distanceM: 0 });
   });
 
   it("only the owner can update, extend or stop a share", async () => {

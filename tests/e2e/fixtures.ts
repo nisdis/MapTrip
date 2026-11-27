@@ -18,21 +18,23 @@ export async function fakeGps(context: BrowserContext) {
     navigator.geolocation.clearWatch = () => {};
     navigator.geolocation.getCurrentPosition = (ok) =>
       ok({ coords: { latitude: 12.97, longitude: 77.6, accuracy: 6, speed: 0, altitude: 900, heading: 0 }, timestamp: Date.now() } as GeolocationPosition);
-    w.__fix = (lat, lng, t, speed = null, alt = 900) =>
+    w.__fix = (lat, lng, t, speed = null, alt = 900, accuracy = 6) =>
       cb?.({
-        coords: { latitude: lat, longitude: lng, accuracy: 6, speed, altitude: alt, heading: 0 },
+        coords: { latitude: lat, longitude: lng, accuracy, speed, altitude: alt, heading: 0 },
         timestamp: w.__t0 + (t ?? 0) * 1000,
       } as GeolocationPosition);
   });
 }
 
-export const fix = (page: Page, lat: number, lng: number, t: number, speed: number | null = null, alt = 900) =>
-  page.evaluate(([a, b, c, d, e]) => (window as unknown as { __fix: (...x: unknown[]) => void }).__fix(a, b, c, d, e), [
+/** One GPS reading: t in seconds from the start, speed in m/s, accuracy in metres. */
+export const fix = (page: Page, lat: number, lng: number, t: number, speed: number | null = null, alt = 900, accuracy = 6) =>
+  page.evaluate(([a, b, c, d, e, f]) => (window as unknown as { __fix: (...x: unknown[]) => void }).__fix(a, b, c, d, e, f), [
     lat,
     lng,
     t,
     speed,
     alt,
+    accuracy,
   ] as const);
 
 /** Press and hold (hold-to-finish, pocket-mode wake). */

@@ -139,3 +139,40 @@ test("a gap on a train is a straight line, not a road; the summary can switch it
   await gaps.getByRole("button", { name: "Straight" }).click();
   await expect(summary).toContainText("Includes 2.00 km estimated");
 });
+
+test("on a plane: speed above 360 km/h shows, and losing GPS mid-flight leaves a dotted line", async ({ page }) => {
+  await page.route(/router\.project-osrm\.org\/route/, (r) => r.abort()); // no road across the gap
+  await page.route(/overpass-api\.de/, (r) => r.abort());
+  await page.goto("/");
+  await page.waitForSelector(".leaflet-container");
+  const M = 1 / 111320;
+  const CRUISE = 250; // m/s = 900 km/h
+  let lat = 12.97;
+  let t = 0;
+  await fix(page, lat, 77.6, t, 0, 10000);
+  await page.getByRole("button", { name: "Record a trip" }).click();
+  const hud = page.locator('section[aria-label="Trip recorder"]');
+  for (let i = 0; i < 14; i++) {
+    lat += CRUISE * M;
+    t += 1;
+    await fix(page, lat, 77.6, t, CRUISE, 10000);
+    await page.waitForTimeout(60);
+  }
+  await expect(hud).toContainText("900"); // km/h, not 0
+
+  // GPS lost for 2 minutes: the phone keeps sending vague network positions.
+  for (let i = 0; i < 12; i++) {
+    lat += 10 * CRUISE * M;
+    t += 10;
+    await fix(page, lat + 0.02, 77.6, t, null, 10000, 3000);
+  }
+  // GPS back, 30 km further on.
+  for (let i = 0; i < 3; i++) {
+    lat += CRUISE * M;
+    t += 1;
+    await fix(page, lat, 77.6, t, CRUISE, 10000);
+    await page.waitForTimeout(60);
+  }
+  await expect(hud).toContainText(/incl\. 3\d\.\d\d est\./); // ~30 km across the gap, estimated
+  await expect(page.locator('.leaflet-overlay-pane path[stroke-dasharray="2 10"]')).not.toHaveCount(0);
+});

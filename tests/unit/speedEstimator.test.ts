@@ -94,4 +94,10 @@ describe("standing still in the app (Android reports a speed anyway)", () => {
     }
     expect(v).toBeGreaterThan(10);
   });
+
+  it("reads a plane's speed (900 km/h), with or without the phone's own speed", () => {
+    // From a standstill it climbs over ~10 s (one wild reading can't jump it), then holds.
+    expect(simulate(15, () => 250, (_t, v) => v).slice(-3)).toEqual([900, 900, 900]);
+    expect(simulate(16, () => 250, () => null).slice(-1)[0]).toBeGreaterThanOrEqual(895);
+  });
 });

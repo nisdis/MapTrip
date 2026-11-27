@@ -3,6 +3,7 @@ import type { FixListener, LocationData } from "./useLocationTracking";
 import type { TrackGap, TrackPoint } from "../types/trip";
 import { fillGap } from "../services/gapFill";
 import { haversine } from "../utils/geo";
+import { MAX_PLAUSIBLE_MS } from "../utils/speedEstimator";
 import { clearDraft, loadDraft, saveDraft, type TripDraft } from "../services/draftStore";
 import { isInApp } from "../services/appBridge";
 
@@ -10,7 +11,6 @@ export type RecorderStatus = "idle" | "recording" | "paused" | "review";
 
 const MIN_MOVE_M = 5; // ignore GPS jitter while standing still
 const MAX_ACCURACY_M = 50; // ignore poor fixes
-const MAX_PLAUSIBLE_MS = 100; // 360 km/h: anything faster is a GPS glitch
 const DRAFT_SAVE_EVERY_MS = 4000;
 // No fixes for this long, then a jump of at least GAP_MIN_M, means tracking was
 // paused (screen off / app in background) rather than you standing still.
@@ -75,10 +75,11 @@ export function useTripRecorder(subscribe: (listener: FixListener) => () => void
     for (const fix of batch) {
       if (fix.timestamp <= lastFixTs.current) continue; // seen it (or out of order)
       lastFixTs.current = fix.timestamp;
-      // Every fix counts as "still tracking" (including standing still), so only
-      // a real silence (screen off, app paused) looks like a gap.
+      // Every usable fix counts as "still tracking" (standing still included), so
+      // only a real silence looks like a gap: screen off, app paused, or no GPS
+      // (on a plane, in a tunnel). Fixes we can't use don't count: while GPS is
+      // lost the phone still sends vague network positions.
       const sinceLastFix = lastSeenFixAt.current ? fix.timestamp - lastSeenFixAt.current : 0;
-      lastSeenFixAt.current = fix.timestamp;
       if (fix.accuracy > MAX_ACCURACY_M) continue;
 
       const [lat, lng] = fix.position;
@@ -90,6 +91,9 @@ export function useTripRecorder(subscribe: (listener: FixListener) => () => void
       // fix is close to the last trail point (that made slow travel show 0).
       const speed = fix.speed;
       if (speed > MAX_PLAUSIBLE_MS || dt < 0) continue;
+      // A jump faster than any plane, without a silence before it: a GPS glitch.
+      if (prev && dt > 0 && sinceLastFix <= GAP_MS && moved / dt > MAX_PLAUSIBLE_MS) continue;
+      lastSeenFixAt.current = fix.timestamp;
 
       latest = fix;
       if (prev && moved < MIN_MOVE_M) continue; // standing still: don't pile up points

@@ -25,7 +25,7 @@ export const START_PRIVACY_M = 300;
 /** Above this, the stored trail is thinned (every other point dropped). */
 export const MAX_STORED_POINTS = 20_000;
 export const MAX_POINTS_PER_UPDATE = 2_000;
-const MAX_SPEED_MS = 150; // 540 km/h: anything faster is bad data
+const MAX_SPEED_MS = 340; // ~1,220 km/h (a plane with a tailwind): anything faster is bad data
 
 export const TOKEN_RE = /^[A-Za-z0-9_-]{22}$/;
 

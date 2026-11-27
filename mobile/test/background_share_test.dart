@@ -65,7 +65,7 @@ void main() {
     final s = make()..handoff(handoff(lastT: t0 + 10000));
     s.onFix(fix(1)); // the server already has this time
     s.onFix(fix(2, accuracy: 80)); // too vague
-    s.onFix(fix(3, speed: 200)); // a glitch
+    s.onFix(fix(3, speed: 400)); // a glitch (faster than any plane)
     s.onFix(fix(4));
     s.onFix(Fix(seq: 5, lat: 12.97 + 4 * 0.001 + 0.00001, lng: 77.6, t: t0 + 50000, accuracy: 5, speed: 0)); // ~1 m
     expect(s.unsent.length, 1);

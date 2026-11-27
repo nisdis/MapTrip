@@ -50,7 +50,7 @@ class ShareHandoff {
 /// see while the phone is locked matches the one the page builds later.
 const double maxAccuracyM = 50;
 const double minMoveM = 5;
-const double maxPlausibleMs = 100;
+const double maxPlausibleMs = 340; // ~1,220 km/h: a plane with a tailwind
 
 /// Keeps a live share going while the phone is locked (the web page is frozen
 /// then). Uses the page's last report, adds what has been recorded since, and

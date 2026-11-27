@@ -103,7 +103,7 @@ export function statsOf(data: unknown, points: SharePoint[]) {
   return {
     distanceM: num(d.distanceM),
     durationS: num(d.durationS),
-    maxSpeedMs: Math.min(maxSpeedMs, 150),
+    maxSpeedMs: Math.min(maxSpeedMs, 340), // ~1,220 km/h: a plane, at most
     date: new Date(num(d.createdAt)).toISOString().slice(0, 10),
   };
 }
