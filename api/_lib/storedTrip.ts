@@ -1,17 +1,34 @@
 import type { Pool, PoolClient } from "pg";
 import { decodeTrack, encodeTrack, isTrackTable, routePolylines } from "./trackFormat.js";
 import { routeFromPlanned } from "./plannedRoute.js";
+import { cellsOfTrack } from "./explored.js";
 
 /**
  * A trip as it goes into the database: the track as a table (see
  * trackFormat.ts) whatever format it arrived in, plus the finished route as
  * encoded polylines (null for planned trips or when there's no route).
  */
-export function toStored(trip: Record<string, unknown>): { data: Record<string, unknown>; polyline: string[] | null } {
-  if (trip.track == null) return { data: trip, polyline: null };
+export function toStored(trip: Record<string, unknown>): {
+  data: Record<string, unknown>;
+  polyline: string[] | null;
+  /** the Explored map's squares it passed through */
+  cells: string[] | null;
+} {
+  if (trip.track == null) return { data: trip, polyline: null, cells: null };
   const points = decodeTrack(trip.track);
   const lines = routePolylines(points);
-  return { data: { ...trip, track: encodeTrack(points) }, polyline: lines.length ? lines : null };
+  return { data: { ...trip, track: encodeTrack(points) }, polyline: lines.length ? lines : null, cells: cellsOfTrack(points) };
+}
+
+/** Fills in Explored squares for trips saved before they existed. Safe to run again. */
+export async function backfillCells(db: Pool | PoolClient): Promise<number> {
+  const { rows } = await db.query<{ id: string; data: Record<string, unknown> }>(
+    "select id, data from trips where cells is null and data ? 'track'",
+  );
+  for (const r of rows) {
+    await db.query("update trips set cells = $2::jsonb where id = $1", [r.id, JSON.stringify(cellsOfTrack(decodeTrack(r.data.track)))]);
+  }
+  return rows.length;
 }
 
 /**

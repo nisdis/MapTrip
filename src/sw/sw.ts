@@ -54,6 +54,13 @@ registerRoute(
   new CacheFirst({ cacheName: "map-assets", plugins: [ok, new ExpirationPlugin({ maxEntries: 1500, maxAgeSeconds: 60 * 24 * 3600 })] }),
 );
 
+// World borders for the Explored map: downloaded the first time it's opened,
+// then kept (they change once in years; a new version gets a new ?v=).
+registerRoute(
+  ({ url }) => url.origin === self.location.origin && url.pathname.startsWith("/borders/"),
+  new CacheFirst({ cacheName: "borders", plugins: [ok, new ExpirationPlugin({ maxEntries: 4 })] }),
+);
+
 // Place search results (recent searches work offline).
 registerRoute(
   ({ url }) => url.origin === "https://nominatim.openstreetmap.org" && url.pathname.startsWith("/search"),

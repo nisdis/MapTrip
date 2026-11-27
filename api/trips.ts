@@ -42,6 +42,14 @@ async function handle(request: Request): Promise<Response> {
     const pool = getPool();
 
     if (request.method === "GET") {
+      // The Explored map: every square any of the account's trips passed through.
+      if (new URL(request.url).searchParams.has("explored")) {
+        const { rows } = await pool.query<{ cell: string }>(
+          `select distinct jsonb_array_elements_text(cells) as cell from trips where user_id = $1 and cells is not null`,
+          [userId],
+        );
+        return json({ cells: rows.map((r) => r.cell) });
+      }
       // One trip, in full (opened on another device).
       const id = new URL(request.url).searchParams.get("id");
       if (id != null) {
@@ -127,15 +135,16 @@ async function handle(request: Request): Promise<Response> {
       // The track is stored as a table of points, with the route as polylines.
       const stored = toStored({ ...trip, photos, cloudSyncedAt: syncedAt });
       const result = await pool.query(
-        `insert into trips (id, user_id, data, polyline, created_at)
-         values ($1, $2, $3::jsonb, $4::jsonb, to_timestamp($5 / 1000.0))
-         on conflict (id) do update set data = excluded.data, polyline = excluded.polyline
+        `insert into trips (id, user_id, data, polyline, cells, created_at)
+         values ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, to_timestamp($6 / 1000.0))
+         on conflict (id) do update set data = excluded.data, polyline = excluded.polyline, cells = excluded.cells
          where trips.user_id = excluded.user_id`,
         [
           trip.id,
           userId,
           JSON.stringify(stored.data),
           stored.polyline ? JSON.stringify(stored.polyline) : null,
+          stored.cells ? JSON.stringify(stored.cells) : null,
           createdAt,
         ],
       );
