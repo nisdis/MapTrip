@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
-import { bboxOf, pointsOf, trimEnds, type ShareSettings } from "./publicTrip.js";
-import { routePolylines } from "./trackFormat.js";
+import { bboxOf, pointsOf, trimEnds, type SharePoint, type ShareSettings } from "./publicTrip.js";
+import { decodeTrack, routePolylines } from "./trackFormat.js";
+import { cellsOfTrack } from "./explored.js";
 
 /** Card drawings only need the shape: a coarser line is plenty, and smaller. */
 const SHARE_LINE_TOLERANCE_M = 15;
@@ -21,8 +22,11 @@ export async function refreshShareGeometry(db: Pool | PoolClient, tripId: string
   const visible = trimEnds(pointsOf(rows[0].data), rows[0].share?.hideM ?? 500);
   const box = visible.length >= 2 ? bboxOf(visible) : null;
   const lines = routePolylines(visible, SHARE_LINE_TOLERANCE_M);
+  // Explored squares others may see: from the same trimmed route (with altitude, so flights don't count).
+  const full = decodeTrack((rows[0].data as { track?: unknown })?.track) as unknown as SharePoint[];
+  const cells = cellsOfTrack(trimEnds(full, rows[0].share?.hideM ?? 500));
   await db.query(
-    `update trips set min_lat = $2, max_lat = $3, min_lng = $4, max_lng = $5, share_polyline = $6::jsonb
+    `update trips set min_lat = $2, max_lat = $3, min_lng = $4, max_lng = $5, share_polyline = $6::jsonb, share_cells = $7::jsonb
      where id = $1`,
     [
       tripId,
@@ -31,6 +35,7 @@ export async function refreshShareGeometry(db: Pool | PoolClient, tripId: string
       box?.minLng ?? null,
       box?.maxLng ?? null,
       JSON.stringify(lines),
+      JSON.stringify(cells),
     ],
   );
   return visible.length;
@@ -38,7 +43,7 @@ export async function refreshShareGeometry(db: Pool | PoolClient, tripId: string
 
 /** Fills in share_polyline for trips saved before it existed. Safe to run again. */
 export async function backfillShareGeometry(db: Pool | PoolClient): Promise<number> {
-  const { rows } = await db.query<{ id: string }>("select id from trips where share_polyline is null");
+  const { rows } = await db.query<{ id: string }>("select id from trips where share_polyline is null or share_cells is null");
   for (const r of rows) await refreshShareGeometry(db, r.id);
   return rows.length;
 }

@@ -190,3 +190,43 @@ describe.skipIf(!hasDb)("usage counts", async () => {
     expect(actorKey(id, "2026-11")).toHaveLength(22);
   });
 });
+
+describe.skipIf(!hasDb)("explored map on profiles", async () => {
+  const auth = await import("../../api/auth");
+  const trips = await import("../../api/trips");
+  const pub = await import("../../api/public");
+  const social = await import("../../api/social");
+  const saved = await import("../../api/saved");
+  const { cellCenter } = await import("../../api/_lib/explored");
+  const { haversineM } = await import("../../api/_lib/live");
+  // 6 km north from "home", then a separate private trip far away.
+  const north = (lat0: number, lng: number) =>
+    Array.from({ length: 61 }, (_, i) => ({ lat: lat0 + i * 0.0009, lng, t: Date.now() - 3_600_000 + i * 10_000, speed: 8 }));
+
+  it("off by default; when on: only shared trips, start/end trimmed, nothing near Home", async () => {
+    const eve = await signUp(auth.POST as never, "eve@test.com");
+    const id = (await (await call(auth.GET as never, "GET", "/api/auth/get-session", undefined, eve)).json()).user.id;
+    await call(pub.POST, "POST", "/api/public", { action: "profile", displayName: "Eve" }, eve);
+    const home = { id: "pin/34.900000,135.760000", name: "Home", category: null, address: null, lat: 34.9, lng: 135.76, countryCode: null };
+    await call(saved.POST, "POST", "/api/saved", { entries: [{ key: "home", kind: "home", list: null, place: home, note: null, createdAt: 1, updatedAt: 1, deleted: false }] }, eve);
+    const shared = { id: randomUUID(), name: "From home", kind: "recorded", createdAt: Date.now() - 3_600_000, track: north(34.9, 135.76), distanceM: 6000, durationS: 600, photos: [] };
+    const secret = { ...shared, id: randomUUID(), name: "Secret", track: north(35.5, 136.5) };
+    await call(trips.POST as never, "POST", "/api/trips", shared, eve);
+    await call(trips.POST as never, "POST", "/api/trips", secret, eve);
+    await call(pub.POST, "POST", "/api/public", { action: "settings", trip: shared.id, visibility: "public" }, eve);
+
+    const look = async () => (await (await call(social.GET, "GET", `/api/social?profile=${id}`)).json()).explored as string[] | null;
+    expect(await look()).toBeNull();
+
+    await call(social.POST, "POST", "/api/social", { action: "settings", showExplored: true }, eve);
+    const cells = (await look())!;
+    expect(cells.length).toBeGreaterThan(2);
+    // Nothing within 1.5 km of Home (the trip starts there; its first 500 m are trimmed anyway).
+    for (const c of cells) expect(haversineM(cellCenter(c), [34.9, 135.76])).toBeGreaterThan(1500);
+    // The private trip's area never shows.
+    expect(cells.every((c) => cellCenter(c)[0] < 35.4)).toBe(true);
+    // Its owner's settings say it's on.
+    const mine = await (await call(social.GET, "GET", `/api/social?profile=${id}`, undefined, eve)).json();
+    expect(mine.settings.showExplored).toBe(true);
+  });
+});

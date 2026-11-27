@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getPeople, saveSocialSettings } from "../services/social";
 import { ChevronDown, ChevronRight, Grid3x3, Lock, Map as MapIcon } from "lucide-react";
 import type { Explored } from "../services/explored";
 import { cellsToKm2 } from "../../api/_lib/explored";
@@ -9,13 +10,29 @@ interface ExploredSheetProps {
   error: string | null;
   signedIn: boolean;
   onShowOnMap: () => void;
-  /** signed in: show it on your profile (off by default) */
-  profile?: { shown: boolean; onChange: (shown: boolean) => void };
 }
 
 /** Everywhere your trips have taken you: squares, countries and regions. */
-export function ExploredSheet({ data, loading, error, signedIn, onShowOnMap, profile }: ExploredSheetProps) {
+export function ExploredSheet({ data, loading, error, signedIn, onShowOnMap }: ExploredSheetProps) {
   const [open, setOpen] = useState<string | null>(null);
+  // Signed in with a public name: the "show on my profile" switch (off by default).
+  const [me, setMe] = useState<{ hasName: boolean; shown: boolean } | null>(null);
+  useEffect(() => {
+    if (!signedIn) return setMe(null);
+    getPeople()
+      .then((p) => setMe({ hasName: !!p.me.displayName, shown: p.me.showExplored }))
+      .catch(() => setMe(null));
+  }, [signedIn]);
+  const profile =
+    me?.hasName
+      ? {
+          shown: me.shown,
+          onChange: (shown: boolean) => {
+            setMe({ ...me, shown });
+            void saveSocialSettings({ showExplored: shown }).catch(() => setMe({ ...me, shown: !shown }));
+          },
+        }
+      : null;
   const squares = data?.cells.length ?? 0;
   return (
     <div className="flex flex-col gap-4 pb-20">
@@ -105,7 +122,8 @@ export function ExploredSheet({ data, loading, error, signedIn, onShowOnMap, pro
                   className="mt-0.5 h-4 w-4"
                 />
                 <span>
-                  Show my explored map on my profile. Squares within 1 km of your Home and Work stay hidden.
+                  Show my explored map on my profile: only squares from trips you've shared, without their hidden
+                  start and end, and never near your Home or Work.
                 </span>
               </label>
             ) : (

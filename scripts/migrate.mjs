@@ -148,6 +148,8 @@ try {
   await pool.query("alter table trips add column if not exists polyline jsonb");
   await pool.query("alter table trips add column if not exists share_polyline jsonb");
   await pool.query("alter table trips add column if not exists cells jsonb");
+  await pool.query("alter table trips add column if not exists share_cells jsonb");
+  await pool.query("alter table profiles add column if not exists show_explored boolean not null default false");
   try {
     const { register } = await import("tsx/esm/api");
     register();

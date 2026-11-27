@@ -40,7 +40,9 @@ export interface Profile {
   relationship: Relationship;
   trips: TripCard[];
   achievements: Achievement[] | null;
-  settings?: { leaderboard: boolean; showAchievements: boolean };
+  settings?: { leaderboard: boolean; showAchievements: boolean; showExplored: boolean };
+  /** their Explored map's squares, if they show it (from trips you may see) */
+  explored?: string[] | null;
 }
 
 export interface Person {
@@ -50,7 +52,7 @@ export interface Person {
 }
 
 export interface People {
-  me: { userId: string; displayName: string | null; leaderboard: boolean; showAchievements: boolean };
+  me: { userId: string; displayName: string | null; leaderboard: boolean; showAchievements: boolean; showExplored: boolean };
   requests: Person[];
   followers: Person[];
   following: Person[];
@@ -101,4 +103,5 @@ export const respond = (user: string, accept: boolean) => post({ action: "respon
 export const removeFollower = (user: string) => post({ action: "removeFollower", user });
 export const block = (user: string) => post({ action: "block", user });
 export const unblock = (user: string) => post({ action: "unblock", user });
-export const saveSocialSettings = (s: { leaderboard?: boolean; showAchievements?: boolean }) => post({ action: "settings", ...s });
+export const saveSocialSettings = (s: { leaderboard?: boolean; showAchievements?: boolean; showExplored?: boolean }) =>
+  post({ action: "settings", ...s });

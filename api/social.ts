@@ -3,6 +3,11 @@ import { getPool } from "./_lib/db.js";
 import { rejectForeignOrigin } from "./_lib/origin.js";
 import { achievementsFor, factsOf } from "./_lib/achievements.js";
 import { statsOf, pointsOf } from "./_lib/publicTrip.js";
+import { cellCenter } from "./_lib/explored.js";
+import { haversineM } from "./_lib/live.js";
+
+/** Explored squares this close to someone's Home or Work never show on their profile. */
+const EXPLORED_HIDE_M = 1500;
 
 // Following, blocking, profiles, the Following feed, the leaderboard and
 // achievements.
@@ -70,8 +75,8 @@ const tripCard = (r: CardRow) => {
 async function profile(request: Request, userId: string): Promise<Response> {
   const me = (await sessionUser(request))?.id ?? null;
   const pool = getPool();
-  const { rows } = await pool.query<{ display_name: string; show_achievements: boolean; leaderboard: boolean }>(
-    "select display_name, show_achievements, leaderboard from profiles where user_id = $1",
+  const { rows } = await pool.query<{ display_name: string; show_achievements: boolean; leaderboard: boolean; show_explored: boolean }>(
+    "select display_name, show_achievements, leaderboard, show_explored from profiles where user_id = $1",
     [userId],
   );
   const p = rows[0];
@@ -99,16 +104,37 @@ async function profile(request: Request, userId: string): Promise<Response> {
     achievements = achievementsFor(all.rows.map((r) => factsOf(r.data)));
     if (!isMe) achievements = achievements.filter((a) => a.earned);
   }
+  // Explored map, if they chose to show it: only from trips this viewer may
+  // see, as shared (start and end trimmed), never near their Home or Work.
+  let explored: string[] | null = null;
+  if (p.show_explored) {
+    const cells = await pool.query<{ cell: string }>(
+      `select distinct jsonb_array_elements_text(share_cells) as cell from trips
+       where user_id = $1 and share_cells is not null and data->>'kind' = 'recorded'
+         and (visibility = 'public' or (visibility = 'unlisted' and $2::boolean))
+         and (hidden_at is null or visibility <> 'public')`,
+      [userId, canSeeUnlisted],
+    );
+    const homes = await pool.query<{ lat: number; lng: number }>(
+      `select (data->'place'->>'lat')::float as lat, (data->'place'->>'lng')::float as lng from saved_places
+       where user_id = $1 and key in ('home', 'work') and coalesce((data->>'deleted')::boolean, false) = false`,
+      [userId],
+    );
+    explored = cells.rows
+      .map((r) => r.cell)
+      .filter((c) => !homes.rows.some((h) => haversineM(cellCenter(c), [h.lat, h.lng]) < EXPLORED_HIDE_M));
+  }
   return json({
     userId,
     displayName: p.display_name,
+    explored,
     isMe,
     followers: counts.rows[0].followers,
     following: counts.rows[0].following,
     relationship: rel,
     trips: trips.rows.map(tripCard),
     achievements,
-    settings: isMe ? { leaderboard: p.leaderboard, showAchievements: p.show_achievements } : undefined,
+    settings: isMe ? { leaderboard: p.leaderboard, showAchievements: p.show_achievements, showExplored: p.show_explored } : undefined,
   });
 }
 
@@ -132,12 +158,12 @@ async function people(me: string): Promise<Response> {
     list(`select b.blocked_id as user_id, p.display_name, b.created_at as at from blocks b left join profiles p on p.user_id = b.blocked_id
           where b.blocker_id = $1 order by b.created_at desc`),
   ]);
-  const { rows } = await pool.query<{ display_name: string; leaderboard: boolean; show_achievements: boolean }>(
-    "select display_name, leaderboard, show_achievements from profiles where user_id = $1",
+  const { rows } = await pool.query<{ display_name: string; leaderboard: boolean; show_achievements: boolean; show_explored: boolean }>(
+    "select display_name, leaderboard, show_achievements, show_explored from profiles where user_id = $1",
     [me],
   );
   return json({
-    me: { userId: me, displayName: rows[0]?.display_name ?? null, leaderboard: rows[0]?.leaderboard ?? false, showAchievements: rows[0]?.show_achievements ?? false },
+    me: { userId: me, displayName: rows[0]?.display_name ?? null, leaderboard: rows[0]?.leaderboard ?? false, showAchievements: rows[0]?.show_achievements ?? false, showExplored: rows[0]?.show_explored ?? false },
     requests,
     followers,
     following,
@@ -225,6 +251,9 @@ export async function POST(request: Request): Promise<Response> {
       }
       if (typeof body.showAchievements === "boolean") {
         await pool.query("update profiles set show_achievements = $2 where user_id = $1", [me.id, body.showAchievements]);
+      }
+      if (typeof body.showExplored === "boolean") {
+        await pool.query("update profiles set show_explored = $2 where user_id = $1", [me.id, body.showExplored]);
       }
       return json({ ok: true });
     }

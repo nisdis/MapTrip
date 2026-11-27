@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Award, Ban, Check, Lock, Route, Share2, UserMinus, UserPlus, UserRound, Users } from "lucide-react";
+import { Award, Ban, Check, Lock, Route, Share2, UserMinus, UserPlus, UserRound, Users, Grid3x3 } from "lucide-react";
 import { AuthForm } from "../components/AuthForm";
 import { useAuth } from "../hooks/useAuth";
 import { shareLink } from "../services/appBridge";
@@ -17,6 +17,7 @@ import {
 } from "../services/social";
 import { formatClock, formatKm } from "../utils/tripStats";
 import { RouteThumb } from "../components/RouteThumb";
+import { summarize, type Explored } from "../services/explored";
 
 function Toggle({ label, note, on, onChange }: { label: string; note: string; on: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -241,6 +242,12 @@ export default function ProfileViewer({ userId }: { userId: string }) {
               onChange={(v) => void act(() => saveSocialSettings({ showAchievements: v }))}
             />
             <Toggle
+              label="Show my explored map"
+              note="Countries, regions and squares from trips you've shared (not near your Home or Work). Off: only you see it."
+              on={profile.settings.showExplored}
+              onChange={(v) => void act(() => saveSocialSettings({ showExplored: v }))}
+            />
+            <Toggle
               label="Join the leaderboard"
               note="Your weekly and monthly distance, shown to you and people who follow you."
               on={profile.settings.leaderboard}
@@ -248,6 +255,8 @@ export default function ProfileViewer({ userId }: { userId: string }) {
             />
           </section>
         )}
+
+        {profile.explored && profile.explored.length > 0 && <ProfileExplored cells={profile.explored} />}
 
         {profile.achievements && profile.achievements.length > 0 && (
           <section className="mt-6">
@@ -303,5 +312,41 @@ export default function ProfileViewer({ userId }: { userId: string }) {
         </section>
       </div>
     </main>
+  );
+}
+
+/** Someone's Explored map, as they chose to show it: counts and countries. */
+function ProfileExplored({ cells }: { cells: string[] }) {
+  const [data, setData] = useState<Explored | null>(null);
+  useEffect(() => {
+    void summarize(cells)
+      .then(setData)
+      .catch(() => setData(null));
+  }, [cells]);
+  return (
+    <section className="mt-6" aria-label="Explored map">
+      <h2 className="flex items-center gap-2 text-lg font-bold">
+        <Grid3x3 className="h-5 w-5 text-highway" /> Explored
+      </h2>
+      <p className="mt-1 text-sm text-asphalt/70">
+        {cells.length.toLocaleString()} {cells.length === 1 ? "square" : "squares"} (~1 km²)
+        {data && (
+          <>
+            {" "}
+            · {data.countries.length} {data.countries.length === 1 ? "country" : "countries"} · {data.regionCount}{" "}
+            {data.regionCount === 1 ? "region" : "regions"}
+          </>
+        )}
+      </p>
+      {data && data.countries.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-2">
+          {data.countries.map((c) => (
+            <li key={c.code} className="rounded-full bg-asphalt/5 px-3 py-1 text-sm">
+              {c.name} <span className="text-asphalt/60">· {c.regions.length}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
