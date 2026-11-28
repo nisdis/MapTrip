@@ -176,3 +176,44 @@ test("on a plane: speed above 360 km/h shows, and losing GPS mid-flight leaves a
   await expect(hud).toContainText(/incl\. 3\d\.\d\d est\./); // ~30 km across the gap, estimated
   await expect(page.locator('.leaflet-overlay-pane path[stroke-dasharray="2 10"]')).not.toHaveCount(0);
 });
+
+test("recorder: compact view on request, remembered; regular by default", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 760 });
+  await page.goto("/");
+  await page.waitForSelector(".leaflet-container");
+  await fix(page, 12.97, 77.6, 0, 0, 12);
+  await page.getByRole("button", { name: "Record a trip" }).click();
+  const hud = page.locator('section[aria-label="Trip recorder"]');
+  for (let i = 1; i <= 4; i++) await fix(page, 12.97 + i * STEP, 77.6 + i * STEP, i, 20 + i, 40 + i);
+  await expect(hud).toHaveAttribute("data-size", "regular");
+  const regular = (await hud.boundingBox())!.height;
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/recorder-regular.png` });
+
+  await hud.getByRole("button", { name: "Compact recorder view" }).click();
+  await expect(hud).toHaveAttribute("data-size", "compact");
+  const compact = (await hud.boundingBox())!.height;
+  expect(compact).toBeLessThan(regular * 0.5);
+  // Every figure and every action is still there.
+  await expect(hud.getByLabel("Trip so far")).toContainText(/0\.\d\d km · 0:00:0\d · max \d+ km\/h · 44 m/);
+  for (const name of ["Pause", "Add photo or video", "Dim screen (pocket mode). Recording continues.", "Share live location"])
+    await expect(hud.getByLabel(name, { exact: true }).first()).toBeVisible();
+  await expect(hud.getByRole("button", { name: /^Finish trip/ })).toContainText("Hold to finish");
+  // Nothing spills off a narrow phone.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/recorder-compact.png` });
+
+  await hud.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect(hud).toContainText("Paused");
+  await expect(hud.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
+
+  // Remembered on this phone: the next trip starts compact; the same button goes back.
+  await hud.getByRole("button", { name: "Resume", exact: true }).click();
+  await hold(page, 'button[aria-label^="Finish trip"]');
+  await page.getByRole("button", { name: "Save trip" }).click();
+  await page.getByRole("button", { name: "Close trip" }).click();
+  await page.getByRole("button", { name: "Record a trip" }).click();
+  await expect(hud).toHaveAttribute("data-size", "compact");
+  await hud.getByRole("button", { name: "Regular recorder view" }).click();
+  await expect(hud).toHaveAttribute("data-size", "regular");
+  await expect(hud).toContainText("Max speed");
+});
