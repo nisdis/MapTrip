@@ -60,7 +60,7 @@ test("menu: Check for updates says up to date, then finds a new build and reload
 
   const menu = page.getByRole("navigation", { name: "Menu" });
   await page.getByRole("button", { name: "Menu", exact: true }).click();
-  await expect(menu).toContainText(/Version \S+/);
+  await expect(menu).toContainText(/Version \d{4}\.\d{2}\.\d{2} · \d{2}:\d{2} \(\S+\)/);
   await menu.getByRole("button", { name: "Check for updates" }).click();
   await expect(menu).toContainText("You have the latest version.");
 

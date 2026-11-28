@@ -41,3 +41,4 @@ declare module 'leaflet-routing-machine' {
 }
 /** The build's identity (commit, or time for local builds); set in vite.config.ts. */
 declare const __BUILD_ID__: string;
+declare const __BUILD_VERSION__: string;

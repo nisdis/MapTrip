@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useTheme, type ThemePref } from "../theme";
-import { BUILD_ID, checkForUpdate, reloadNow, useUpdate } from "../swUpdate";
+import { BUILD_ID, BUILD_VERSION, checkForUpdate, reloadNow, useUpdate } from "../swUpdate";
 import {
   CircleUserRound,
   Compass,
@@ -166,7 +166,7 @@ function AppUpdate() {
       )}
       <p role="status" className="mt-2 text-center text-xs text-gray-500">
         {note[status] && <span className="block">{note[status]}</span>}
-        Version {BUILD_ID}
+        Version {BUILD_VERSION} <span className="text-gray-400">({BUILD_ID})</span>
       </p>
     </div>
   );

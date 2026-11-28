@@ -16,8 +16,10 @@ import { useSyncExternalStore } from "react";
 
 const CHECK_EVERY_MS = 15 * 60 * 1000;
 
-/** This build: the commit it was built from (or the build time locally). */
+/** This build: the commit it was built from ("local" off Vercel). */
 export const BUILD_ID: string = __BUILD_ID__;
+/** This build's version: when it was built, India time ("2026.11.28 · 10:52"). */
+export const BUILD_VERSION: string = __BUILD_VERSION__;
 
 export type UpdateStatus = "idle" | "checking" | "current" | "downloading" | "ready" | "offline" | "failed";
 

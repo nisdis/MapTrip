@@ -3,11 +3,14 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 // Which build this is: shown in the menu so you can tell whether the app has updated.
-const BUILD_ID =
-  process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? new Date().toISOString().slice(0, 16).replace('T', ' ');
+// The version is when it was built, in India time ("2026.11.28 · 10:52"): a newer one reads bigger.
+const ist = new Date(Date.now() + 5.5 * 3600_000).toISOString();
+const BUILD_VERSION = `${ist.slice(0, 10).replaceAll('-', '.')} · ${ist.slice(11, 16)}`;
+// The commit it was built from (or "local").
+const BUILD_ID = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? 'local';
 
 export default defineConfig({
-  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID), __BUILD_VERSION__: JSON.stringify(BUILD_VERSION) },
   server: {
     // Local dev: forward /api to `vercel dev` (or any server running the api/ functions).
     proxy: { '/api': process.env.API_PROXY_TARGET || 'http://localhost:3000' },
