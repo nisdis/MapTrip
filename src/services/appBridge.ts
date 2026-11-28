@@ -71,7 +71,9 @@ type AppMessage =
   | { type: "batteryStatus" }
   | { type: "theme"; dark: boolean }
   | { type: "saveFile"; name: string; mime: string; text: string }
-  | { type: "openBatterySettings" };
+  | { type: "openBatterySettings" }
+  | { type: "openAppSettings" }
+  | { type: "camera" };
 
 type Incoming = { type: "fixes"; fixes: NativeFix[] } | { type: "resumed" };
 
@@ -149,4 +151,22 @@ export async function saveTextFile(name: string, mime: string, text: string): Pr
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+export type CameraAccess = "granted" | "denied" | "blocked";
+
+/**
+ * In the app: asks Android for the camera if it hasn't been allowed yet.
+ * Outside the app, and in app versions before 1.0.4 (which don't declare the
+ * camera, so the camera app opens without it): "granted".
+ */
+export async function askCamera(): Promise<CameraAccess> {
+  if (!isInApp()) return "granted";
+  const res = await callApp<{ camera?: CameraAccess }>({ type: "camera" });
+  return res?.camera ?? "granted";
+}
+
+/** The app's page in Android settings (to turn the camera back on). */
+export async function openAppSettings(): Promise<void> {
+  await callApp({ type: "openAppSettings" });
 }

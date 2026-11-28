@@ -9,7 +9,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Take photo / Record video. Asked when the Photo/video menu first opens.
+         (Declared, the web view only offers the camera once it is granted.)
+         Picking from the gallery uses Android's photo picker: no media
+         permission needed, so none is asked for. -->
+    <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <application
         android:label="Record My Trip"
         android:name="${applicationName}"

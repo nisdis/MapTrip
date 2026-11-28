@@ -16,6 +16,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { TripNameEditor } from "./TripNameEditor";
+import { MediaPicker } from "./MediaPicker";
 import { RouteThumb } from "./RouteThumb";
 import { DeleteTripDialog, type DeleteScope } from "./DeleteTripDialog";
 import { PhotoThumb } from "./PhotoThumb";
@@ -191,7 +192,7 @@ export function TripsSheet({
       ) : (
         <ul className="space-y-2 pb-20">
           {trips.map((trip) => (
-            <li key={trip.id} className="bg-gray-50 rounded-xl p-3">
+            <li key={trip.id} className="relative bg-gray-50 rounded-xl p-3">
               {renamingId === trip.id && (
                 <TripNameEditor
                   name={trip.name}
@@ -239,27 +240,22 @@ export function TripsSheet({
                   />
                 ))}
                 {!trip.summaryOnly && (
-                <label className="w-16 h-16 flex-shrink-0 flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 text-gray-400 text-[10px] cursor-pointer">
-                  <ImagePlus className="w-5 h-5" />
+                <MediaPicker
+                  placement="below"
+                  buttonLabel={`Add photo or video to ${trip.name}`}
+                  buttonClassName="w-16 h-16 flex-shrink-0 flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 text-gray-400 text-[10px]"
+                  onFiles={async (files) => {
+                    setMessage(null);
+                    try {
+                      await onAddPhoto(trip, files);
+                    } catch (err) {
+                      setMessage(err instanceof Error ? err.message : "Couldn't add it");
+                    }
+                  }}
+                >
+                  <ImagePlus aria-hidden className="w-5 h-5" />
                   Photo / video
-                  <input
-                    type="file"
-                    accept="image/*,video/*"
-                    multiple
-                    className="sr-only"
-                    onChange={async (e) => {
-                      const files = Array.from(e.target.files ?? []);
-                      e.target.value = "";
-                      if (!files.length) return;
-                      setMessage(null);
-                      try {
-                        await onAddPhoto(trip, files);
-                      } catch (err) {
-                        setMessage(err instanceof Error ? err.message : "Couldn't add it");
-                      }
-                    }}
-                  />
-                </label>
+                </MediaPicker>
                 )}
               </div>
               <div className="flex items-center justify-between mt-2">

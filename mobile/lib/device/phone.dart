@@ -65,4 +65,18 @@ class Phone {
       // older Android: nothing to ask
     }
   }
+
+  /// Camera access for Take photo / Record video: 'granted', 'denied' (ask
+  /// again later) or 'blocked' (only Settings can turn it on). Asks if needed.
+  Future<String> askCamera() async {
+    try {
+      var status = await Permission.camera.status;
+      if (status.isDenied) status = await Permission.camera.request();
+      if (status.isGranted || status.isLimited) return 'granted';
+      if (status.isPermanentlyDenied || status.isRestricted) return 'blocked';
+      return 'denied';
+    } catch (_) {
+      return 'granted'; // no runtime permissions here: the camera app decides
+    }
+  }
 }

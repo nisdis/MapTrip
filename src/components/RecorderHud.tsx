@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Moon, Pause, Play, Radio, Square, Camera, Minimize2, Maximize2 } from "lucide-react";
 import { usesRoad, type TrackGap } from "../types/trip";
 import { useReportHeight } from "../hooks/useReportHeight";
+import { MediaPicker } from "./MediaPicker";
 import { isInApp } from "../services/appBridge";
 import {
   SPEED_BANDS,
@@ -238,10 +239,10 @@ function ExtraButtons({ props, compact }: { props: RecorderHudProps; compact: bo
   const size = compact ? "h-12 w-11 flex-shrink-0" : "h-11 flex-1";
   return (
     <>
-      <label
-        aria-label={`Add photo or video${props.mediaCount ? ` (${props.mediaCount} added)` : ""}`}
-        title="Add photo or video"
-        className={`relative flex ${size} cursor-pointer items-center justify-center gap-1.5 rounded-xl border-2 text-sm font-semibold border-asphalt/30 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-asphalt`}
+      <MediaPicker
+        onFiles={props.onAddMedia}
+        buttonLabel={`Add photo or video${props.mediaCount ? ` (${props.mediaCount} added)` : ""}`}
+        buttonClassName={`relative flex ${size} items-center justify-center gap-1.5 rounded-xl border-2 text-sm font-semibold border-asphalt/30 ${focusRing}`}
       >
         <Camera aria-hidden className="h-4 w-4" />
         {!compact && <span aria-hidden className="whitespace-nowrap">Photo/video</span>}
@@ -250,18 +251,7 @@ function ExtraButtons({ props, compact }: { props: RecorderHudProps; compact: bo
             {props.mediaCount}
           </span>
         )}
-        <input
-          type="file"
-          accept="image/*,video/*"
-          multiple
-          className="sr-only"
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? []);
-            e.target.value = "";
-            if (files.length) props.onAddMedia(files);
-          }}
-        />
-      </label>
+      </MediaPicker>
       <button
         type="button"
         onClick={props.onPocket}

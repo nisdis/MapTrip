@@ -220,8 +220,11 @@ class _WebShellState extends State<WebShell> with WidgetsBindingObserver {
       case 'batteryStatus':
         return {'unrestricted': await _phone.batteryUnrestricted()};
       case 'openBatterySettings':
+      case 'openAppSettings':
         await _phone.openSettings();
         return {'ok': true};
+      case 'camera':
+        return {'camera': await _phone.askCamera()};
       case 'recording':
         final state = msg['state'];
         final next = state == 'recording' || state == 'paused'
