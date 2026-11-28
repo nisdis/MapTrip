@@ -2,7 +2,7 @@ import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { getAuth } from "../_lib/auth.js";
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
-// Videos are up to 30 s (checked in the app); this guards against odd files.
+// Videos are up to 1 min, shrunk to 720p in the app (~37 MB a minute); this guards against odd files.
 const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
 const VIDEO_TYPES: Record<string, string> = { mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm" };
 

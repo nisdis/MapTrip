@@ -7,7 +7,7 @@ const file = (name: string, mimeType: string) => ({
   buffer: readFileSync(new URL(`./media/${name}`, import.meta.url)),
 });
 
-test("photos and videos while recording: pinned on the route, open full screen; videos up to 30 s", async ({ page }) => {
+test("photos and videos while recording: pinned on the route, open full screen; videos up to 1 min", async ({ page }) => {
   const alerts: string[] = [];
   page.on("dialog", (d) => alerts.push(d.message()));
   await page.goto("/");
@@ -32,8 +32,8 @@ test("photos and videos while recording: pinned on the route, open full screen; 
   await expect(hud.getByLabel("Add photo or video (2 added)")).toBeVisible();
   await expect(menu).toHaveCount(0); // closes once something is picked
   await hud.getByRole("button", { name: "Add photo or video (2 added)" }).click();
-  await add.setInputFiles([file("clip-35s.webm", "video/webm")]);
-  await expect.poll(() => alerts.join("\n")).toContain("Videos can be up to 30 seconds; this one is 35 s");
+  await add.setInputFiles([file("clip-65s.webm", "video/webm")]);
+  await expect.poll(() => alerts.join("\n")).toContain("Videos can be up to 60 seconds; this one is 65 s");
   await expect(hud.getByLabel("Add photo or video (2 added)")).toBeVisible();
   // Pinned on the route while still recording: taken at the same spot, so one pin with a count.
   await expect(page.locator(".media-pin")).toHaveCount(1);
@@ -116,4 +116,43 @@ test("in the app: the camera is asked for when the menu opens; refused, only the
   await button.click();
   await menu.getByRole("menuitem", { name: "Turn on camera in Settings" }).click();
   expect(await page.evaluate(() => (window as unknown as { __calls: string[] }).__calls)).toContain("openAppSettings");
+});
+
+test("a big video is made smaller on the phone: 720p at a generous bitrate, smaller file", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForSelector(".leaflet-container");
+  await fix(page, 12.97, 77.6, 0, 0);
+  await page.getByRole("button", { name: "Record a trip" }).click();
+  for (let i = 1; i <= 3; i++) await fix(page, 12.97 + i * 0.001, 77.6, i, 10);
+  const hud = page.locator('section[aria-label="Trip recorder"]');
+  await hud.getByRole("button", { name: "Add photo or video" }).click();
+  const original = file("clip-1080p-3s.webm", "video/webm");
+  await page.getByRole("menuitem", { name: "Choose from gallery" }).locator("input").setInputFiles([original]);
+  await expect(hud.getByLabel("Add photo or video (1 added)")).toBeVisible({ timeout: 60_000 });
+
+  // What was kept on the phone: 720p, the same length, far smaller than 2.8 MB.
+  const kept = await page.evaluate(async () => {
+    const db: IDBDatabase = await new Promise((ok, no) => {
+      const r = indexedDB.open("record-my-trip");
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => no(r.error);
+    });
+    const store = db.transaction("photos").objectStore("photos");
+    const all: unknown[] = await new Promise((ok) => {
+      const r = store.getAll();
+      r.onsuccess = () => ok(r.result);
+    });
+    const blob = all.find((v) => v instanceof Blob) as Blob;
+    const v = document.createElement("video");
+    v.src = URL.createObjectURL(blob);
+    await new Promise((ok) => (v.onloadedmetadata = ok));
+    return { size: blob.size, type: blob.type, width: v.videoWidth, height: v.videoHeight, seconds: v.duration };
+  });
+  expect(kept.height).toBe(720);
+  expect(kept.width).toBe(1280);
+  expect(kept.seconds).toBeGreaterThan(2.5);
+  // ~5 Mbit/s (generous for 720p), down from ~7.7 in the original.
+  expect((kept.size * 8) / kept.seconds).toBeLessThan(6_500_000);
+  expect(kept.size).toBeLessThan(original.buffer.length * 0.85);
+  expect(kept.type).toMatch(/^video\/(mp4|webm)$/);
 });

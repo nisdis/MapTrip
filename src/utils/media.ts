@@ -2,9 +2,14 @@ import type { TrackPoint, TripPhoto } from "../types/trip";
 
 // Photos and videos on a trip: when they were taken, and where on the route.
 
-export const MAX_VIDEO_S = 30;
-/** 30 s of phone video is well under this; it guards against odd files. */
+export const MAX_VIDEO_S = 60;
+/**
+ * The most a video may be as kept and uploaded. Videos are shrunk to 720p on
+ * the phone first (~37 MB a minute); this is for phones that can't shrink.
+ */
 export const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
+/** The most a chosen video may be before shrinking (a minute of 4K is ~400 MB). */
+export const MAX_VIDEO_INPUT_BYTES = 1024 * 1024 * 1024;
 export const VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
 export const videoExt = (mime: string) => (mime === "video/quicktime" ? "mov" : mime === "video/webm" ? "webm" : "mp4");
 

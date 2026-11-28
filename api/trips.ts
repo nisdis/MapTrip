@@ -124,7 +124,7 @@ async function handle(request: Request): Promise<Response> {
                 addedAt: Number(p.addedAt) || 0,
                 cloudPath: p.cloudPath as string,
                 kind: video ? ("video" as const) : ("photo" as const),
-                ...(video ? { mime: p.mime as string, durationS: n(p.durationS, 0, 60) } : {}),
+                ...(video ? { mime: p.mime as string, durationS: n(p.durationS, 0, 61) } : {}),
                 takenAt: n(p.takenAt, 0, 1e14) ?? null,
                 ...(lat != null && lng != null ? { lat, lng } : {}),
               };

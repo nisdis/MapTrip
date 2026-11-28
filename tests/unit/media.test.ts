@@ -49,3 +49,20 @@ describe("where on the route", () => {
     expect(out.map((m) => [m.lat, m.lng])).toEqual([[10.005, 20], [1, 2], [undefined, undefined]]);
   });
 });
+
+describe("making videos smaller", async () => {
+  const { targetSize, needsShrink } = await import("../../src/services/videoShrink");
+  it("720 on the short side, same shape, even numbers; small ones stay as they are", () => {
+    expect(targetSize(3840, 2160)).toEqual({ width: 1280, height: 720 });
+    expect(targetSize(1080, 1920)).toEqual({ width: 720, height: 1280 }); // upright
+    expect(targetSize(1440, 1080)).toEqual({ width: 960, height: 720 });
+    expect(targetSize(1280, 720)).toBeNull();
+  });
+  it("shrinks big or heavy videos and MOV; leaves small ones alone", () => {
+    const mb = 1024 * 1024;
+    expect(needsShrink({ width: 1920, height: 1080, bytes: 5 * mb, seconds: 10, mime: "video/mp4" })).toBe(true);
+    expect(needsShrink({ width: 1280, height: 720, bytes: 60 * mb, seconds: 30, mime: "video/mp4" })).toBe(true); // 16 Mbit/s
+    expect(needsShrink({ width: 1280, height: 720, bytes: 10 * mb, seconds: 30, mime: "video/mp4" })).toBe(false); // ~2.8 Mbit/s
+    expect(needsShrink({ width: 640, height: 480, bytes: 1 * mb, seconds: 5, mime: "video/quicktime" })).toBe(true);
+  });
+});

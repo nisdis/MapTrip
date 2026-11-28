@@ -92,6 +92,7 @@ import { track } from "./services/usage";
 import { TripView } from "./components/TripView";
 import { ReplayLayer } from "./components/ReplayLayer";
 import { useReplay } from "./hooks/useReplay";
+import { VideoProgress } from "./components/VideoProgress";
 import { cleanTripName } from "../api/_lib/tripName";
 import { buildTimeline } from "./utils/replay";
 
@@ -1372,6 +1373,8 @@ function App() {
           Search this area
         </button>
       )}
+
+      <VideoProgress />
 
       {!isOnline && !isRecorderActive && (
         <div
