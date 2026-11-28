@@ -6,15 +6,26 @@ import {
   hasUnsyncedPhotos,
   listCloudTrips,
   pendingDeletes,
+  renameCloudTrip,
   saveTripToCloud,
   unqueueDelete,
 } from "../services/cloudTrips";
 
-/** A trip that isn't (fully) in the account yet: never uploaded, or has new photos. */
-export const needsSync = (t: Trip) => !t.summaryOnly && (!t.cloudSyncedAt || hasUnsyncedPhotos(t));
+/** A trip that isn't (fully) in the account yet: never uploaded, new photos, or renamed here. */
+export const needsSync = (t: Trip) =>
+  !!t.renamed || (!t.summaryOnly && (!t.cloudSyncedAt || hasUnsyncedPhotos(t)));
+
+/** Only the name is new: the account has everything else. */
+const onlyRenamed = (t: Trip) => !!t.renamed && (!!t.summaryOnly || (!!t.cloudSyncedAt && !hasUnsyncedPhotos(t)));
 
 /** Trips this account may upload: its own, and ones recorded while signed out. */
 export const uploadsTo = (t: Trip, userId: string) => needsSync(t) && (!t.ownerId || t.ownerId === userId);
+
+/** Renamed again while this copy was going up: keep that name (it goes up next). */
+function keepNewerName(next: Trip, sent: Trip, current: Trip[]): Trip {
+  const now = current.find((t) => t.id === sent.id);
+  return now && now.name !== sent.name ? { ...next, name: now.name, renamed: true } : next;
+}
 
 export interface TripStoreOps {
   /** save without refreshing the list */
@@ -71,8 +82,17 @@ export function useTripSync(trips: Trip[], userId: string | null, ops: TripStore
       for (const trip of pending) {
         if (!navigator.onLine) break;
         try {
-          const saved = await saveTripToCloud(trip, userId);
-          await save({ ...saved, ownerId: userId });
+          if (onlyRenamed(trip)) {
+            const at = await renameCloudTrip(trip.id, trip.name);
+            const next: Trip = { ...trip, ownerId: userId };
+            delete next.renamed;
+            if (at != null) next.cloudSyncedAt = at;
+            else if (!trip.summaryOnly) delete next.cloudSyncedAt; // gone from the account: upload it again next
+            await save(keepNewerName(next, trip, tripsRef.current));
+          } else {
+            const saved = await saveTripToCloud(trip, userId);
+            await save(keepNewerName({ ...saved, ownerId: userId }, trip, tripsRef.current));
+          }
           changed = true;
           setFailed((f) => {
             if (!(trip.id in f)) return f;

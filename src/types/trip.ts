@@ -109,6 +109,8 @@ export interface Trip {
    * everything except the track, which is fetched when the trip is opened.
    */
   summaryOnly?: boolean;
+  /** renamed on this device and the account doesn't have the new name yet */
+  renamed?: boolean;
   /** summaryOnly trips: the route's shape, as encoded polylines */
   line?: string[];
 }

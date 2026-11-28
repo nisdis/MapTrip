@@ -53,6 +53,30 @@ describe.skipIf(!hasDb)("trips on every device, deleting, saved routes", async (
     expect((await call(trips.GET as never, "GET", `/api/trips?id=${t.id}`, undefined, bo)).status).toBe(404);
   });
 
+  it("renames a trip: only the name changes, shown on its share page; not someone else's", async () => {
+    const t = recorded({ name: "Old name" });
+    await save(t, ann);
+    await call(pub.POST, "POST", "/api/public", { action: "profile", displayName: "Ann" }, ann);
+    await call(pub.POST, "POST", "/api/public", { action: "settings", trip: t.id, visibility: "public" }, ann);
+    const rename = (name: unknown, who: string, id = t.id) =>
+      call(trips.PATCH as never, "PATCH", `/api/trips?id=${id}`, { name }, who);
+
+    const res = await rename("  Coast   ride ", ann);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.name).toBe("Coast ride");
+    const one = (await (await call(trips.GET as never, "GET", `/api/trips?id=${t.id}`, undefined, ann)).json()).trip;
+    expect(one).toMatchObject({ name: "Coast ride", cloudSyncedAt: body.syncedAt, distanceM: 3300 });
+    expect(one.track.rows).toHaveLength(30);
+    const shared = await (await call(pub.GET, "GET", `/api/public?trip=${t.id}`)).json();
+    expect(JSON.stringify(shared)).toContain("Coast ride");
+
+    expect((await rename("   ", ann)).status).toBe(400);
+    expect((await rename("Mine now", bo)).status).toBe(404);
+    expect((await rename("x", ann, "not-a-uuid")).status).toBe(400);
+    expect((await rename("x", ann, randomUUID())).status).toBe(404);
+  });
+
   it("deleting a shared trip removes it from its link and Explore too", async () => {
     const t = recorded({ name: "Shared then deleted" });
     await save(t, ann);

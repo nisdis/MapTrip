@@ -14,6 +14,7 @@ async function tripBody(trip: Trip): Promise<{ body: BodyInit; type: string }> {
   delete rest.ownerId;
   delete rest.summaryOnly;
   delete rest.line;
+  delete rest.renamed;
   const json = JSON.stringify(toStoredTrip(rest));
   if (typeof CompressionStream === "undefined") return { body: json, type: "application/json" };
   const stream = new Blob([json]).stream().pipeThrough(new CompressionStream("gzip"));
@@ -80,7 +81,25 @@ export async function saveTripToCloud(trip: Trip, userId: string): Promise<Trip>
   if (response.status === 413) throw new Error("This trip is too large to save to the cloud");
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.message || "Failed to save to cloud");
-  return { ...toSave, cloudSyncedAt: body.syncedAt as number };
+  const saved: Trip = { ...toSave, cloudSyncedAt: body.syncedAt as number };
+  delete saved.renamed; // the new name went up with the rest
+  return saved;
+}
+
+/**
+ * Sends a new name for a trip already in the account. Returns when the account
+ * was updated, or null if the trip isn't in the account (any more).
+ */
+export async function renameCloudTrip(id: string, name: string): Promise<number | null> {
+  const res = await fetch(`/api/trips?id=${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (res.status === 404) return null;
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.message || "Couldn't rename the trip in your account");
+  return body.syncedAt as number;
 }
 
 /** Every trip in the account, without tracks (to list them on any device). */

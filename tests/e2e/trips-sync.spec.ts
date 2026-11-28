@@ -185,3 +185,42 @@ test("a planned trip already on the phone (older version) moves to Saved › Rou
   }, { timeout: 10_000 }).toContain("Old plan to Gion");
   expect(await tripsText(page)).not.toContain("Old plan to Gion");
 });
+
+test("renaming a trip: on the open trip and in the list; the other device gets it", async ({ browser }) => {
+  const a = await device(browser);
+  const b = await device(browser);
+  await signIn(a, "signup", "rename@test.com");
+  await signIn(b, "signin", "rename@test.com");
+  await record(a, "First name", 35.1);
+  await expect.poll(() => tripsText(b), { timeout: 20_000 }).toContain("First name");
+
+  // On the open trip: pencil, type, Enter. Esc cancels.
+  await openMenu(a, "Trips");
+  await a.getByRole("button", { name: /First name/ }).first().click();
+  const panel = a.getByRole("region", { name: "Trip" });
+  await panel.getByRole("button", { name: "Rename trip" }).click();
+  await panel.getByLabel("Trip name").fill("Discarded");
+  await panel.getByLabel("Trip name").press("Escape");
+  await expect(panel.getByRole("heading", { name: "First name" })).toBeVisible();
+  await panel.getByRole("button", { name: "Rename trip" }).click();
+  await panel.getByLabel("Trip name").fill("   ");
+  await panel.getByLabel("Trip name").press("Enter");
+  await expect(panel.getByRole("alert")).toHaveText("Give the trip a name");
+  await panel.getByLabel("Trip name").fill("  Hill   loop ");
+  await panel.getByLabel("Trip name").press("Enter");
+  await expect(panel.getByRole("heading", { name: "Hill loop" })).toBeVisible();
+  await expect.poll(() => tripsText(b), { timeout: 20_000 }).toContain("Hill loop");
+
+  // From the list on the other device, where it is only a summary (never opened there).
+  await openMenu(b, "Trips");
+  await b.getByRole("button", { name: "Rename Hill loop" }).click();
+  await b.getByLabel("Trip name").fill("Sunday hill loop");
+  await b.getByRole("button", { name: "Save name" }).click();
+  await expect(b.getByText("Sunday hill loop")).toBeVisible();
+  await b.locator('button[aria-label="Close"]').first().click();
+  await expect.poll(() => tripsText(a), { timeout: 20_000 }).toContain("Sunday hill loop");
+  // Still renamed after a reload.
+  await a.reload();
+  await a.waitForSelector(".leaflet-container");
+  expect(await tripsText(a)).toContain("Sunday hill loop");
+});

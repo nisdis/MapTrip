@@ -21,6 +21,7 @@ const LABELS: Record<string, string> = {
   reaction_added: "Reacted to a trip",
   comment_added: "Commented on a trip",
   challenges_opened: "Opened Challenges",
+  trip_renamed: "Renamed a trip",
 };
 
 /** Admins: how the app is used (anonymous counts; people = devices or accounts). */

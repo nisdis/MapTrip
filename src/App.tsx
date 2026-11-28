@@ -92,6 +92,7 @@ import { track } from "./services/usage";
 import { TripView } from "./components/TripView";
 import { ReplayLayer } from "./components/ReplayLayer";
 import { useReplay } from "./hooks/useReplay";
+import { cleanTripName } from "../api/_lib/tripName";
 import { buildTimeline } from "./utils/replay";
 
 function App() {
@@ -559,6 +560,24 @@ function App() {
       if (!userId) throw new Error("Please sign in to save to the cloud");
       const saved = await saveTripToCloud(trip, userId);
       await persistTrip(saved);
+    },
+    [persistTrip],
+  );
+
+  // A new name: here at once; in the account (other devices, share page) on the next sync.
+  const tripsNow = useRef(trips);
+  tripsNow.current = trips;
+  const handleRenameTrip = useCallback(
+    async (trip: Trip, raw: string) => {
+      const name = cleanTripName(raw);
+      if (!name) throw new Error("Give the trip a name");
+      const current = tripsNow.current.find((t) => t.id === trip.id) ?? trip;
+      if (name === current.name) return;
+      // Already in the account: only the name needs to go up. Not yet: it goes up with the trip.
+      const renamed: Trip = current.cloudSyncedAt ? { ...current, name, renamed: true } : { ...current, name };
+      await persistTrip(renamed);
+      setViewTrip((v) => (v?.id === trip.id ? { ...v, name, renamed: renamed.renamed } : v));
+      track("trip_renamed");
     },
     [persistTrip],
   );
@@ -1168,6 +1187,7 @@ function App() {
           timeline={viewTimeline}
           replay={replay}
           onClose={() => setViewTrip(null)}
+          onRename={(name) => handleRenameTrip(viewTrip, name)}
           onOpenMedia={openMedia}
           onHeight={setTripPanelHeight}
         />
@@ -1445,6 +1465,7 @@ function App() {
             onStart={handleStartRecording}
             onView={handleViewTrip}
             onDelete={handleDeleteTrip}
+            onRename={handleRenameTrip}
             onAddPhoto={handleAddPhoto}
             onRemovePhoto={handleRemovePhoto}
             onOpenMedia={openMedia}

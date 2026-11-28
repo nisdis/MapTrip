@@ -13,7 +13,9 @@ import {
   Upload,
   FileDown,
   DownloadCloud,
+  Pencil,
 } from "lucide-react";
+import { TripNameEditor } from "./TripNameEditor";
 import { RouteThumb } from "./RouteThumb";
 import { DeleteTripDialog, type DeleteScope } from "./DeleteTripDialog";
 import { PhotoThumb } from "./PhotoThumb";
@@ -35,6 +37,7 @@ interface TripsSheetProps {
   onStart: () => void;
   onView: (trip: Trip) => void;
   onDelete: (trip: Trip, scope: DeleteScope) => void;
+  onRename: (trip: Trip, name: string) => Promise<void>;
   /** photos and videos, several at once */
   onAddPhoto: (trip: Trip, files: File[]) => Promise<void>;
   onRemovePhoto: (trip: Trip, photoId: string) => void;
@@ -58,6 +61,7 @@ export function TripsSheet({
   onStart,
   onView,
   onDelete,
+  onRename,
   onAddPhoto,
   onRemovePhoto,
   onOpenMedia,
@@ -71,6 +75,7 @@ export function TripsSheet({
 }: TripsSheetProps) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Trip | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   // Trip waiting for the user to sign in before it is saved to the cloud.
   const [needsLoginFor, setNeedsLoginFor] = useState<Trip | null>(null);
@@ -187,11 +192,19 @@ export function TripsSheet({
         <ul className="space-y-2 pb-20">
           {trips.map((trip) => (
             <li key={trip.id} className="bg-gray-50 rounded-xl p-3">
+              {renamingId === trip.id && (
+                <TripNameEditor
+                  name={trip.name}
+                  onSave={(name) => onRename(trip, name)}
+                  onDone={() => setRenamingId(null)}
+                  className="mb-1"
+                />
+              )}
               <button
                 onClick={() => onView(trip)}
                 className="w-full text-left"
               >
-                <div className="flex items-center gap-2 font-medium text-gray-900">
+                <div className={`flex items-center gap-2 font-medium text-gray-900 ${renamingId === trip.id ? "sr-only" : ""}`}>
                   {trip.summaryOnly && trip.line?.length ? (
                     <RouteThumb lines={trip.line} className="h-8 w-8 text-purple-600" />
                   ) : trip.kind === "recorded" ? (
@@ -268,10 +281,19 @@ export function TripsSheet({
                     {trip.cloudSyncedAt ? "Update cloud copy" : "Save to cloud"}
                   </button>
                 )}
+                {trip.kind === "recorded" && (
+                  <button
+                    onClick={() => setRenamingId(trip.id)}
+                    className="ml-auto flex items-center gap-1 text-xs font-medium text-gray-700"
+                    aria-label={`Rename ${trip.name}`}
+                  >
+                    <Pencil className="w-3 h-3" /> Rename
+                  </button>
+                )}
                 {trip.kind === "recorded" && !trip.summaryOnly && (
                   <button
                     onClick={() => onExportGpx(trip)}
-                    className="ml-auto flex items-center gap-1 text-xs font-medium text-gray-700"
+                    className="ml-3 flex items-center gap-1 text-xs font-medium text-gray-700"
                     aria-label={`Export ${trip.name} as GPX`}
                   >
                     <FileDown className="w-3 h-3" /> GPX

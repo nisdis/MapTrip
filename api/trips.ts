@@ -5,6 +5,7 @@ import { rejectForeignOrigin } from "./_lib/origin.js";
 import { refreshShareGeometry } from "./_lib/shareGeometry.js";
 import { toStored } from "./_lib/storedTrip.js";
 import { routeFromPlanned } from "./_lib/plannedRoute.js";
+import { cleanTripName } from "./_lib/tripName.js";
 import { gunzipSync } from "node:zlib";
 
 const UUID =
@@ -154,6 +155,28 @@ async function handle(request: Request): Promise<Response> {
       return json({ syncedAt });
     }
 
+    if (request.method === "PATCH") {
+      // Rename: only the name changes (works for trips this device has only as a summary).
+      const id = new URL(request.url).searchParams.get("id") ?? "";
+      if (!UUID.test(id)) return json({ message: "Invalid trip id" }, 400);
+      let body: { name?: unknown };
+      try {
+        body = await request.json();
+      } catch {
+        return json({ message: "Invalid request" }, 400);
+      }
+      const name = cleanTripName(body?.name);
+      if (!name) return json({ message: "Give the trip a name" }, 400);
+      const syncedAt = Date.now();
+      const { rowCount } = await pool.query(
+        `update trips set data = data || jsonb_build_object('name', $3::text, 'cloudSyncedAt', $4::bigint)
+         where id = $1 and user_id = $2`,
+        [id, userId, name, syncedAt],
+      );
+      if (!rowCount) return json({ message: "Not found" }, 404);
+      return json({ name, syncedAt });
+    }
+
     if (request.method === "DELETE") {
       const id = new URL(request.url).searchParams.get("id") ?? "";
       if (!UUID.test(id)) return json({ message: "Invalid trip id" }, 400);
@@ -176,4 +199,4 @@ async function handle(request: Request): Promise<Response> {
   }
 }
 
-export { handle as GET, handle as POST, handle as DELETE };
+export { handle as GET, handle as POST, handle as PATCH, handle as DELETE };

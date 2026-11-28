@@ -14,7 +14,8 @@ export type UsageEvent =
   | "explored_opened"
   | "reaction_added"
   | "comment_added"
-  | "challenges_opened";
+  | "challenges_opened"
+  | "trip_renamed";
 
 const DEVICE_KEY = "usageDevice";
 const OPENED_KEY = "usageOpenedOn";
