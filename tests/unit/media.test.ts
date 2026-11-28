@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { MAX_VIDEO_BYTES, exifTakenAt, imageFormat, unreadablePhotoMessage, maxVideoLength, placeMedia, placeOnTrack, tooLongToFit, videoSizeProblem } from "../../src/utils/media";
+import { MAX_VIDEO_BYTES, exifLocation, exifTakenAt, imageFormat, pinMedia, unreadablePhotoMessage, videoInfo, maxVideoLength, placeMedia, placeOnTrack, tooLongToFit, videoSizeProblem } from "../../src/utils/media";
 
 const buf = (name: string) => {
   const b = readFileSync(new URL(`../e2e/media/${name}`, import.meta.url));
@@ -104,5 +104,47 @@ describe("what a photo file really is", () => {
   it("says why it couldn't be opened", () => {
     expect(unreadablePhotoMessage("heic")).toMatch(/iPhone \(HEIC\)/);
     expect(unreadablePhotoMessage("empty")).toMatch(/download it/);
+  });
+});
+
+describe("where a photo or video was taken, from its own data", () => {
+  const goa = { lat: 15.4909, lng: 73.8278 };
+  it("photos: the GPS the camera wrote (JPEG and iPhone HEIC)", () => {
+    expect(exifLocation(buf("photo-gps.jpg"))).toEqual(goa);
+    expect(exifLocation(buf("photo-iphone-gps.heic"))).toEqual(goa);
+    expect(exifLocation(buf("photo-gps-sw.jpg"))).toEqual({ lat: -22.9068, lng: -43.1729 }); // south, west
+  });
+  it("photos without GPS, or not photos: none", () => {
+    expect(exifLocation(buf("photo-exif.jpg"))).toBeNull();
+    expect(exifLocation(buf("photo-iphone.heic"))).toBeNull();
+    expect(exifLocation(new TextEncoder().encode("not a jpeg").buffer)).toBeNull();
+  });
+  it("videos: the place and time Android (MP4) and iPhone (MOV) write", async () => {
+    const at = Date.UTC(2026, 10, 21, 4, 0, 0);
+    expect(await videoInfo(new Blob([buf("clip-gps.mp4")]))).toEqual({ place: goa, takenAt: at });
+    expect(await videoInfo(new Blob([buf("clip-iphone-gps.mov")]))).toEqual({ place: goa, takenAt: at });
+  });
+  it("videos without it (e.g. WebM): none", async () => {
+    expect(await videoInfo(new Blob([buf("clip-2s.webm")]))).toEqual({ place: null, takenAt: null });
+  });
+});
+
+describe("where media is pinned on the trip", () => {
+  const track = [
+    { lat: 10, lng: 20, t: 1000_000, speed: 1 },
+    { lat: 10.01, lng: 20, t: 1010_000, speed: 1 },
+  ];
+  it("its own place first, then the route at that time, else the start of the trip", () => {
+    const [own, onRoute, otherDay] = pinMedia(
+      [
+        { id: "a", addedAt: 0, takenAt: 5, lat: 15.49, lng: 73.83 },
+        { id: "b", addedAt: 0, takenAt: 1005_000 },
+        { id: "c", addedAt: 0, takenAt: 5 },
+      ],
+      track,
+    );
+    expect([own.lat, own.lng]).toEqual([15.49, 73.83]);
+    expect([onRoute.lat, onRoute.lng]).toEqual([10.005, 20]);
+    expect([otherDay.lat, otherDay.lng]).toEqual([10, 20]);
   });
 });

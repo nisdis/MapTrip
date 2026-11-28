@@ -56,12 +56,14 @@ test("photos and videos while recording: pinned on the route, open full screen",
   await expect(page.getByRole("dialog", { name: "Video" }).locator("video")).toBeVisible();
   await page.getByRole("dialog", { name: "Video" }).getByRole("button", { name: "Close" }).click();
 
-  // A gallery photo from another day: kept with the trip, but not pinned on its route.
+  // A gallery photo from another day, without GPS: kept with the trip, pinned at its start.
   await item.getByRole("button", { name: "Add photo or video to With pictures" }).click();
   await page.getByRole("menuitem", { name: "Choose from gallery" }).locator("input").setInputFiles([file("photo-exif.jpg", "image/jpeg")]);
   await expect(item.getByRole("button", { name: "Open photo" })).toHaveCount(2);
   await page.locator('button[aria-label="Close"]').first().click();
-  await expect(page.locator(".media-pin")).toHaveCount(1);
+  // On the open trip's map straight away: its own pin, at the start.
+  await expect(page.locator(".media-pin")).toHaveCount(2);
+  await expect(page.locator('.media-pin[title="Photo"]')).toBeVisible();
 });
 
 test("in the app: the camera is asked for when the menu opens; refused, only the gallery (and a way back)", async ({ page }) => {
@@ -188,4 +190,41 @@ test("iPhone (HEIC) photos are added, even named .jpg; a damaged one says why", 
   await expect(hud.getByLabel("Add photo or video (2 added)")).toBeVisible({ timeout: 20_000 });
   await expect.poll(() => alerts.join("\n")).toMatch(/IMG_9970\.jpg: Couldn't open this iPhone \(HEIC\) photo/);
   expect(alerts.join("\n")).not.toMatch(/IMG_996[89]/);
+});
+
+test("photos and videos are pinned where they were taken (their own GPS); without it, at the start of the trip", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForSelector(".leaflet-container");
+  await fix(page, 12.97, 77.6, 0, 0);
+  await page.getByRole("button", { name: "Record a trip" }).click();
+  for (let i = 1; i <= 5; i++) await fix(page, 12.97 + i * 0.001, 77.6, i, 10);
+  const hud = page.locator('section[aria-label="Trip recorder"]');
+  await hud.getByRole("button", { name: "Add photo or video" }).click();
+  await page
+    .getByRole("menu", { name: "Add photo or video" })
+    .getByRole("menuitem", { name: "Choose from gallery" })
+    .locator("input")
+    .setInputFiles([file("photo-gps.jpg", "image/jpeg"), file("photo-iphone-gps.heic", "image/heic"), file("photo-exif.jpg", "image/jpeg")]);
+  await expect(hud.getByLabel("Add photo or video (3 added)")).toBeVisible({ timeout: 20_000 });
+  for (let i = 6; i <= 8; i++) await fix(page, 12.97 + i * 0.001, 77.6, i, 10);
+  await hold(page, 'button[aria-label^="Finish trip"]');
+  await page.fill("#trip-name", "Pinned where taken");
+  await page.getByRole("button", { name: "Save trip" }).click();
+
+  // Two taken in Goa (their GPS) share a pin; the one without GPS, from another day, is at the start.
+  await expect(page.locator('.media-pin[title="2 photos and videos"]')).toHaveCount(1);
+  await expect(page.locator('.media-pin[title="Photo"]')).toHaveCount(1);
+  const places = await page.evaluate(async () => {
+    const db: IDBDatabase = await new Promise((ok, no) => {
+      const r = indexedDB.open("record-my-trip");
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => no(r.error);
+    });
+    const all: { name?: string; photos?: { lat?: number; lng?: number }[] }[] = await new Promise((ok) => {
+      const r = db.transaction("trips").objectStore("trips").getAll();
+      r.onsuccess = () => ok(r.result);
+    });
+    return all.find((t) => t.name === "Pinned where taken")!.photos!.map((p) => (p.lat == null ? null : [p.lat, p.lng]));
+  });
+  expect(places).toEqual([[15.4909, 73.8278], [15.4909, 73.8278], null]); // the start is worked out when shown
 });

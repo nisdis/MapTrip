@@ -8,7 +8,7 @@ import { MapController } from "./components/MapController";
 import { RouteControl } from "./components/RouteControl";
 import { RouteBar } from "./components/RouteBar";
 import { importAll } from "./services/mediaImport";
-import { placeMedia } from "./utils/media";
+import { pinMedia, placeMedia } from "./utils/media";
 import { useRecordingMedia } from "./hooks/useRecordingMedia";
 import { MediaPins } from "./components/MediaPins";
 import { MediaViewer } from "./components/MediaViewer";
@@ -587,12 +587,14 @@ function App() {
     [persistTrip],
   );
 
-  // Photos and videos added to a saved trip: pinned on its route by when they were taken.
+  // Photos and videos added to a saved trip: pinned where they were taken.
   const handleAddPhoto = useCallback(
     async (trip: Trip, files: File[]) => {
       const { added, errors } = await importAll(files, trip.track ?? []);
       if (added.length) {
-        await persistTrip({ ...trip, photos: [...(trip.photos ?? []), ...added] });
+        const updated = { ...trip, photos: [...(trip.photos ?? []), ...added] };
+        await persistTrip(updated);
+        setViewTrip((v) => (v?.id === trip.id ? { ...v, photos: updated.photos } : v)); // its pins, if it's open
         track("media_added");
       }
       if (errors.length) throw new Error(errors.join("\n"));
@@ -603,10 +605,9 @@ function App() {
   const handleRemovePhoto = useCallback(
     async (trip: Trip, photoId: string) => {
       await deletePhotoBlob(photoId);
-      await persistTrip({
-        ...trip,
-        photos: (trip.photos ?? []).filter((p) => p.id !== photoId),
-      });
+      const photos = (trip.photos ?? []).filter((p) => p.id !== photoId);
+      await persistTrip({ ...trip, photos });
+      setViewTrip((v) => (v?.id === trip.id ? { ...v, photos } : v));
     },
     [persistTrip],
   );
@@ -1127,9 +1128,9 @@ function App() {
         )}
         {showTripView && <ReplayLayer replay={replay} bottomInset={tripPanelHeight} />}
         {isRecorderActive ? (
-          <MediaPins media={placeMedia(recordingMedia, recorder.track)} onOpen={openMedia} />
+          <MediaPins media={pinMedia(recordingMedia, recorder.track)} onOpen={openMedia} />
         ) : (
-          !!viewTrip?.photos?.length && <MediaPins media={viewTrip.photos} onOpen={openMedia} />
+          !!viewTrip?.photos?.length && <MediaPins media={pinMedia(viewTrip.photos, viewTrip.track ?? [])} onOpen={openMedia} />
         )}
         {origin && destination && routeShown && storedPath && (
           <Polyline positions={storedPath} pathOptions={{ color: "#2E75CC", opacity: 0.6, weight: 4, dashArray: "6 6" }} />
