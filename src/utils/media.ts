@@ -2,14 +2,32 @@ import type { TrackPoint, TripPhoto } from "../types/trip";
 
 // Photos and videos on a trip: when they were taken, and where on the route.
 
-export const MAX_VIDEO_S = 60;
 /**
- * The most a video may be as kept and uploaded. Videos are shrunk to 720p on
- * the phone first (~37 MB a minute); this is for phones that can't shrink.
+ * The most a video may be as kept and uploaded (any length). Videos are shrunk
+ * to 720p on the phone first, ~40 MB a minute, so that's about 2½ minutes.
  */
-export const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
-/** The most a chosen video may be before shrinking (a minute of 4K is ~400 MB). */
-export const MAX_VIDEO_INPUT_BYTES = 1024 * 1024 * 1024;
+export const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+/** The most a chosen video may be before shrinking (2½ minutes of 4K is ~1 GB). */
+export const MAX_VIDEO_INPUT_BYTES = 2 * 1024 * 1024 * 1024;
+/** Bytes a second of video takes once shrunk (5 Mbit/s picture + the sound). */
+const SHRUNK_BYTES_PER_S = 5_300_000 / 8;
+
+/** About how long a video can be, for messages ("about 2½ minutes"). */
+export function maxVideoLength(): string {
+  const min = MAX_VIDEO_BYTES / SHRUNK_BYTES_PER_S / 60;
+  const halves = Math.floor(min * 2) / 2;
+  return `about ${Math.floor(halves)}${halves % 1 ? "½" : ""} minutes`;
+}
+
+/** Whether a video of this length can't fit even once shrunk (so don't spend minutes shrinking it). */
+export const tooLongToFit = (seconds: number, fileBytes: number) =>
+  fileBytes > MAX_VIDEO_BYTES && seconds * SHRUNK_BYTES_PER_S > MAX_VIDEO_BYTES;
+
+/** Why a video can't be kept, or null if it can: only its size counts, not its length. */
+export function videoSizeProblem(keptBytes: number): string | null {
+  if (keptBytes <= MAX_VIDEO_BYTES) return null;
+  return `That video is too large: it's ${Math.round(keptBytes / 1024 / 1024)} MB after shrinking, and videos can be up to ${MAX_VIDEO_BYTES / 1024 / 1024} MB (${maxVideoLength()}). Try a shorter clip.`;
+}
 export const VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
 export const videoExt = (mime: string) => (mime === "video/quicktime" ? "mov" : mime === "video/webm" ? "webm" : "mp4");
 

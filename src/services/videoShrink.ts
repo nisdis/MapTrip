@@ -64,7 +64,8 @@ export function useVideoProgress(): Progress {
  */
 export async function readAndShrink(
   file: File,
-  maxSeconds: number,
+  /** Too long to fit even once shrunk: don't spend minutes on it. */
+  tooLong: (seconds: number, fileBytes: number) => boolean,
 ): Promise<{ seconds: number; shrunk: ShrunkVideo | null }> {
   const mb = await import("mediabunny");
   const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
@@ -72,7 +73,7 @@ export async function readAndShrink(
     const video = await input.getPrimaryVideoTrack();
     if (!video) throw new Error("That file has no video in it.");
     const seconds = await input.computeDuration();
-    if (seconds > maxSeconds + 0.5) return { seconds, shrunk: null };
+    if (tooLong(seconds, file.size)) return { seconds, shrunk: null };
     const mime = file.type || "video/mp4";
     const big = needsShrink({ width: video.displayWidth, height: video.displayHeight, bytes: file.size, seconds, mime });
     if (!big || typeof VideoEncoder === "undefined") return { seconds, shrunk: null };

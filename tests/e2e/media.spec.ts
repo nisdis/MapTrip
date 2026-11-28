@@ -7,9 +7,7 @@ const file = (name: string, mimeType: string) => ({
   buffer: readFileSync(new URL(`./media/${name}`, import.meta.url)),
 });
 
-test("photos and videos while recording: pinned on the route, open full screen; videos up to 1 min", async ({ page }) => {
-  const alerts: string[] = [];
-  page.on("dialog", (d) => alerts.push(d.message()));
+test("photos and videos while recording: pinned on the route, open full screen", async ({ page }) => {
   await page.goto("/");
   await page.waitForSelector(".leaflet-container");
   await fix(page, 12.97, 77.6, 0, 0);
@@ -27,14 +25,10 @@ test("photos and videos while recording: pinned on the route, open full screen; 
   await expect(add).toHaveAttribute("accept", "image/*,video/*");
   await expect(add).toHaveAttribute("multiple", "");
   await expect(add).not.toHaveAttribute("capture", /.*/);
-  // A photo and a short video, together; then a video that's too long.
+  // A photo and a short video, together.
   await add.setInputFiles([file("photo-plain.jpg", "image/jpeg"), file("clip-2s.webm", "video/webm")]);
   await expect(hud.getByLabel("Add photo or video (2 added)")).toBeVisible();
   await expect(menu).toHaveCount(0); // closes once something is picked
-  await hud.getByRole("button", { name: "Add photo or video (2 added)" }).click();
-  await add.setInputFiles([file("clip-65s.webm", "video/webm")]);
-  await expect.poll(() => alerts.join("\n")).toContain("Videos can be up to 60 seconds; this one is 65 s");
-  await expect(hud.getByLabel("Add photo or video (2 added)")).toBeVisible();
   // Pinned on the route while still recording: taken at the same spot, so one pin with a count.
   await expect(page.locator(".media-pin")).toHaveCount(1);
   await expect(page.locator('.media-pin[title="2 photos and videos"]')).toBeVisible();
@@ -155,4 +149,20 @@ test("a big video is made smaller on the phone: 720p at a generous bitrate, smal
   expect((kept.size * 8) / kept.seconds).toBeLessThan(6_500_000);
   expect(kept.size).toBeLessThan(original.buffer.length * 0.85);
   expect(kept.type).toMatch(/^video\/(mp4|webm)$/);
+});
+
+test("videos are limited by size, not length: a small clip over a minute is kept", async ({ page }) => {
+  const alerts: string[] = [];
+  page.on("dialog", (d) => alerts.push(d.message()));
+  await page.goto("/");
+  await page.waitForSelector(".leaflet-container");
+  await fix(page, 12.97, 77.6, 0, 0);
+  await page.getByRole("button", { name: "Record a trip" }).click();
+  for (let i = 1; i <= 3; i++) await fix(page, 12.97 + i * 0.001, 77.6, i, 10);
+  const hud = page.locator('section[aria-label="Trip recorder"]');
+  await hud.getByRole("button", { name: "Add photo or video" }).click();
+  const add = page.getByRole("menu", { name: "Add photo or video" }).getByRole("menuitem", { name: "Choose from gallery" }).locator("input");
+  await add.setInputFiles([file("clip-65s.webm", "video/webm")]); // 65 s
+  await expect(hud.getByLabel("Add photo or video (1 added)")).toBeVisible();
+  expect(alerts).toEqual([]);
 });

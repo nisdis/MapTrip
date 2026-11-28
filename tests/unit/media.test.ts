@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { exifTakenAt, placeMedia, placeOnTrack } from "../../src/utils/media";
+import { MAX_VIDEO_BYTES, exifTakenAt, maxVideoLength, placeMedia, placeOnTrack, tooLongToFit, videoSizeProblem } from "../../src/utils/media";
 
 const buf = (name: string) => {
   const b = readFileSync(new URL(`../e2e/media/${name}`, import.meta.url));
@@ -64,5 +64,23 @@ describe("making videos smaller", async () => {
     expect(needsShrink({ width: 1280, height: 720, bytes: 60 * mb, seconds: 30, mime: "video/mp4" })).toBe(true); // 16 Mbit/s
     expect(needsShrink({ width: 1280, height: 720, bytes: 10 * mb, seconds: 30, mime: "video/mp4" })).toBe(false); // ~2.8 Mbit/s
     expect(needsShrink({ width: 640, height: 480, bytes: 1 * mb, seconds: 5, mime: "video/quicktime" })).toBe(true);
+  });
+});
+
+describe("how big a video may be", () => {
+  const MB = 1024 * 1024;
+  it("is limited by size (100 MB once shrunk), not by length", () => {
+    expect(MAX_VIDEO_BYTES).toBe(100 * MB);
+    expect(videoSizeProblem(99 * MB)).toBeNull();
+    expect(videoSizeProblem(100 * MB)).toBeNull();
+    expect(videoSizeProblem(101 * MB)).toBe(
+      "That video is too large: it's 101 MB after shrinking, and videos can be up to 100 MB (about 2½ minutes). Try a shorter clip.",
+    );
+    expect(maxVideoLength()).toBe("about 2½ minutes");
+  });
+  it("doesn't try to shrink a video that can't fit even once shrunk", () => {
+    expect(tooLongToFit(120, 500 * MB)).toBe(false); // 2 min of 4K: ~80 MB once shrunk
+    expect(tooLongToFit(240, 900 * MB)).toBe(true); // 4 min: ~160 MB once shrunk
+    expect(tooLongToFit(600, 60 * MB)).toBe(false); // 10 min, already small: kept as it is
   });
 });
