@@ -16,10 +16,22 @@ export interface SavedArea {
   savedAt: number;
 }
 
-/** About a big city: larger areas get heavy for the phone and the free tile server. */
-export const MAX_AREA_KM = 30;
-/** Average size of a vector tile, for the estimate shown before downloading. */
-const AVG_TILE_BYTES = 70_000;
+/**
+ * A whole city with its outskirts: Bangalore from the airport to Anekal is
+ * ~66 km across (~1,100 tiles, ~55 MB); 100 km leaves room around it
+ * (~2,600 tiles, 60-120 MB for a big city).
+ */
+export const MAX_AREA_KM = 100;
+/** Average size of a vector tile, for the estimate shown before downloading (measured over Bangalore: ~48 KB). */
+const AVG_TILE_BYTES = 50_000;
+/** Waits between tries of one tile: a blip shouldn't throw away a big download. */
+const RETRY_WAIT_MS = [0, 1_000, 3_000, 8_000];
+const wait = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((ok, fail) => {
+    if (!ms) return ok();
+    const id = setTimeout(ok, ms);
+    signal.addEventListener("abort", () => (clearTimeout(id), fail(new DOMException("Stopped", "AbortError"))), { once: true });
+  });
 const TILEJSON = "https://tiles.openfreemap.org/planet";
 const STYLES = ["https://tiles.openfreemap.org/styles/liberty", "https://tiles.openfreemap.org/styles/fiord"];
 const FONTS = ["Noto Sans Regular", "Noto Sans Bold", "Noto Sans Italic"];
@@ -72,7 +84,19 @@ export async function saveArea(
   signal: AbortSignal,
 ): Promise<SavedArea> {
   if (!("caches" in window)) throw new Error("This browser can't store maps for offline use.");
-  if (estimateArea(bounds).tooBig) throw new Error(`Zoom in: an area can be at most ${MAX_AREA_KM} km across.`);
+  const est = estimateArea(bounds);
+  if (est.tooBig) throw new Error(`Zoom in: an area can be at most ${MAX_AREA_KM} km across.`);
+  // Room on the phone? (Browsers give a site a share of the free space.)
+  try {
+    const { quota, usage } = (await navigator.storage?.estimate?.()) ?? {};
+    if (quota != null && usage != null && quota - usage < est.bytes * 1.2) {
+      throw new Error(`Not enough space on this phone: this area needs about ${formatMB(est.bytes)}, and ${formatMB(Math.max(0, quota - usage))} is free for maps. Remove a saved area or choose a smaller one.`);
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("Not enough space")) throw e;
+  }
+  // Ask the browser to keep it even when the phone runs low on space.
+  void navigator.storage?.persist?.().catch(() => false);
   const template = await tileTemplate();
   const cache = await caches.open(SAVED_CACHE);
   const tiles = tilesFor(bounds);
@@ -91,7 +115,8 @@ export async function saveArea(
       const [z, x, y] = tiles[next++];
       const url = template.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y));
       let res: Response | null = null;
-      for (let attempt = 0; attempt < 3 && !res; attempt++) {
+      for (let attempt = 0; attempt < RETRY_WAIT_MS.length && !res; attempt++) {
+        await wait(RETRY_WAIT_MS[attempt], signal);
         try {
           const r = await fetch(url, { signal });
           if (r.ok || r.status === 204) res = r;
@@ -111,7 +136,9 @@ export async function saveArea(
     // A few at a time: kind to the free tile server.
     await Promise.all([worker(), worker(), worker(), worker()]);
   } catch (e) {
-    await removeTiles(keys);
+    // Remove what this download fetched, but not tiles an area already saved uses.
+    const keep = new Set((await listAreas().catch(() => [])).flatMap((a) => a.tiles));
+    await removeTiles(keys, keep);
     throw e;
   }
   const area: SavedArea = { id: crypto.randomUUID(), name: name.trim() || "Saved area", bounds, tiles: keys, bytes, savedAt: Date.now() };

@@ -141,3 +141,66 @@ withSw("save an area: its map tiles are served offline, even after the map data 
   await expect(page.getByText("None yet.")).toBeVisible();
   expect(await page.evaluate(async () => (await (await caches.open("saved-areas")).keys()).length)).toBe(0);
 });
+
+test("a whole city fits in one saved area; stopping a download keeps the areas already saved", async ({ page, context }) => {
+  let slow = false;
+  await context.route("https://tiles.openfreemap.org/planet", (r) =>
+    r.fulfill({ json: { tilejson: "3.0.0", tiles: ["https://tiles.openfreemap.org/planet/v1/{z}/{x}/{y}.pbf"] } }),
+  );
+  await context.route(/tiles\.openfreemap\.org\/planet\/v1\/\d+\/\d+\/\d+\.pbf/, async (r) => {
+    if (slow) await new Promise((ok) => setTimeout(ok, 40));
+    await r.fulfill({ body: Buffer.from("tile"), contentType: "application/x-protobuf" }).catch(() => undefined);
+  });
+  await context.route(/tiles\.openfreemap\.org\/(styles|fonts|sprites)/, (r) => r.fulfill({ body: "{}", contentType: "application/json" }));
+  await context.route(/nominatim\.openstreetmap\.org\/reverse/, (r) => r.fulfill({ json: { address: { city: "Bengaluru" } } }));
+  const savedTiles = () => page.evaluate(async () => (await (await caches.open("saved-areas")).keys()).map((k) => k.url).sort());
+
+  await page.goto("/");
+  await page.waitForSelector(".leaflet-container");
+  const zoom = (dir: "in" | "out", n: number) =>
+    (async () => {
+      for (let i = 0; i < n; i++) {
+        await page.locator(`button[aria-label="Zoom ${dir}"]`).click();
+        await page.waitForTimeout(350); // the zoom animation
+      }
+    })();
+
+  // A small area first.
+  await zoom("in", 4);
+  await openMenu(page, "Offline maps");
+  await page.getByLabel("Area name").fill("Indiranagar");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Saved “Indiranagar”" })).toBeVisible({ timeout: 30_000 });
+  const small = await savedTiles();
+  expect(small.length).toBeGreaterThan(0);
+  await page.locator('button[aria-label="Close"]').first().click();
+
+  // Zoom out until the screen shows the city and its outskirts (more than the old 30 km limit).
+  const sheetSize = async () => {
+    await openMenu(page, "Offline maps");
+    const text = (await page.getByText(/km · about/).textContent()) ?? "";
+    const [w, h] = (text.match(/([\d.]+) × ([\d.]+) km/) ?? []).slice(1).map(Number);
+    return Math.max(w, h);
+  };
+  await zoom("out", 4);
+  let size = await sheetSize();
+  for (let i = 0; i < 6 && size < 40; i++) {
+    await page.locator('button[aria-label="Close"]').first().click();
+    await zoom("out", 1);
+    size = await sheetSize();
+  }
+  expect(size).toBeGreaterThan(40);
+  expect(size).toBeLessThanOrEqual(100);
+  await expect(page.getByText(/Zoom in: one area can be at most/)).toHaveCount(0);
+
+  // Start saving it, then stop: the small area keeps every one of its tiles.
+  slow = true;
+  await page.getByLabel("Area name").fill("Greater Bengaluru");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText(/Downloading \d+ of \d+/)).toBeVisible();
+  await expect.poll(async () => (await savedTiles()).length, { timeout: 10_000 }).toBeGreaterThan(small.length);
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByText(/Downloading/)).toHaveCount(0);
+  await expect.poll(savedTiles).toEqual(small);
+  await expect(page.getByRole("button", { name: /^Indiranagar/ })).toBeVisible();
+});
