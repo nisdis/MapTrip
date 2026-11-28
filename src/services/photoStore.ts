@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import localforage from "localforage";
+import { imageFormat, unreadablePhotoMessage } from "../utils/media";
 
 // Photos live in the browser (IndexedDB) until a trip is saved to the cloud.
 const store = localforage.createInstance({
@@ -10,21 +11,39 @@ const store = localforage.createInstance({
 const MAX_EDGE = 1600;
 const JPEG_QUALITY = 0.82;
 
+/** Opens a photo as something we can draw: the fast way, else the way <img> does. */
+async function decode(file: File): Promise<ImageBitmap | HTMLImageElement> {
+  try {
+    return await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      return img;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+}
+
 /** Downscales and re-encodes as JPEG: small uploads, and EXIF/GPS is stripped. */
 export async function prepareImage(file: File): Promise<Blob> {
-  if (!file.type.startsWith("image/")) throw new Error("Please choose an image");
-  let bitmap: ImageBitmap;
+  let image: ImageBitmap | HTMLImageElement;
   try {
-    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    image = await decode(file);
   } catch {
-    throw new Error("This image format isn't supported by your browser");
+    throw new Error(unreadablePhotoMessage(imageFormat(await file.slice(0, 32).arrayBuffer())));
   }
-  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+  const w = image instanceof HTMLImageElement ? image.naturalWidth : image.width;
+  const h = image instanceof HTMLImageElement ? image.naturalHeight : image.height;
+  const scale = Math.min(1, MAX_EDGE / Math.max(w, h));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
+  canvas.getContext("2d")!.drawImage(image, 0, 0, canvas.width, canvas.height);
+  if (!(image instanceof HTMLImageElement)) image.close();
   const blob = await new Promise<Blob | null>((resolve) =>
     canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY),
   );

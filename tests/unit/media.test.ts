@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { MAX_VIDEO_BYTES, exifTakenAt, maxVideoLength, placeMedia, placeOnTrack, tooLongToFit, videoSizeProblem } from "../../src/utils/media";
+import { MAX_VIDEO_BYTES, exifTakenAt, imageFormat, unreadablePhotoMessage, maxVideoLength, placeMedia, placeOnTrack, tooLongToFit, videoSizeProblem } from "../../src/utils/media";
 
 const buf = (name: string) => {
   const b = readFileSync(new URL(`../e2e/media/${name}`, import.meta.url));
@@ -82,5 +82,23 @@ describe("how big a video may be", () => {
     expect(tooLongToFit(120, 500 * MB)).toBe(false); // 2 min of 4K: ~80 MB once shrunk
     expect(tooLongToFit(240, 900 * MB)).toBe(true); // 4 min: ~160 MB once shrunk
     expect(tooLongToFit(600, 60 * MB)).toBe(false); // 10 min, already small: kept as it is
+  });
+});
+
+describe("what a photo file really is", () => {
+  const bytes = (...parts: (string | number[])[]) =>
+    new Uint8Array(parts.flatMap((p) => (typeof p === "string" ? [...p].map((c) => c.charCodeAt(0)) : p))).buffer;
+  it("from its first bytes, whatever it's called", () => {
+    expect(imageFormat(buf("photo-plain.jpg"))).toBe("jpeg");
+    expect(imageFormat(bytes([0, 0, 0, 24], "ftypheic", [0, 0, 0, 0]))).toBe("heic");
+    expect(imageFormat(bytes([0, 0, 0, 24], "ftypmif1", [0, 0, 0, 0]))).toBe("heic");
+    expect(imageFormat(bytes([0, 0, 0, 24], "ftypavif"))).toBe("avif");
+    expect(imageFormat(bytes([0x89], "PNG"))).toBe("png");
+    expect(imageFormat(new ArrayBuffer(0))).toBe("empty");
+    expect(imageFormat(bytes("hello world"))).toBe("unknown");
+  });
+  it("says why it couldn't be opened", () => {
+    expect(unreadablePhotoMessage("heic")).toMatch(/iPhone \(HEIC\)/);
+    expect(unreadablePhotoMessage("empty")).toMatch(/download it/);
   });
 });

@@ -28,6 +28,32 @@ export function videoSizeProblem(keptBytes: number): string | null {
   if (keptBytes <= MAX_VIDEO_BYTES) return null;
   return `That video is too large: it's ${Math.round(keptBytes / 1024 / 1024)} MB after shrinking, and videos can be up to ${MAX_VIDEO_BYTES / 1024 / 1024} MB (${maxVideoLength()}). Try a shorter clip.`;
 }
+/** What a photo file really is, from its first bytes (the name and type can be wrong). */
+export function imageFormat(buf: ArrayBuffer): "jpeg" | "png" | "gif" | "webp" | "heic" | "avif" | "empty" | "unknown" {
+  const b = new Uint8Array(buf, 0, Math.min(buf.byteLength, 32));
+  if (b.length === 0) return "empty";
+  const ascii = (from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
+  if (b[0] === 0xff && b[1] === 0xd8) return "jpeg";
+  if (b[0] === 0x89 && ascii(1, 4) === "PNG") return "png";
+  if (ascii(0, 3) === "GIF") return "gif";
+  if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "webp";
+  if (ascii(4, 8) === "ftyp") {
+    const brand = ascii(8, 12);
+    if (brand.startsWith("avi")) return "avif";
+    if (/^(hei|hev|mif1|msf1)/.test(brand)) return "heic";
+  }
+  return "unknown";
+}
+
+/** Why a photo couldn't be opened, in plain words. */
+export function unreadablePhotoMessage(format: ReturnType<typeof imageFormat>): string {
+  if (format === "heic")
+    return "This is an iPhone (HEIC) photo, which this browser can't open. On the iPhone, set Settings › Camera › Formats to Most Compatible, or share it as JPEG.";
+  if (format === "empty") return "Couldn't read this photo. If it's stored online (e.g. Google Photos), download it to the phone first.";
+  if (format === "unknown") return "This file isn't a photo the app can open, or it's damaged.";
+  return "Couldn't open this photo. It may be damaged, or too large for this phone.";
+}
+
 export const VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
 export const videoExt = (mime: string) => (mime === "video/quicktime" ? "mov" : mime === "video/webm" ? "webm" : "mp4");
 
