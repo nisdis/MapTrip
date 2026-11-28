@@ -131,9 +131,9 @@ test("live share sends only new points; offline it keeps them and sends the lot 
   await sheet.getByText("New here? Create an account").click();
   await sheet.getByRole("button", { name: "Create account" }).click();
 
-  // Record every update the page sends.
+  // Record every update that reached the server.
   const sent: number[][] = [];
-  page.on("request", (r) => {
+  page.on("requestfinished", (r) => {
     if (!r.url().endsWith("/api/live") || r.method() !== "POST") return;
     const body = r.postDataJSON();
     if (body.action === "update") sent.push(body.points.map((p: number[]) => p[2]));
@@ -142,7 +142,7 @@ test("live share sends only new points; offline it keeps them and sends the lot 
   await sheet.getByRole("button", { name: "Start sharing" }).click();
   await expect(sheet).toContainText(/Last sent/, { timeout: 10_000 });
   await sheet.getByRole("button", { name: "Close" }).click();
-  expect(sent.flat()).toHaveLength(4);
+  await expect.poll(() => sent.flat().length).toBe(4);
 
   // Dead zone: points are recorded but can't go anywhere.
   await context.setOffline(true);
@@ -156,4 +156,20 @@ test("live share sends only new points; offline it keeps them and sends the lot 
   await expect.poll(() => sent.flat().length, { timeout: 5000 }).toBe(6);
   const t0 = sent.flat()[0];
   expect(sent.flat().map((t) => (t - t0) / 1000)).toEqual([0, 1, 2, 3, 4, 5]);
+
+  // Phones say "online" a moment before the connection works: that first try
+  // fails, and the next goes within seconds (not at the next 20 s tick).
+  sent.length = 0;
+  let failNext = true;
+  await page.route("**/api/live", (r) => {
+    if (failNext && r.request().method() === "POST") {
+      failNext = false;
+      return r.abort("internetdisconnected");
+    }
+    return r.fallback();
+  });
+  for (let i = 10; i <= 12; i++) await fix(page, 12.9 + i * 0.001, 77.6, i, 12);
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect.poll(() => failNext).toBe(false);
+  await expect.poll(() => sent.flat().length, { timeout: 5000 }).toBe(3);
 });

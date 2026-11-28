@@ -20,6 +20,8 @@ import { track as trackUsage } from "../services/usage";
 /** How often the trail and stats are uploaded while sharing. */
 export const LIVE_UPDATE_MS = 20_000;
 const STORAGE_KEY = "liveShareToken";
+/** After a failed upload with no connection: try again soon, then less often (the 20 s timer carries on too). */
+const RETRY_MS = [2_000, 4_000, 8_000];
 
 export interface ActiveShare {
   token: string;
@@ -68,6 +70,10 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
   // where it is before sending, instead of offering it the whole trail.
   const askServerFirst = useRef(false);
   const inFlight = useRef(false);
+  // Asked to send while a send was going: send again when it's done (it may have
+  // started before the newest points, or failed because the connection was still coming up).
+  const again = useRef(false);
+  const retry = useRef<{ n: number; timer: ReturnType<typeof setTimeout> | null }>({ n: 0, timer: null });
   const shareRef = useRef<ActiveShare | null>(null);
   shareRef.current = share;
 
@@ -101,10 +107,16 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
     setEndedNotice(notice);
   }, []);
 
-  const sync = useCallback(async () => {
+  const sync = useCallback(async (): Promise<void> => {
     const current = shareRef.current;
-    if (!current || inFlight.current) return;
+    if (!current) return;
+    if (inFlight.current) {
+      again.current = true;
+      return;
+    }
     inFlight.current = true;
+    if (retry.current.timer) clearTimeout(retry.current.timer);
+    retry.current.timer = null;
     try {
       const { status: s, track: t, stats: st } = latest.current;
       if (askServerFirst.current) {
@@ -124,6 +136,7 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
       } while (from < t.length && shareRef.current?.token === current.token);
       setLastSyncAt(Date.now());
       setProblem(null);
+      retry.current.n = 0;
       // In the app: keep it up to date, so it can carry on while the phone is locked.
       handOff(current, s, st, t);
     } catch (e) {
@@ -131,11 +144,31 @@ export function useLiveShare({ status, startedAt, track, stats }: Inputs) {
         end("Your live share has ended. The link no longer works.");
       } else {
         setProblem(e instanceof Error ? e.message : "Live update failed");
+        // No connection (or it's only just coming back, as phones say "online"
+        // a moment before it works): don't wait for the next 20 s tick.
+        if (e instanceof LiveShareError && e.status === 0 && retry.current.n < RETRY_MS.length) {
+          retry.current.timer = setTimeout(() => void syncRef.current(), RETRY_MS[retry.current.n++]);
+        }
       }
     } finally {
       inFlight.current = false;
+      if (again.current && shareRef.current) {
+        again.current = false;
+        void syncRef.current();
+      }
     }
   }, [end, handOff]);
+  const syncRef = useRef(sync);
+  syncRef.current = sync;
+
+  // A share that ends takes its pending retry with it.
+  useEffect(() => {
+    if (share) return;
+    again.current = false;
+    retry.current.n = 0;
+    if (retry.current.timer) clearTimeout(retry.current.timer);
+    retry.current.timer = null;
+  }, [share]);
 
   // Upload on a timer while sharing.
   useEffect(() => {
