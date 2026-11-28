@@ -96,9 +96,13 @@ import { VideoProgress } from "./components/VideoProgress";
 import { cleanTripName } from "../api/_lib/tripName";
 import { buildTimeline } from "./utils/replay";
 
+// Before the first GPS fix the map shows all of Goa.
+const START_CENTER: LatLngTuple = [15.35, 74.05];
+const START_ZOOM = 9;
+
 function App() {
-  const [center, setCenter] = useState<LatLngTuple>([51.505, -0.09]);
-  const [zoom, setZoom] = useState(15);
+  const [center, setCenter] = useState<LatLngTuple>(START_CENTER);
+  const [zoom, setZoom] = useState(START_ZOOM);
   const [isMapReady, setIsMapReady] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<SearchResult | null>(
     null,
@@ -640,6 +644,7 @@ function App() {
     ) {
       hasCenteredOnUser.current = true;
       setCenter(locationData.position);
+      setZoom(15);
     }
   }, [locationData, selectedLocation, origin, destination]);
 
@@ -838,10 +843,11 @@ function App() {
   const handleResetView = useCallback(() => {
     if (locationData) {
       setCenter(locationData.position);
+      setZoom(15);
     } else {
-      setCenter([51.505, -0.09]);
+      setCenter(START_CENTER);
+      setZoom(START_ZOOM);
     }
-    setZoom(15);
     setSelectedLocation(null);
     setFollow(true);
     setResetMap((n) => n + 1);

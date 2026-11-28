@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test as base } from "@playwright/test";
-import { test, expect, fix, hold, hasDb, isolate, openMenu } from "./fixtures";
+import { test, expect, fakeGps, fix, hold, hasDb, isolate, openMenu } from "./fixtures";
 
 const truncate = () =>
   execFileSync(
@@ -86,6 +86,7 @@ test("GPX: export a trip, import the file back as an 'Imported' trip", async ({ 
 const withSw = base.extend({
   context: async ({ context }, use) => {
     await isolate(context);
+    await fakeGps(context);
     await use(context);
   },
 });
@@ -108,6 +109,8 @@ withSw("save an area: its map tiles are served offline, even after the map data 
   });
   await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15_000 });
   await page.waitForSelector(".leaflet-container");
+  await fix(page, 12.97, 77.6, 0); // the first fix zooms the map in to the street
+  await page.waitForTimeout(500);
   // A small area so the test is quick.
   for (let i = 0; i < 4; i++) await page.locator('button[aria-label="Zoom in"]').click().catch(() => undefined);
 
@@ -157,6 +160,8 @@ test("a whole city fits in one saved area; stopping a download keeps the areas a
 
   await page.goto("/");
   await page.waitForSelector(".leaflet-container");
+  await fix(page, 12.97, 77.6, 0); // the first fix zooms the map in to the street
+  await page.waitForTimeout(500);
   const zoom = (dir: "in" | "out", n: number) =>
     (async () => {
       for (let i = 0; i < n; i++) {
@@ -168,6 +173,7 @@ test("a whole city fits in one saved area; stopping a download keeps the areas a
   // A small area first.
   await zoom("in", 4);
   await openMenu(page, "Offline maps");
+  await expect(page.getByLabel("Area name")).toHaveValue("Bengaluru"); // the suggested name, before typing ours
   await page.getByLabel("Area name").fill("Indiranagar");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "Saved “Indiranagar”" })).toBeVisible({ timeout: 30_000 });
@@ -203,4 +209,28 @@ test("a whole city fits in one saved area; stopping a download keeps the areas a
   await expect(page.getByText(/Downloading/)).toHaveCount(0);
   await expect.poll(savedTiles).toEqual(small);
   await expect(page.getByRole("button", { name: /^Indiranagar/ })).toBeVisible();
+});
+
+test("before the first GPS fix the map shows all of Goa; the fix zooms in to the street", async ({ page, context }) => {
+  const asked: string[] = [];
+  await context.route(/nominatim\.openstreetmap\.org\/reverse/, (r) => {
+    asked.push(r.request().url());
+    return r.fulfill({ json: { address: { state: "Goa" } } });
+  });
+  await page.goto("/");
+  await page.waitForSelector(".leaflet-container");
+  await openMenu(page, "Offline maps");
+  await expect.poll(() => asked.length).toBeGreaterThan(0);
+  const u = new URL(asked[0]);
+  expect(Number(u.searchParams.get("lat"))).toBeCloseTo(15.35, 1);
+  expect(Number(u.searchParams.get("lon"))).toBeCloseTo(74.05, 1);
+  await expect(page.getByText(/Zoom in: one area can be at most/)).toBeVisible(); // the whole state is on screen
+  await page.locator('button[aria-label="Close"]').first().click();
+
+  await fix(page, 12.97, 77.6, 0);
+  await page.waitForTimeout(500);
+  await openMenu(page, "Offline maps");
+  const text = (await page.getByText(/km · about/).textContent()) ?? "";
+  const [w, h] = (text.match(/([\d.]+) × ([\d.]+) km/) ?? []).slice(1).map(Number);
+  expect(Math.max(w, h)).toBeLessThan(5);
 });
