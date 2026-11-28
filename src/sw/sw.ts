@@ -61,6 +61,13 @@ registerRoute(
   new CacheFirst({ cacheName: "borders", plugins: [ok, new ExpirationPlugin({ maxEntries: 4 })] }),
 );
 
+// The iPhone (HEIC) photo decoder: downloaded the first time such a photo is
+// added, then kept so they open offline too (a new version has a new name).
+registerRoute(
+  ({ url }) => url.origin === self.location.origin && /^\/assets\/heic-to-[\w-]+\.js$/.test(url.pathname),
+  new CacheFirst({ cacheName: "photo-decoder", plugins: [ok, new ExpirationPlugin({ maxEntries: 2 })] }),
+);
+
 // Place search results (recent searches work offline).
 registerRoute(
   ({ url }) => url.origin === "https://nominatim.openstreetmap.org" && url.pathname.startsWith("/search"),

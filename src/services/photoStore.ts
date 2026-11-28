@@ -11,6 +11,13 @@ const store = localforage.createInstance({
 const MAX_EDGE = 1600;
 const JPEG_QUALITY = 0.82;
 
+/** The iPhone photo decoder isn't on this phone yet and there's no connection. */
+class NeedsInternet extends Error {
+  constructor() {
+    super("Connect to the internet once to open iPhone (HEIC) photos. After that they work offline too.");
+  }
+}
+
 /**
  * Opens a photo as something we can draw: the fast way; iPhone (HEIC) photos,
  * which most browsers can't open, with a decoder fetched only when needed
@@ -21,8 +28,10 @@ async function decode(file: File): Promise<ImageBitmap | HTMLImageElement> {
     return await createImageBitmap(file, { imageOrientation: "from-image" });
   } catch {
     if (imageFormat(await file.slice(0, 32).arrayBuffer()) === "heic") {
-      const { heicTo } = await import("heic-to");
-      return heicTo({ blob: file, type: "bitmap" });
+      const decoder = await import("heic-to").catch(() => {
+        throw new NeedsInternet();
+      });
+      return decoder.heicTo({ blob: file, type: "bitmap" });
     }
     const url = URL.createObjectURL(file);
     try {
@@ -41,7 +50,8 @@ export async function prepareImage(file: File): Promise<Blob> {
   let image: ImageBitmap | HTMLImageElement;
   try {
     image = await decode(file);
-  } catch {
+  } catch (e) {
+    if (e instanceof NeedsInternet) throw e;
     throw new Error(unreadablePhotoMessage(imageFormat(await file.slice(0, 32).arrayBuffer())));
   }
   const w = image instanceof HTMLImageElement ? image.naturalWidth : image.width;

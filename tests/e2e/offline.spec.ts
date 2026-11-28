@@ -234,3 +234,45 @@ test("before the first GPS fix the map shows all of Goa; the fix zooms in to the
   const [w, h] = (text.match(/([\d.]+) × ([\d.]+) km/) ?? []).slice(1).map(Number);
   expect(Math.max(w, h)).toBeLessThan(5);
 });
+
+withSw("iPhone (HEIC) photos: offline before the decoder is on the phone, it says to connect once; after that, they open offline", async ({ page, context }) => {
+  await context.route(/tiles\.openfreemap\.org/, (r) => r.fulfill({ body: "{}", contentType: "application/json" }));
+  const alerts: string[] = [];
+  page.on("dialog", (d) => {
+    alerts.push(d.message());
+    void d.dismiss();
+  });
+  const iphone = { name: "IMG_9968.jpg", mimeType: "image/jpeg", buffer: readFileSync(new URL("./media/photo-iphone.heic", import.meta.url)) };
+  const addPhoto = async (expectAdded: number | null) => {
+    await page.waitForSelector(".leaflet-container");
+    await fix(page, 12.97, 77.6, 0, 0);
+    await page.getByRole("button", { name: "Record a trip" }).click();
+    const hud = page.locator('section[aria-label="Trip recorder"]');
+    await hud.getByRole("button", { name: "Add photo or video" }).click();
+    await page.getByRole("menu", { name: "Add photo or video" }).getByRole("menuitem", { name: "Choose from gallery" }).locator("input").setInputFiles([iphone]);
+    if (expectAdded) await expect(hud.getByLabel(`Add photo or video (${expectAdded} added)`)).toBeVisible({ timeout: 20_000 });
+  };
+
+  await page.goto("/");
+  await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, null, { timeout: 15_000 }).catch(() => page.reload());
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15_000 });
+
+  // Offline, never downloaded: a clear message, not "damaged".
+  await context.setOffline(true);
+  await page.reload();
+  await addPhoto(null);
+  await expect.poll(() => alerts.join("\n")).toMatch(/IMG_9968\.jpg: Connect to the internet once to open iPhone \(HEIC\) photos/);
+
+  // Online once: it's added, and the decoder is kept on the phone.
+  await context.setOffline(false);
+  await page.reload();
+  await addPhoto(1);
+  await expect.poll(() => page.evaluate(async () => (await (await caches.open("photo-decoder")).keys()).length)).toBe(1);
+
+  // Offline again, after a fresh start of the app: still opens.
+  await context.setOffline(true);
+  await page.reload();
+  alerts.length = 0;
+  await addPhoto(1);
+  expect(alerts).toEqual([]);
+});
