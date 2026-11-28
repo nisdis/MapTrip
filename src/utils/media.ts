@@ -48,7 +48,7 @@ export function imageFormat(buf: ArrayBuffer): "jpeg" | "png" | "gif" | "webp" |
 /** Why a photo couldn't be opened, in plain words. */
 export function unreadablePhotoMessage(format: ReturnType<typeof imageFormat>): string {
   if (format === "heic")
-    return "This is an iPhone (HEIC) photo, which this browser can't open. On the iPhone, set Settings › Camera › Formats to Most Compatible, or share it as JPEG.";
+    return "Couldn't open this iPhone (HEIC) photo. It may be damaged, or too large for this phone. On the iPhone, sharing it as JPEG works too.";
   if (format === "empty") return "Couldn't read this photo. If it's stored online (e.g. Google Photos), download it to the phone first.";
   if (format === "unknown") return "This file isn't a photo the app can open, or it's damaged.";
   return "Couldn't open this photo. It may be damaged, or too large for this phone.";
@@ -63,6 +63,7 @@ export const videoExt = (mime: string) => (mime === "video/quicktime" ? "mov" : 
  */
 export function exifTakenAt(buf: ArrayBuffer): number | null {
   const v = new DataView(buf);
+  if (imageFormat(buf) === "heic") return heicExif(v);
   if (v.byteLength < 4 || v.getUint16(0) !== 0xffd8) return null;
   let off = 2;
   while (off + 4 < v.byteLength) {
@@ -71,6 +72,17 @@ export function exifTakenAt(buf: ArrayBuffer): number | null {
     if (marker === 0xffe1 && v.getUint32(off + 4) === 0x45786966) return readExif(v, off + 10);
     if ((marker & 0xff00) !== 0xff00) return null;
     off += 2 + len;
+  }
+  return null;
+}
+
+/** iPhone (HEIC) photos keep the same EXIF block, after "Exif\0\0", somewhere in the file. */
+function heicExif(v: DataView): number | null {
+  const b = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+  for (let i = 0; i + 10 < b.length; i++) {
+    if (b[i] !== 0x45 || b[i + 1] !== 0x78 || b[i + 2] !== 0x69 || b[i + 3] !== 0x66 || b[i + 4] || b[i + 5]) continue;
+    const order = v.getUint16(i + 6);
+    if (order === 0x4d4d || order === 0x4949) return readExif(v, i + 6);
   }
   return null;
 }

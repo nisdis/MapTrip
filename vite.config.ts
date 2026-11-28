@@ -59,6 +59,8 @@ export default defineConfig({
       injectManifest: {
         // Precache the self-hosted font so the recorder looks right offline.
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // The iPhone photo decoder (~800 KB) is fetched only when such a photo is added.
+        globIgnores: ['**/heic-to-*.js'],
       },
     })
   ]

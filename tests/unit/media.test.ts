@@ -11,6 +11,9 @@ describe("when a photo was taken", () => {
   it("reads the camera's date from the photo", () => {
     expect(exifTakenAt(buf("photo-exif.jpg"))).toBe(new Date(2026, 10, 20, 10, 15, 30).getTime());
   });
+  it("also from an iPhone (HEIC) photo", () => {
+    expect(exifTakenAt(buf("photo-iphone.heic"))).toBe(new Date(2026, 10, 20, 10, 15, 30).getTime());
+  });
   it("null for a photo without one, or something that isn't a JPEG", () => {
     expect(exifTakenAt(buf("photo-plain.jpg"))).toBeNull();
     expect(exifTakenAt(new TextEncoder().encode("not a jpeg").buffer)).toBeNull();
@@ -90,6 +93,7 @@ describe("what a photo file really is", () => {
     new Uint8Array(parts.flatMap((p) => (typeof p === "string" ? [...p].map((c) => c.charCodeAt(0)) : p))).buffer;
   it("from its first bytes, whatever it's called", () => {
     expect(imageFormat(buf("photo-plain.jpg"))).toBe("jpeg");
+    expect(imageFormat(buf("photo-iphone.heic"))).toBe("heic");
     expect(imageFormat(bytes([0, 0, 0, 24], "ftypheic", [0, 0, 0, 0]))).toBe("heic");
     expect(imageFormat(bytes([0, 0, 0, 24], "ftypmif1", [0, 0, 0, 0]))).toBe("heic");
     expect(imageFormat(bytes([0, 0, 0, 24], "ftypavif"))).toBe("avif");

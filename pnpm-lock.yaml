@@ -23,6 +23,9 @@ importers:
       better-auth:
         specifier: ^1.7.27
         version: 1.7.27(pg@8.23.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vitest@3.2.7(@types/node@22.20.5)(happy-dom@15.11.7)(jsdom@25.0.1)(terser@5.46.0))
+      heic-to:
+        specifier: 1.6.7
+        version: 1.6.7
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
@@ -2309,6 +2312,9 @@ packages:
   hasown@2.0.4:
     resolution: {integrity: sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==}
     engines: {node: '>= 0.4'}
+
+  heic-to@1.6.7:
+    resolution: {integrity: sha512-GCPYNl86u6eZ7mr2aa+uQB+PrQOVKSBYfH8esovr8kh2c6EYQSDYIJ6uhXSmM2hPC8PdBVJ/Trn0jnfM9H9gvg==}
 
   html-encoding-sniffer@4.0.0:
     resolution: {integrity: sha512-Y22oTqIU4uuPgEemfz7NDJz6OeKf12Lsu+QC+s3BVpda64lTiMYCyGwg5ki4vFxkMwQdeZDl2adZoqUgdFuTgQ==}
@@ -5960,6 +5966,8 @@ snapshots:
   hasown@2.0.4:
     dependencies:
       function-bind: 1.1.2
+
+  heic-to@1.6.7: {}
 
   html-encoding-sniffer@4.0.0:
     dependencies:

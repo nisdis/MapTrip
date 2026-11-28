@@ -167,7 +167,7 @@ test("videos are limited by size, not length: a small clip over a minute is kept
   expect(alerts).toEqual([]);
 });
 
-test("a photo the browser can't open says why: an iPhone (HEIC) photo named .jpg", async ({ page }) => {
+test("iPhone (HEIC) photos are added, even named .jpg; a damaged one says why", async ({ page }) => {
   const alerts: string[] = [];
   page.on("dialog", (d) => alerts.push(d.message()));
   await page.goto("/");
@@ -177,9 +177,15 @@ test("a photo the browser can't open says why: an iPhone (HEIC) photo named .jpg
   const hud = page.locator('section[aria-label="Trip recorder"]');
   await hud.getByRole("button", { name: "Add photo or video" }).click();
   const add = page.getByRole("menu", { name: "Add photo or video" }).getByRole("menuitem", { name: "Choose from gallery" }).locator("input");
-  // The start of a HEIC file, with a .jpg name and type (as some apps send it).
-  const heic = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypheic"), Buffer.alloc(64)]);
-  await add.setInputFiles([{ name: "IMG_9968.jpg", mimeType: "image/jpeg", buffer: heic }, file("photo-plain.jpg", "image/jpeg")]);
-  await expect(hud.getByLabel("Add photo or video (1 added)")).toBeVisible();
-  await expect.poll(() => alerts.join("\n")).toMatch(/IMG_9968\.jpg: This is an iPhone \(HEIC\) photo/);
+  const iphone = readFileSync(new URL("./media/photo-iphone.heic", import.meta.url));
+  // Only the start of a HEIC file: can't be opened.
+  const broken = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypheic"), Buffer.alloc(64)]);
+  await add.setInputFiles([
+    { name: "IMG_9968.jpg", mimeType: "image/jpeg", buffer: iphone }, // as some apps send it
+    { name: "IMG_9969.HEIC", mimeType: "", buffer: iphone }, // some phones don't say what it is
+    { name: "IMG_9970.jpg", mimeType: "image/jpeg", buffer: broken },
+  ]);
+  await expect(hud.getByLabel("Add photo or video (2 added)")).toBeVisible({ timeout: 20_000 });
+  await expect.poll(() => alerts.join("\n")).toMatch(/IMG_9970\.jpg: Couldn't open this iPhone \(HEIC\) photo/);
+  expect(alerts.join("\n")).not.toMatch(/IMG_996[89]/);
 });

@@ -1,5 +1,5 @@
 import type { TrackPoint, TripPhoto } from "../types/trip";
-import { MAX_VIDEO_INPUT_BYTES, VIDEO_TYPES, exifTakenAt, placeOnTrack, tooLongToFit, videoDuration, videoSizeProblem } from "../utils/media";
+import { MAX_VIDEO_INPUT_BYTES, VIDEO_TYPES, exifTakenAt, imageFormat, placeOnTrack, tooLongToFit, videoDuration, videoSizeProblem } from "../utils/media";
 import { readAndShrink } from "./videoShrink";
 import { prepareImage, savePhotoBlob } from "./photoStore";
 
@@ -32,7 +32,9 @@ export async function importMedia(file: File, track: TrackPoint[]): Promise<Trip
     return { id, addedAt, kind: "video", mime, durationS: Math.round(seconds), takenAt, ...placeOnTrack(track, takenAt) };
   }
 
-  if (!type.startsWith("image/")) throw new Error("Choose a photo or a video.");
+  // Some phones don't say what an iPhone (HEIC) photo is: look at the file itself.
+  if (!type.startsWith("image/") && imageFormat(await file.slice(0, 32).arrayBuffer()) !== "heic")
+    throw new Error("Choose a photo or a video.");
   // The date it was taken is in the photo itself (gone once it's resized).
   const takenAt = exifTakenAt(await file.arrayBuffer()) ?? (file.lastModified || addedAt);
   const blob = await prepareImage(file);

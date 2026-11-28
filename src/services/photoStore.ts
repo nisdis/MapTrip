@@ -11,11 +11,19 @@ const store = localforage.createInstance({
 const MAX_EDGE = 1600;
 const JPEG_QUALITY = 0.82;
 
-/** Opens a photo as something we can draw: the fast way, else the way <img> does. */
+/**
+ * Opens a photo as something we can draw: the fast way; iPhone (HEIC) photos,
+ * which most browsers can't open, with a decoder fetched only when needed
+ * (about 1 MB); else the way <img> does.
+ */
 async function decode(file: File): Promise<ImageBitmap | HTMLImageElement> {
   try {
     return await createImageBitmap(file, { imageOrientation: "from-image" });
   } catch {
+    if (imageFormat(await file.slice(0, 32).arrayBuffer()) === "heic") {
+      const { heicTo } = await import("heic-to");
+      return heicTo({ blob: file, type: "bitmap" });
+    }
     const url = URL.createObjectURL(file);
     try {
       const img = new Image();
